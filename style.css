@@ -77,3 +77,45 @@ nav .item{
  label{
    cursor: pointer;
  }
+ /* -----------------File-Name-Overlay------------- */
+
+ #overlay{
+   width: 100%;
+   min-height: 100vh ;
+   background: rgba(0, 0, 0, 0.5);
+   position: absolute;
+   top: 0;
+   left: 0;
+   z-index: 5;
+   /* display: none; */
+
+ }
+ .box{
+   margin: 5rem auto;
+   width: 35%;
+   border-radius: .8rem;
+   background: rgb(227, 227, 227);
+   height: 160px;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+ }
+ .box input{
+   min-width: 300px;
+   border: none;
+   color: #5B6C7F;
+   background: #fff;
+   padding: .5rem 1rem;
+   font-size: 20px;
+   border-radius:  8px 0 0 8px;
+   box-shadow: 2px 10px 10px #34343433;
+   outline: none;
+ }
+ 
+ .box span{
+   color: #fff;
+   background: #5B6C7F;
+   border-radius: 0 8px 8px 0;
+   padding: .5rem .8rem;
+   cursor: pointer;
+ }

@@ -57,6 +57,11 @@ function saveFile(){
 
 saveBtn.onclick = saveFile
 
+const fileNameInput = get('#filename')
+ fileNameInput.value = 'file name'
+const downf = ()=>{
+  alert(' ')
+}
 // ------------------Open-file-----------------
 let inputFile = get('#file')
 inputFile.addEventListener("change", function () {
