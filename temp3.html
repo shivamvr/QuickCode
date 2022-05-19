@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Read Text File Tutorial</title>
+  </head>
+  <body>
+    <input type="file"  id="inputFile" />
+    <br />
+    <pre id="output"></pre>
+
+    <script type="text/javascript">
+      document.getElementById("inputFile").addEventListener("change", function () {
+          var file = new FileReader();
+          file.onload = () => {
+            console.log(file.result + "");
+          };
+          file.readAsText(this.files[0]);
+        });
+
+
+    </script>
+  </body>
+</html>

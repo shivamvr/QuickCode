@@ -47,22 +47,28 @@ window.editor.getModel().onDidChangeContent((event) => {saveIt()});
 
 //---------------------Save-as-file----------------------------------
 const saveBtn = get('#save')
-function saveAsFile(sourceText, fileName) {
-  var workElement = document.createElement("a");
-  if ('download' in workElement) {
-      workElement.href = "data:" + 'text/plain' + "charset=utf-8," + escape(sourceText);
-      workElement.setAttribute("download", fileName);
-      document.body.appendChild(workElement);
-      var eventMouse = document.createEvent("MouseEvents");
-      eventMouse.initMouseEvent("click", true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
-      workElement.dispatchEvent(eventMouse);
-      document.body.removeChild(workElement);
-  } else throw 'File saving not supported for this browser';
-}
+
+function saveFile(){
+  let text = editor.getValue();
+  var name = 'myfile.js';
+  blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+  saveAs(blob, name);
+  }
+
+saveBtn.onclick = saveFile
+
+// ------------------Open-file-----------------
+let inputFile = get('#file')
+inputFile.addEventListener("change", function () {
+  var file = new FileReader();
+    file.onload = () => {
+      let text = file.result + ""
+      console.log(text)
+      localStorage.setItem('code',text)
+      window.location.reload()
+    };
+    file.readAsText(this.files[0]);
+});
 
 
-saveBtn.onclick = function(){
-  let code = editor.getValue();
-  saveAsFile(code,'code.js')
-}
 

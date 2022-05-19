@@ -1,4 +1,4 @@
-{
+const theme = { 
 	"$schema": "vscode://schemas/color-theme",
 	"type": "dark",
 	"colors": {
@@ -1191,3 +1191,9 @@
 		}
 	]
 }
+
+const  myTheme = ()=>{
+    return theme
+}
+
+export default myTheme

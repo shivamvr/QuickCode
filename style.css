@@ -41,6 +41,7 @@ nav{
   width: 100%;
   background: rgb(91, 108, 127);
 }
+
 nav .item{
   border: 1px solid #ccc;
   border-radius: 6px;
@@ -50,6 +51,9 @@ nav .item{
   color: #444;
   cursor: pointer;
 }
+
 .item:hover{
   background: rgb(240, 240, 240);
 }
+
+/* ---------------Input-File------------- */
