@@ -16,14 +16,18 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.nls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.js"></script>
     <!---------------------------------------------------->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="stylesheet" href="style.css">
     <script async src="fileSaver.js"> </script>
     <title>QuickEdit</title>
 </head>
 <body >
     <nav>
-        <input type="file" id="file"></input>
-        <div id="save" class="item">save</div>
+        <div class="item">
+            <label for="file"><span class="material-symbols-outlined">file_open</span></label>
+            <input type="file" id="file"></input>
+        </div>
+        <div id="save" class="item"><span class="material-symbols-outlined">file_download</span></div>
         <div class="item">Theme</div>
         <div class="item">lang</div>
     </nav>

@@ -45,15 +45,35 @@ nav{
 nav .item{
   border: 1px solid #ccc;
   border-radius: 6px;
-  padding: 5px 20px;
+  width: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
   margin: 0 1rem;
-  background: #ccc;
+  background: #F1F3F4;
   color: #444;
+  font-size: 90%;
+  overflow: hidden;
   cursor: pointer;
 }
 
 .item:hover{
+  cursor: pointer;
   background: rgb(240, 240, 240);
 }
 
 /* ---------------Input-File------------- */
+ #file{
+   border: solid;
+   height: 30px;
+   position: absolute;
+   z-index: 1;
+   cursor: pointer;
+   transform: translateX(-90px);
+   position: relative;
+   display: none;
+ }
+ label{
+   cursor: pointer;
+ }
