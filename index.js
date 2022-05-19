@@ -49,6 +49,7 @@ let fileName = 'localfile.txt' // getting file name from open file
 //---------------------Handlers---------------------
 const showOverlay = () => {
   get('#overlay').style.display = 'block'
+  fileNameInput.focus()
 }
 const hideOverlay = () => {
   get('#overlay').style.display = 'none'
@@ -102,6 +103,48 @@ inputFile.addEventListener("change", function () {
   };
   file.readAsText(this.files[0]);
 });
+
+//---------------custom-select-dropdown-----------
+
+  
+const select = document.querySelectorAll(".selectBtn");
+const option = document.querySelectorAll(".option");
+let index = 1;
+
+select.forEach((a) => {
+  a.addEventListener("click", (b) => {
+    const next = b.target.nextElementSibling;
+    next.classList.toggle("toggle");
+    next.style.zIndex = index++;
+  });
+});
+
+option.forEach((a) => {
+  a.addEventListener("click", (b) => {
+    b.target.parentElement.classList.remove("toggle");
+    const parent = b.target.closest(".select").children[0];
+    parent.setAttribute("data-type", b.target.getAttribute("data-type"));
+    parent.innerText = b.target.innerText;
+  });
+});
+
+let countA = 1;
+let countB = 1;
+document.querySelector('.selectA').addEventListener('click',()=>{
+   if(countA % 2 == 0){
+      let lang = document.querySelector('#lang').getAttribute("data-type")
+      console.log(lang)
+   }
+  countA++
+})
+document.querySelector('.selectB').addEventListener('click',()=>{
+   if(countB % 2 == 0){
+     let theme = document.querySelector('#theme').getAttribute("data-type")
+     console.log(theme)
+   }
+  countB++
+})
+
 
 
 
