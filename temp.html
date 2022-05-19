@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+		<link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.21.3/min/vs/editor/editor.main.css" />
+	</head>
+	<body>
+		<h2>Monaco Editor Localization Sample</h2>
+		<div id="container" style="width: 800px; height: 600px; border: 1px solid grey"></div>
+		<script>
+			self.require = {
+				paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.21.3/min/vs' },
+				'vs/nls': { availableLanguages: { '*': 'zh-cn' } }
+			};
+		</script>
+		<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.21.3/min/vs/loader.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.21.3/min/vs/editor/editor.main.nls.zh-cn.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.21.3/min/vs/editor/editor.main.js"></script>
+		<script>
+			monaco.editor.create(document.getElementById('container'), {
+				value: ['function x() {', '\tconsole.log("Hello world!");', '}'].join('\n'),
+				language: 'javascript'
+			});
+		</script>
+	</body>
+</html>

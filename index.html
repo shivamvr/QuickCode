@@ -1,0 +1,30 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
+    <!----------------------monaco-editor----------------->
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.css" integrity="sha512-Iv1lj5SbHg+aiqetfjcMB/kk2L4RMsocHvjrBO//Z32HZJLoNy3Y1VfMUMXDigVCfmagjd7zogVnbNBHda4aIQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script> var require = {paths: {'vs': "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs" } };</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/loader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.nls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.js"></script>
+    <!---------------------------------------------------->
+    <link rel="stylesheet" href="style.css">
+    <title>QuickEdit</title>
+</head>
+<body >
+    <nav>
+        <div class="item">open</div>
+        <div class="item">save</div>
+        <div class="item">Theme</div>
+        <div class="item">lang</div>
+    </nav>
+    <pre id="CodeBlock" class="scrollbar"></pre>
+    <script src="index.js"></script>
+</body>
+</html>
