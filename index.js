@@ -1,10 +1,5 @@
 //----------------Theme------------
 
-// fetch('./theme.json')
-// .then(response => {
-//    return response.json();
-// })
-// .then(data => console.log(data));
 
 //   -------------------------------------
 var codeContent = $.trim($("#CodeBlock").text());
@@ -35,44 +30,77 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
 });
 
 
-
-
 //---------------------Save-to-loacalstorage--------------------------
-function saveIt() {
+
+function saveItLocal() {
   let code = editor.getValue();
   localStorage.setItem("code", code);
 }
 
-window.editor.getModel().onDidChangeContent((event) => {saveIt()});
+window.editor.getModel().onDidChangeContent((event) => { saveItLocal() });
 
 //---------------------Save-as-file----------------------------------
-const saveBtn = get('#save')
-
-function saveFile(){
-  let text = editor.getValue();
-  var name = 'myfile.js';
-  blob = new Blob([text], {type: "text/plain;charset=utf-8"});
-  saveAs(blob, name);
-  }
-
-saveBtn.onclick = saveFile
-
 const fileNameInput = get('#filename')
- fileNameInput.value = 'file name'
-const downf = ()=>{
-  alert(' ')
+const overylay = get('#overlay')
+const saveBtn = get('#save')
+const box = get('.box')
+let fileName = 'localfile.txt' // getting file name from open file
+
+//---------------------Handlers---------------------
+const showOverlay = () => {
+  get('#overlay').style.display = 'block'
 }
+const hideOverlay = () => {
+  get('#overlay').style.display = 'none'
+}
+
+function saveFile() {
+  fileName = fileNameInput.value
+  let text = editor.getValue();
+  blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  saveAs(blob, fileName);
+  hideOverlay()
+}
+
+const downf = () => {
+  saveFile()
+}
+
+//-----------------------------------------------------
+
+overylay.onclick = hideOverlay
+saveBtn.onclick = showOverlay
+box.onclick = (e)=>{
+  e. stopPropagation()
+}
+
+let ext = '.js'
+if (!fileName) {
+  fileNameInput.value = 'file_name' + ext
+} else {
+  fileNameInput.value = fileName;
+}
+
+fileNameInput.addEventListener('keypress', (e) => {
+  if (e.key == 'Enter') {
+    saveFile()
+  }
+})
+
+
+
+
 // ------------------Open-file-----------------
 let inputFile = get('#file')
 inputFile.addEventListener("change", function () {
   var file = new FileReader();
-    file.onload = () => {
-      let text = file.result + ""
-      console.log(text)
-      localStorage.setItem('code',text)
-      window.location.reload()
-    };
-    file.readAsText(this.files[0]);
+  file.onload = () => {
+    let text = file.result + ""
+    console.log(text)
+    localStorage.setItem('code', text)
+    window.location.reload()
+  };
+  file.readAsText(this.files[0]);
 });
 
 
