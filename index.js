@@ -10,6 +10,7 @@
 var codeContent = $.trim($("#CodeBlock").text());
 $("#CodeBlock").html("");
 let savedCode = localStorage.getItem("code");
+
 var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
   value: savedCode,
   language: "javascript",
@@ -33,15 +34,35 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
   },
 });
 
-let codeBlock = get("#CodeBlock");
 
+
+
+//---------------------Save-to-loacalstorage--------------------------
 function saveIt() {
   let code = editor.getValue();
   localStorage.setItem("code", code);
-  let saveCode = localStorage.getItem("code");
+}
+
+window.editor.getModel().onDidChangeContent((event) => {saveIt()});
+
+//---------------------Save-as-file----------------------------------
+const saveBtn = get('#save')
+function saveAsFile(sourceText, fileName) {
+  var workElement = document.createElement("a");
+  if ('download' in workElement) {
+      workElement.href = "data:" + 'text/plain' + "charset=utf-8," + escape(sourceText);
+      workElement.setAttribute("download", fileName);
+      document.body.appendChild(workElement);
+      var eventMouse = document.createEvent("MouseEvents");
+      eventMouse.initMouseEvent("click", true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+      workElement.dispatchEvent(eventMouse);
+      document.body.removeChild(workElement);
+  } else throw 'File saving not supported for this browser';
 }
 
 
-window.editor.getModel().onDidChangeContent((event) => {
-    saveIt()
-  });
+saveBtn.onclick = function(){
+  let code = editor.getValue();
+  saveAsFile(code,'code.js')
+}
+
