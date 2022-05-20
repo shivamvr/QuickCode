@@ -18,6 +18,7 @@ if(!quickEdit){
 gets('body').style.background = quickEdit.body
 gets('#theme').innerText = quickEdit.theme
 gets('#lang').innerText = quickEdit.lang
+console.log(quickEdit.lang)
 
 var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
   value: savedCode,
@@ -141,33 +142,48 @@ option.forEach((a) => {
 let countA = 1;
 let countB = 1;
 
+// ------------------------------------------------------------
+
 const setLang=(ln)=>{
   monaco.editor.setModelLanguage(editor.getModel(),ln)
 }
-
-document.querySelector('.selectA').addEventListener('click',()=>{
-   if(countA % 2 == 0){
-      let lang = document.querySelector('#lang').getAttribute("data-type")
-      if(lang == 'html'){ 
-        setLang('html')
-      }else if(lang = 'js'){
-        setLang('javascript')
-      }else if(lang = 'css'){
-        setLang('css')
-      }else if(lang == 'Plaintext'){
-        setLang('plaintext')
-      }else if(lang == 'json'){
-        setLang('json')
-      }
-   }
-  countA++
-})
 
 function saveTheme(t,b){
   quickEdit.theme = t
   quickEdit.body = b
   localStorage.setItem('quickEdit',JSON.stringify(quickEdit))
 }
+
+function saveLang(s){
+  quickEdit.lang = s
+  console.log(quickEdit)
+  localStorage.setItem('quickEdit',JSON.stringify(quickEdit))
+}
+
+document.querySelector('.selectA').addEventListener('click',()=>{
+   if(countA % 2 == 0){
+      let lang = document.querySelector('#lang').getAttribute("data-type")
+      console.log(lang)
+      if(lang == 'html'){ 
+        saveLang('html')
+        setLang('html')
+      }else if(lang == 'javascript'){
+       saveLang('javascript')
+        setLang('javascript')
+      }else if(lang == 'css'){
+       saveLang('css')
+        setLang('css')
+      }else if(lang == 'plaintext'){
+       saveLang('plaintext')
+        setLang('plaintext')
+      }else if(lang == 'json'){
+       saveLang('json')
+        setLang('json')
+      }
+   }
+  countA++
+})
+
 
 document.querySelector('.selectB').addEventListener('click',()=>{
    if(countB % 2 == 0){

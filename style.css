@@ -131,7 +131,7 @@ nav .item{
  .select {
   position: relative;
   margin-right: 1rem;
-  width: 100px;
+  width: 110px;
   font-size: 75%;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
