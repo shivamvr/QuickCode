@@ -1,15 +1,15 @@
-//----------------Theme------------
 
 
-//   -------------------------------------
+
 var codeContent = $.trim($("#CodeBlock").text());
 $("#CodeBlock").html("");
 let savedCode = localStorage.getItem("code");
 
 var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
   value: savedCode,
-  language: "javascript",
-  theme: "vs",
+  language: 'javascript',
+  theme: "vs-dark",
+  // theme: "vs",
   lineNumber: "on",
   glyphmargin: false,
   vertical: "auto",
@@ -34,8 +34,10 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
 
 function saveItLocal() {
   let code = editor.getValue();
+  console.log(editor)
   localStorage.setItem("code", code);
 }
+
 
 window.editor.getModel().onDidChangeContent((event) => { saveItLocal() });
 
@@ -89,8 +91,6 @@ fileNameInput.addEventListener('keypress', (e) => {
 })
 
 
-
-
 // ------------------Open-file-----------------
 let inputFile = get('#file')
 inputFile.addEventListener("change", function () {
@@ -133,18 +133,34 @@ let countB = 1;
 document.querySelector('.selectA').addEventListener('click',()=>{
    if(countA % 2 == 0){
       let lang = document.querySelector('#lang').getAttribute("data-type")
-      console.log(lang)
+      if(lang == 'html'){ 
+        monaco.editor.setModelLanguage(editor.getModel(), "HTML")
+      }else if(lang = 'js'){
+        monaco.editor.setModelLanguage(editor.getModel(), "javascript")
+      }else if(lang = 'css'){
+      }else if(lang = 'Plain Text'){
+      }
    }
   countA++
 })
 document.querySelector('.selectB').addEventListener('click',()=>{
    if(countB % 2 == 0){
      let theme = document.querySelector('#theme').getAttribute("data-type")
-     console.log(theme)
+     if(theme == 'theme1'){ 
+       monaco.editor.setTheme('vs')
+       get('body').style.background = '#fff'
+     }else if(theme = 'theme2'){
+      monaco.editor.setTheme('vs-dark')
+      get('body').style.background = '#1E1E1E'
+     }
    }
   countB++
 })
 
-
-
+import myTheme from './theme.mjs'
+ let darkTheme = myTheme()
+// var themeData = MonacoThemes.parseTmTheme(myTheme());
+// console.log(themeData)
+// monaco.editor.defineTheme('mytheme', darkTheme);
+// monaco.editor.setTheme('vs');
 
