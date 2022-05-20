@@ -27,12 +27,14 @@
             <label for="file"><span class="material-symbols-outlined">file_open</span></label>
             <input type="file" id="file"></input>
         </div>
-        <div id="save" class="item"><span class="material-symbols-outlined">file_download</span></div>
 
+        <div id="save" class="item"><span class="material-symbols-outlined">file_download</span></div>
+        <div id="save" class="item" onclick="openWin()"><span class="material-symbols-outlined">open_in_new</span></div>
         <div class="">
         <div class="select selectA">
             <div id="lang" class="selectBtn" data-type="html">HTML</div>
             <div class="selectDropdown">
+              <div class="option" data-type="text">Plaintext</div>
               <div class="option" data-type="html">HTML</div>
               <div class="option" data-type="css">CSS</div>
               <div class="option" data-type="js">Js</div>
@@ -43,10 +45,10 @@
           
         <div class="">
         <div  class="select selectB">
-            <div id="theme" class="selectBtn" data-type="Theme 1">VS</div>
+            <div id="theme" class="selectBtn" data-type="theme1">Lite</div>
             <div class="selectDropdown"> 
-              <div class="option" data-type="theme1">VS</div>
-              <div class="option" data-type="theme2">VS Dark</div>
+              <div class="option" data-type="theme1">Lite</div>
+              <div class="option" data-type="theme2">Dark</div>
               <div class="option" data-type="theme3">Theme 3</div>
             </div>
         </div>
@@ -61,6 +63,6 @@
             <span onclick="downf()" class="material-symbols-outlined">file_download</span>
         </div>
     </div>
-    <script type="module" src="index.js"></script>
+    <script  src="index.js"></script>
 </body>
 </html>
