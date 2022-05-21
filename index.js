@@ -5,25 +5,29 @@ const gets = (selector) => {
 const getsAll = (selector) => {
   return document.querySelectorAll(selector)
 }
-//------------------------------------------
+
+//-----------------Define-Theme------------------
+let themeLoad = 0
+// -----------------------------------------------
+
 var codeContent = $.trim($("#CodeBlock").text());
 $("#CodeBlock").html("");
+
 let savedCode = localStorage.getItem("code");
 let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
-if(!quickEdit){
-  localStorage.setItem('quickEdit',JSON.stringify({theme:'vs', lang:'html',body: '#fff'}))
+if (!quickEdit) {
+  localStorage.setItem('quickEdit', JSON.stringify({ theme: 'vs', lang: 'html' }))
 }
 
-gets('body').style.background = quickEdit.body
-gets('#theme').innerText = quickEdit.theme
 gets('#lang').innerText = quickEdit.lang
-console.log(quickEdit.lang)
+gets('#theme').innerText = quickEdit.theme
+
+settheme(quickEdit.theme)
 
 var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
   value: savedCode,
   language: quickEdit.lang,
-  theme: quickEdit.theme,
   lineNumber: "on",
   glyphmargin: false,
   vertical: "auto",
@@ -42,7 +46,15 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
     horizontalScrollbarSize: 17,
   },
 });
+let n = 0
 
+// let setLoadedTheme = setInterval(()=>{
+//   console.log(n++)
+//   if(themeLoad === 3){
+//    monaco.editor.setTheme(quickEdit.theme)
+//    clearInterval(setLoadedTheme)
+//   }
+// },10)
 //---------------------Save-to-loacalstorage--------------------------
 
 function saveItLocal() {
@@ -85,8 +97,8 @@ const downf = () => {
 
 overylay.onclick = hideOverlay
 saveBtn.onclick = showOverlay
-box.onclick = (e)=>{
-  e. stopPropagation()
+box.onclick = (e) => {
+  e.stopPropagation()
 }
 
 let ext = '.js'
@@ -109,7 +121,6 @@ inputFile.addEventListener("change", function () {
   var file = new FileReader();
   file.onload = () => {
     let text = file.result + ""
-    console.log(text)
     localStorage.setItem('code', text)
     window.location.reload()
   };
@@ -144,77 +155,85 @@ let countB = 1;
 
 // ------------------------------------------------------------
 
-const setLang=(ln)=>{
-  monaco.editor.setModelLanguage(editor.getModel(),ln)
+const setLang = (ln) => {
+  quickEdit.lang = ln
+  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  monaco.editor.setModelLanguage(editor.getModel(), ln)
 }
 
-function saveTheme(t,b){
-  quickEdit.theme = t
-  quickEdit.body = b
-  localStorage.setItem('quickEdit',JSON.stringify(quickEdit))
-}
 
-function saveLang(s){
-  quickEdit.lang = s
-  console.log(quickEdit)
-  localStorage.setItem('quickEdit',JSON.stringify(quickEdit))
-}
-
-document.querySelector('.selectA').addEventListener('click',()=>{
-   if(countA % 2 == 0){
-      let lang = document.querySelector('#lang').getAttribute("data-type")
-      console.log(lang)
-      if(lang == 'html'){ 
-        saveLang('html')
-        setLang('html')
-      }else if(lang == 'javascript'){
-       saveLang('javascript')
-        setLang('javascript')
-      }else if(lang == 'css'){
-       saveLang('css')
-        setLang('css')
-      }else if(lang == 'plaintext'){
-       saveLang('plaintext')
-        setLang('plaintext')
-      }else if(lang == 'json'){
-       saveLang('json')
-        setLang('json')
-      }
-   }
+document.querySelector('.selectA').addEventListener('click', () => {
+  if (countA % 2 == 0) {
+    let lang = document.querySelector('#lang').getAttribute("data-type")
+    if (lang == 'html') {
+      setLang('html')
+    } else if (lang == 'javascript') {
+      setLang('javascript')
+    } else if (lang == 'css') {
+      setLang('css')
+    } else if (lang == 'plaintext') {
+      setLang('plaintext')
+    } else if (lang == 'json') {
+      setLang('json')
+    }
+  }
   countA++
 })
 
-
-document.querySelector('.selectB').addEventListener('click',()=>{
-   if(countB % 2 == 0){
-     let theme = document.querySelector('#theme').getAttribute("data-type")
-     if(theme == 'theme1'){
-       saveTheme('vs','#fff')
-       monaco.editor.setTheme('vs')
-       gets('body').style.background = '#fff'
-     }else if(theme = 'theme2'){
-      saveTheme('vs-dark','#1E1E1E')
-      monaco.editor.setTheme('vs-dark')
-      gets('body').style.background = '#1E1E1E'
-     }
-   }
+document.querySelector('.selectB').addEventListener('click', () => {
+  if (countB % 2 == 0) {
+    let theme = document.querySelector('#theme').getAttribute("data-type")
+    if (theme == 'vs') {
+      settheme('vs')
+    } else if (theme == 'vs-dark') {
+      settheme('vs-dark')
+    } else if (theme == 'monokai') {
+      settheme('monokai')
+    } else if (theme == 'cobalt2') {
+      settheme('cobalt2')
+    } else if (theme == 'dracula') {
+      settheme('dracula')
+    }
+  }
   countB++
 })
-
-// import myTheme from './theme.mjs'
-// console.log(myTheme)
-//  let darkTheme = myTheme()
-// var themeData = MonacoThemes.parseTmTheme(myTheme());
-// console.log(themeData)
-// monaco.editor.defineTheme('mytheme', darkTheme);
 
 // ------------------Open-Code-New-Tab-------------
 
 function openWin() {
- let savedCode = localStorage.getItem("code");
+  let savedCode = localStorage.getItem("code");
   var myWindow = window.open();
   var doc = myWindow.document;
   doc.open();
   doc.write(savedCode);
   doc.close();
+}
+
+//---------------------Themes--------------------
+function settheme(themeName) {
+  quickEdit.theme = themeName
+  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+
+  if (themeName == 'vs' || themeName == 'vs-dark') {
+    monaco.editor.setTheme(themeName)
+    return
   }
+
+  fetch("./" + themeName + ".json")
+    .then(response => {
+      return response.json();
+    })
+    .then((data) => {
+      monaco.editor.defineTheme(themeName, data)
+      monaco.editor.setTheme(themeName)
+    })
+}
+
+
+
+
+
+
+
+
+

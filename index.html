@@ -10,6 +10,7 @@
     <!------------------------------------------------------------->
     <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
     <!----------------------monaco-editor----------------->
+    <script type="text/javascript" src="https://unpkg.com/monaco-themes/dist/monaco-themes.js"></script>
     <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.css" integrity="sha512-Iv1lj5SbHg+aiqetfjcMB/kk2L4RMsocHvjrBO//Z32HZJLoNy3Y1VfMUMXDigVCfmagjd7zogVnbNBHda4aIQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script> var require = {paths: {'vs': "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs" } };</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/loader.js"></script>
@@ -29,7 +30,7 @@
         </div>
 
         <div id="save" class="item"><span class="material-symbols-outlined">file_download</span></div>
-        <div id="save" class="item" onclick="openWin()"><span class="material-symbols-outlined">open_in_new</span></div>
+        <div id="save" class="item" onclick="openWin()"><span class="material-symbols-outlined">code</span></div>
         <div class="">
 
         <div class="select selectA">
@@ -48,9 +49,11 @@
         <div  class="select selectB">
             <div id="theme" class="selectBtn" data-type="theme1">vs</div>
             <div class="selectDropdown"> 
-              <div class="option" data-type="theme1">vs</div>
-              <div class="option" data-type="theme2">vs-dark</div>
-              <div class="option" data-type="theme3">Theme 3</div>
+              <div class="option" data-type="vs">vs</div>
+              <div class="option" data-type="vs-dark">vs-dark</div>
+              <div class="option" data-type="cobalt2">cobalt2</div>
+              <div class="option" data-type="dracula">dracula</div>
+              <div class="option" data-type="monokai">monokai</div>
             </div>
         </div>
         </div>
