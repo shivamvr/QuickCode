@@ -6,9 +6,6 @@ const getsAll = (selector) => {
   return document.querySelectorAll(selector)
 }
 
-//-----------------Define-Theme------------------
-let themeLoad = 0
-// -----------------------------------------------
 
 var codeContent = $.trim($("#CodeBlock").text());
 $("#CodeBlock").html("");
@@ -22,6 +19,16 @@ if (!quickEdit) {
 
 gets('#lang').innerText = quickEdit.lang
 gets('#theme').innerText = quickEdit.theme
+
+function displayRun(){
+ let run =  gets('#openwin')
+if(quickEdit.lang == 'html' || quickEdit.lang=='javascript' || quickEdit.lang=='plaintext'){
+  run.style.display = 'block'
+}else{
+  run.style.display = 'none'
+}
+}
+displayRun()
 
 settheme(quickEdit.theme)
 
@@ -46,15 +53,7 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
     horizontalScrollbarSize: 17,
   },
 });
-let n = 0
 
-// let setLoadedTheme = setInterval(()=>{
-//   console.log(n++)
-//   if(themeLoad === 3){
-//    monaco.editor.setTheme(quickEdit.theme)
-//    clearInterval(setLoadedTheme)
-//   }
-// },10)
 //---------------------Save-to-loacalstorage--------------------------
 
 function saveItLocal() {
@@ -70,11 +69,13 @@ const fileNameInput = gets('#filename')
 const overylay = gets('#overlay')
 const saveBtn = gets('#save')
 const box = gets('.box')
-let fileName = 'localfile.txt' // getting file name from open file
-
+let fileName = false
 //---------------------Handlers---------------------
 const showOverlay = () => {
   gets('#overlay').style.display = 'block'
+  if (!fileName) {
+    fileNameInput.value = quickEdit.lang + 'file.' + ext
+  }
   fileNameInput.focus()
 }
 const hideOverlay = () => {
@@ -82,10 +83,10 @@ const hideOverlay = () => {
 }
 
 function saveFile() {
-  fileName = fileNameInput.value
+  let fname = fileNameInput.value
   let text = editor.getValue();
   blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-  saveAs(blob, fileName);
+  saveAs(blob, fname);
   hideOverlay()
 }
 
@@ -93,7 +94,15 @@ const downf = () => {
   saveFile()
 }
 
-//-----------------------------------------------------
+//------------------------file-name-popup---------------------------
+
+let fileExt = {
+  js: 'javascript',
+  txt: 'plaintext',
+  json: 'json',
+  html: 'html',
+  css: 'css',
+}
 
 overylay.onclick = hideOverlay
 saveBtn.onclick = showOverlay
@@ -101,11 +110,11 @@ box.onclick = (e) => {
   e.stopPropagation()
 }
 
-let ext = '.js'
-if (!fileName) {
-  fileNameInput.value = 'file_name' + ext
-} else {
-  fileNameInput.value = fileName;
+let ext = Object.keys(fileExt).find(key => fileExt[key] === quickEdit.lang);
+
+
+if (!ext) {
+  ext = 'txt'
 }
 
 fileNameInput.addEventListener('keypress', (e) => {
@@ -116,6 +125,15 @@ fileNameInput.addEventListener('keypress', (e) => {
 
 
 // ------------------Open-file-----------------
+
+function getExtension(filename) {
+  let newName = filename.split('.').pop()
+  if (fileExt[newName]) {
+    return newName
+  }
+  return 'txt'
+}
+
 let inputFile = gets('#file')
 inputFile.addEventListener("change", function () {
   var file = new FileReader();
@@ -124,13 +142,21 @@ inputFile.addEventListener("change", function () {
     localStorage.setItem('code', text)
     window.location.reload()
   };
+
+  fileName = this.files[0].name
+  fileNameInput.value = fileName
+  let fExt = getExtension(fileName)
+  setLang(fileExt[fExt])
   file.readAsText(this.files[0]);
 });
 
+
+
+
 //---------------custom-select-dropdown-----------
 
-const select = document.querySelectorAll(".selectBtn");
-const option = document.querySelectorAll(".option");
+const select = getsAll(".selectBtn");
+const option = getsAll(".option");
 let index = 1;
 
 select.forEach((a) => {
@@ -159,12 +185,17 @@ const setLang = (ln) => {
   quickEdit.lang = ln
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   monaco.editor.setModelLanguage(editor.getModel(), ln)
+  ext = Object.keys(fileExt).find(key => fileExt[key] === quickEdit.lang);
+  if (!fileName) {
+    fileNameInput.value = quickEdit.lang + 'file.' + ext
+  }
+  displayRun()
 }
 
 
-document.querySelector('.selectA').addEventListener('click', () => {
+gets('.selectA').addEventListener('click', () => {
   if (countA % 2 == 0) {
-    let lang = document.querySelector('#lang').getAttribute("data-type")
+    let lang = gets('#lang').getAttribute("data-type")
     if (lang == 'html') {
       setLang('html')
     } else if (lang == 'javascript') {
@@ -180,9 +211,9 @@ document.querySelector('.selectA').addEventListener('click', () => {
   countA++
 })
 
-document.querySelector('.selectB').addEventListener('click', () => {
+gets('.selectB').addEventListener('click', () => {
   if (countB % 2 == 0) {
-    let theme = document.querySelector('#theme').getAttribute("data-type")
+    let theme = gets('#theme').getAttribute("data-type")
     if (theme == 'vs') {
       settheme('vs')
     } else if (theme == 'vs-dark') {
@@ -205,6 +236,16 @@ function openWin() {
   var myWindow = window.open();
   var doc = myWindow.document;
   doc.open();
+  if(quickEdit.lang === 'javascript'){
+    savedCode = `<script>${savedCode}</script>`
+    console.log(savedCode)
+  }else if(quickEdit.lang === 'plaintext'){
+    savedCode = `<pre style="margin: .5rem">${savedCode}</pre>`
+    console.log(savedCode)
+  }else if(quickEdit.lang === 'html'){
+    savedCode = `<div>${savedCode}</div>`
+    console.log(savedCode)
+  }
   doc.write(savedCode);
   doc.close();
 }

@@ -7,6 +7,7 @@
  *,body,p,div,span,h1,h2,h3,h4{
    font-family: 'Cascadia Code', sans-serif;
 }
+
 body{
   width: 100%;
   height: 500px;
@@ -202,4 +203,7 @@ nav .item{
   visibility: visible;
   -webkit-transform: scale(1, 1);
   transform: scale(1, 1);
+}
+#openwin{
+  display: none;
 }
