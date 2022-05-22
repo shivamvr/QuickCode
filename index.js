@@ -279,5 +279,62 @@ function settheme(themeName) {
     })
 }
 
+//-------------Hide-show-and-align-navbar-------------------
+
+let hidebtn = gets('#hidenav')
+let showbtn = gets('#shownav')
+let alignbtn = gets('#alignbtn')
+function hidenav(){
+  gets('nav').style.display = 'flex'
+  showbtn.style.display = 'block'
+  hidebtn.style.display = 'none'
+}
+function shownav(){
+  gets('nav').style.display = 'none'
+  showbtn.style.display = 'none'
+  hidebtn.style.display = 'block'
+  gets('#CodeBlock').style.height = '99.7vh'
+}
+
+let aligntop = true
+function alignNave(){
+  let nav =  gets('nav')
+  let navItems =  getsAll('.item')
+  if(aligntop){
+   alignbtn.style.transform = 'rotate(0deg)'
+   nav.style.height = '1000px'
+   nav.style.width = '4%'
+   nav.style.flexDirection = 'column';
+   nav.style.justifyContent = 'start';
+   nav.style.paddingTop = '4rem';
+   nav.style.paddingRight = 0
+   gets('body').style.flexDirection = 'row'
+    gets('#CodeBlock').style.width = '100%'
+    getsAll('.selectBtn').forEach(e=>e.style.display='none')
+     navItems.forEach(e=>e.style.marginBottom='1rem')
+     navItems.forEach(e=>e.style.marginRight=0)
+    aligntop = false
+    return
+  }
+  getsAll('.selectBtn').forEach(e=>e.style.display='flex')
+  aligntop = true
+  alignbtn.style.transform = 'rotate(-90deg)'
+  nav.style.height = '40px'
+  nav.style.width = '100%'
+  nav.style.flexDirection = 'row';
+  nav.style.justifyContent = 'flex-end';
+  nav.style.paddingTop = '0';
+  nav.style.paddingRight = '2rem'
+  gets('body').style.flexDirection = 'column'
+   gets('#CodeBlock').style.width = '100%'
+   getsAll('.selectBtn').forEach(e=>e.style.display='flex')
+    navItems.forEach(e=>e.style.marginBottom='0')
+    navItems.forEach(e=>e.style.marginRight= '1rem')
+}
+
+
+alignbtn.addEventListener('click',alignNave)
+hidebtn.addEventListener('click',hidenav)
+showbtn.addEventListener('click',shownav)
 
 

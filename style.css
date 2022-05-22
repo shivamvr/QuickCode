@@ -10,16 +10,41 @@
 
 body{
   width: 100%;
-  height: 500px;
   overflow: hidden;
   background: #3a6a8b;
+  display: flex;
+  flex-direction: column;
 }
 
 #CodeBlock{
-  width: 99.6%;
+  width: 100%;
   min-height: 99vh;
 }
-
+.icon{
+  width: 50px;
+  height: 50px;
+  fill: #ffff;
+}
+#hidenav{
+  position: absolute;
+  top: 4px;
+  color: #4ec0d0;
+  left: 4px;
+  display: none;
+  cursor: pointer;
+  font-size: 20px;
+}
+#shownav{
+  cursor: pointer;
+  font-size: 20px;
+  position: absolute;
+  top: 7px;
+  color: #4ec0d0;
+  left: 12px;
+}
+#alignbtn{
+  transform: rotate(-90deg);
+}
 /* --------------------scroll-bar------------ */
 /* Make horizontal scrollbar, decorations overview ruler and vertical scrollbar arrows opaque */
 .monaco-editor .monaco-scrollable-element .scrollbar.horizontal,
@@ -40,7 +65,6 @@ nav{
   align-items: center;
   justify-content: flex-end;
   height: 40px;
-  margin: 0 auto;
   width: 100%;
   background: rgb(0, 0, 0);
   background-image: linear-gradient(to right,  #2FA7B6, #2F2873);
@@ -51,7 +75,7 @@ nav{
 
 nav .item{
   border-radius: 3px;
-  width: fit-content;
+  width: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
