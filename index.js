@@ -106,6 +106,7 @@ let fileExt = {
 
 overylay.onclick = hideOverlay
 saveBtn.onclick = showOverlay
+
 box.onclick = (e) => {
   e.stopPropagation()
 }
@@ -123,6 +124,14 @@ fileNameInput.addEventListener('keypress', (e) => {
   }
 })
 
+document.addEventListener("keydown", (e)=> {
+  let key = e.which
+  let ctrl = e.ctrlKey
+  let shift = e.shiftKey
+  if(key=='83'&&ctrl&&shift){
+    showOverlay()
+  }
+})
 
 // ------------------Open-file-----------------
 
@@ -269,12 +278,6 @@ function settheme(themeName) {
       monaco.editor.setTheme(themeName)
     })
 }
-
-
-
-
-
-
 
 
 
