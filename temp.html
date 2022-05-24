@@ -7,8 +7,39 @@
     <title>Document</title>
   </head>
   <body>
-    <button style="padding: 50px;" >open</button>
-    <script src="temp.js">
-  </script>
+    <div id="root">
+      <!-- code from local storage -->
+
+    </div>
+      
+    <script id="myscript"></script>
+    <script>
+
+      let code = localStorage.getItem("code");
+      let root = document.querySelector("#root");
+      root.innerHTML = code;
+
+      window.onload = () => {
+        let myScript = get("#myscript");
+        let body = get("body");
+        let data = get(`#root>script`);
+        if (data) {
+          myScript.innerHTML = data.innerHTML;
+        }
+      };
+
+      window.addEventListener("storage", () => {
+        let code = localStorage.getItem("code");
+        let root = document.querySelector("#root");
+        root.innerHTML = code
+        let  script = get(`#root>script`);
+        let myScript = get("#myscript");
+
+          if (script.innerHTML != myScript.innerHTML) {
+            window.location.reload();
+          }
+      });
+
+    </script>
   </body>
 </html>

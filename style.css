@@ -10,15 +10,18 @@
 
 body{
   width: 100%;
-  overflow: hidden;
+  /* overflow: hidden; */
   background: #3a6a8b;
   display: flex;
   flex-direction: column;
 }
 
-#CodeBlock{
+#CodeBlock,#cssEditor{
   width: 100%;
   min-height: 99vh;
+}
+#cssEditor{
+  margin-top: 3rem;
 }
 .icon{
   width: 50px;
@@ -230,4 +233,21 @@ nav .item{
 }
 #openwin{
   display: none;
+}
+
+/* --------------------Tabs----------------- */
+.tabs{
+  width: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tab{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 30px;
+  background: #cccc;
+  margin: 0 5px;
 }

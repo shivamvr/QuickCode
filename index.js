@@ -1,4 +1,6 @@
 //------------template-code-------------
+emmetMonaco.emmetHTML(monaco)
+
 const gets = (selector) => {
   return document.querySelector(selector)
 }
@@ -241,6 +243,10 @@ gets('.selectB').addEventListener('click', () => {
 // ------------------Open-Code-New-Tab-------------
 
 function openWin() {
+  if(quickEdit.lang === 'html'){
+    window.open("./temp.html",'_blank') 
+    return
+  }
   let savedCode = localStorage.getItem("code");
   var myWindow = window.open();
   var doc = myWindow.document;
@@ -250,9 +256,6 @@ function openWin() {
     console.log(savedCode)
   }else if(quickEdit.lang === 'plaintext'){
     savedCode = `<pre style="margin: .5rem">${savedCode}</pre>`
-    console.log(savedCode)
-  }else if(quickEdit.lang === 'html'){
-    savedCode = `<div>${savedCode}</div>`
     console.log(savedCode)
   }
   doc.write(savedCode);
@@ -293,7 +296,6 @@ function shownav(){
   gets('nav').style.display = 'none'
   showbtn.style.display = 'none'
   hidebtn.style.display = 'block'
-  gets('#CodeBlock').style.height = '99.7vh'
 }
 
 let aligntop = true
@@ -304,6 +306,7 @@ function alignNave(){
    alignbtn.style.transform = 'rotate(0deg)'
    nav.style.height = '1000px'
    nav.style.width = '4%'
+   nav.style.minWidth = '40px'
    nav.style.flexDirection = 'column';
    nav.style.justifyContent = 'start';
    nav.style.paddingTop = '4rem';
@@ -331,7 +334,6 @@ function alignNave(){
     navItems.forEach(e=>e.style.marginBottom='0')
     navItems.forEach(e=>e.style.marginRight= '1rem')
 }
-
 
 alignbtn.addEventListener('click',alignNave)
 hidebtn.addEventListener('click',hidenav)
