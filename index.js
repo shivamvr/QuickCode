@@ -21,6 +21,9 @@ if (!quickEdit) {
 
 gets('#lang').innerText = quickEdit.lang
 gets('#theme').innerText = quickEdit.theme
+if(quickEdit.lang==='html'){
+  gets('.tabs').style.display = 'flex'
+}
 
 function displayRun(){
  let run =  gets('#openwin')
@@ -199,6 +202,12 @@ const setLang = (ln) => {
   ext = Object.keys(fileExt).find(key => fileExt[key] === quickEdit.lang);
   if (!fileName) {
     fileNameInput.value = 'file.' + ext
+  }
+  let tabs =  gets('.tabs')
+  if(quickEdit.lang==='html'){
+   tabs.style.display = 'flex'
+  }else{
+    tabs.style.display = 'none'
   }
   displayRun()
 }
