@@ -349,3 +349,34 @@ hidebtn.addEventListener('click',hidenav)
 showbtn.addEventListener('click',shownav)
 
 
+// ---------------tabs----------------
+
+let tab = getsAll('.tab')
+tab.forEach((e)=>{
+  e.addEventListener('click',makeActive)
+})
+
+function makeActive(e){
+  console.log(e.target.id)
+let jsTab = gets('#js')
+let cssTab = gets('#css')
+let mainTab = gets('#main')
+
+  if(e.target.id==='main'){
+    console.log('this is main')
+    jsTab.classList.remove('active-tab')
+    cssTab.classList.remove('active-tab')
+    mainTab.classList.add('active-tab')
+  }else if(e.target.id==='css'){
+    console.log('this is css')
+    mainTab.classList.remove('active-tab')
+    jsTab.classList.remove('active-tab')
+    cssTab.classList.add('active-tab')
+  }else{
+    console.log('this is js')
+    cssTab.classList.remove('active-tab')
+    mainTab.classList.remove('active-tab')
+    jsTab.classList.add('active-tab')
+  }
+
+}

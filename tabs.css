@@ -68,8 +68,8 @@ input[type="checkbox"]:checked::before {
     width: fit-content;
     height: 90%;
     margin: auto 0;
+    pointer-events: none;
 }
-
 
 #main {
     text-align: center;
@@ -81,6 +81,9 @@ input[type="checkbox"]:checked::before {
     border-bottom: 1.5px solid #3FCEE1;
   background: linear-gradient(to right, rgba(255, 255, 255, 0.333), rgba(0, 200, 200, 0.3));
   
+}
+.tab:active{
+    opacity: .5;
 }
 .tab:hover{
     border-bottom: 1px solid #3FCEE1;

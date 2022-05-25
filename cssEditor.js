@@ -1,7 +1,6 @@
 //------------template-css-------------
 // emmetMonaco.emmetHTML(monaco)
 
-
 var cssContent = $.trim($("#cssEditor").text());
 $("#cssEditor").html("");
 

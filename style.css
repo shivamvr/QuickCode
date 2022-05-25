@@ -16,7 +16,7 @@ body{
   flex-direction: column;
 }
 
-#CodeBlock,#cssEditor{
+#CodeBlock,#cssEditor,#jsEditor{
   width: 100%;
   min-height: 99vh;
 }
