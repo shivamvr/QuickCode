@@ -9,20 +9,24 @@
   <body>
     <div id="root">
       <!-- code from local storage -->
-
     </div>
-      
+
     <script id="myscript"></script>
     <script>
-
+      const gets = (selector) => {
+        return document.querySelector(selector);
+      };
+      const getsAll = (selector) => {
+        return document.querySelectorAll(selector);
+      };
       let code = localStorage.getItem("code");
       let root = document.querySelector("#root");
       root.innerHTML = code;
 
       window.onload = () => {
-        let myScript = get("#myscript");
-        let body = get("body");
-        let data = get(`#root>script`);
+        let myScript = gets("#myscript");
+        let body = gets("body");
+        let data = gets(`#root>script`);
         if (data) {
           myScript.innerHTML = data.innerHTML;
         }
@@ -31,15 +35,15 @@
       window.addEventListener("storage", () => {
         let code = localStorage.getItem("code");
         let root = document.querySelector("#root");
-        root.innerHTML = code
-        let  script = get(`#root>script`);
-        let myScript = get("#myscript");
-
-          if (script.innerHTML != myScript.innerHTML) {
-            window.location.reload();
-          }
+        root.innerHTML = code;
+        let script = gets(`#root>script`);
+        let myScript = gets("#myscript");
+        if (script) {
+        if (script.innerHTML != myScript.innerHTML) {
+          window.location.reload();
+        }
+        }
       });
-
     </script>
   </body>
 </html>

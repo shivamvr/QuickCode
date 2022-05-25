@@ -198,7 +198,7 @@ const setLang = (ln) => {
   monaco.editor.setModelLanguage(editor.getModel(), ln)
   ext = Object.keys(fileExt).find(key => fileExt[key] === quickEdit.lang);
   if (!fileName) {
-    fileNameInput.value = quickEdit.lang + 'file.' + ext
+    fileNameInput.value = 'file.' + ext
   }
   displayRun()
 }
@@ -244,7 +244,7 @@ gets('.selectB').addEventListener('click', () => {
 
 function openWin() {
   if(quickEdit.lang === 'html'){
-    window.open("./temp.html",'_blank') 
+    window.open("./app.html",'_blank') 
     return
   }
   let savedCode = localStorage.getItem("code");
@@ -255,7 +255,7 @@ function openWin() {
     savedCode = `<script>${savedCode}</script>`
     console.log(savedCode)
   }else if(quickEdit.lang === 'plaintext'){
-    savedCode = `<pre style="margin: .5rem">${savedCode}</pre>`
+    savedCode = `<pre style="margin: .5rem">${savedCode.replaceAll('<','&lt').replaceAll('>','&gt')}</pre>`
     console.log(savedCode)
   }
   doc.write(savedCode);

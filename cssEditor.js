@@ -35,10 +35,5 @@ var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
 
 //---------------------Save-to-loacalstorage--------------------------
 
-function saveItLocal() {
-  let css = cssEditor.getValue();
-  localStorage.setItem("css", css);
-}
 
 
-window.editor.getModel().onDidChangeContent((event) => { saveItLocal() });
