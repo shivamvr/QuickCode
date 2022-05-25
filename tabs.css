@@ -70,7 +70,6 @@ input[type="checkbox"]:checked::before {
     margin: auto 0;
 }
 
-.tab>div {}
 
 #main {
     text-align: center;
