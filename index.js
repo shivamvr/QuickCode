@@ -21,9 +21,11 @@ if (!quickEdit) {
 
 gets('#lang').innerText = quickEdit.lang
 gets('#theme').innerText = quickEdit.theme
+
 if (quickEdit.lang === 'html') {
   gets('.tabs').style.display = 'flex'
-
+  console.log('local: ', quickEdit.tab)
+  makeActive(quickEdit.tab)
 }
 
 function displayRun() {
@@ -63,13 +65,14 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
 //---------------------Save-to-loacalstorage--------------------------
 
 function saveItLocal(call) {
-  if(call === 'main'){
+  console.log(call)
+  if (call === 'main') {
     let code = editor.getValue();
     localStorage.setItem("code", code);
-  }else if(call == 'css'){
+  } else if (call == 'css') {
     let css = cssEditor.getValue();
     localStorage.setItem("css", css);
-  }else if(call === 'js'){
+  } else if (call === 'js') {
     let js = jsEditor.getValue();
     localStorage.setItem("js", js);
   }
@@ -163,12 +166,21 @@ inputFile.addEventListener("change", function () {
   file.onload = () => {
     let text = file.result + ""
     let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
-    if(activeTab === 'main'){
+    let quickEd = JSON.parse(localStorage.getItem('quickEdit'))
+    console.log(quickEd)
+    console.log('activetab:', activeTab)
+    if (activeTab === 'main') {
       localStorage.setItem('code', text)
-    }else if(activeTab === 'css'){
+      console.log('open in main:', quickEdit.tab)
+
+    } else if (activeTab === 'css') {
       localStorage.setItem('css', text)
-    }else if(activeTab === 'js'){
+      console.log('open in ccs:', quickEdit.tab)
+
+    } else if (activeTab === 'js') {
       localStorage.setItem('js', text)
+      console.log('open in js:', quickEdit.tab)
+
     }
     window.location.reload()
   };
@@ -176,7 +188,10 @@ inputFile.addEventListener("change", function () {
   fileName = this.files[0].name
   fileNameInput.value = fileName
   let fExt = getExtension(fileName)
-  setLang(fileExt[fExt])
+  let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
+  if (activeTab === 'main') {
+    setLang(fileExt[fExt])
+  }
   file.readAsText(this.files[0]);
 });
 
@@ -212,6 +227,7 @@ let countB = 1;
 // ------------------------------------------------------------
 
 const setLang = (ln) => {
+  let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
   quickEdit.lang = ln
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   monaco.editor.setModelLanguage(editor.getModel(), ln)
@@ -374,13 +390,17 @@ showbtn.addEventListener('click', shownav)
 
 let tab = getsAll('.tab')
 tab.forEach((e) => {
-  e.addEventListener('click', makeActive)
+  e.addEventListener('click', () => {
+    makeActive(e.id)
+  })
 })
 
-let checkboxes = getsAll('.tab>inpue')
-checkboxes.forEach((e)=> e.stopPropagation())
+let checkboxes = getsAll('.tab>input')
+checkboxes.forEach((e) => e.addEventListener('click', (e) => e.stopPropagation()))
 
 function makeActive(e) {
+  console.log('inside make active function:', e)
+  console.log('shivam')
   let jsTab = gets('#js')
   let cssTab = gets('#css')
   let mainTab = gets('#main')
@@ -391,39 +411,43 @@ function makeActive(e) {
   let openWin = gets('#openwin')
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
-  if (e.target.id === 'main') {
+  if (e === 'main') {
+    console.log('main condi')
     jsTab.classList.remove('active-tab')
     cssTab.classList.remove('active-tab')
     mainTab.classList.add('active-tab')
     mainMonaco.style.display = 'block'
     cssMonaco.style.display = 'none'
     jsMonaco.style.display = 'none'
-    lang.style.display = 'flex'
-    openWin.style.display = 'flex'
+    lang.style.visibility = 'visible'
+    openWin.style.visibility = 'visible'
     quickEdit.tab = 'main'
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
-  } else if (e.target.id === 'css') {
+  } else if (e === 'css') {
+    console.log('css condi')
     mainTab.classList.remove('active-tab')
     jsTab.classList.remove('active-tab')
     cssTab.classList.add('active-tab')
     mainMonaco.style.display = 'none'
     cssMonaco.style.display = 'block'
     jsMonaco.style.display = 'none'
-    lang.style.display = 'none'
-    openWin.style.display = 'none'
+    lang.style.visibility = 'hidden'
+    openWin.style.visibility = 'hidden'
     quickEdit.tab = 'css'
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
-  } else if(e.target.id === 'js') {
+  } else if (e === 'js') {
+    console.log('js condi')
     cssTab.classList.remove('active-tab')
     mainTab.classList.remove('active-tab')
     jsTab.classList.add('active-tab')
     mainMonaco.style.display = 'none'
     cssMonaco.style.display = 'none'
     jsMonaco.style.display = 'block'
-    lang.style.display = 'none'
-    openWin.style.display = 'none'
+    lang.style.visibility = 'hidden'
+    openWin.style.visibility = 'hidden'
     quickEdit.tab = 'js'
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   }
-
+  console.log('make active at last :', quickEdit.tab)
+  console.log(localStorage.quickEdit)
 }

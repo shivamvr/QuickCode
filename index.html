@@ -31,7 +31,15 @@
             <span id="alignbtn" class="material-symbols-rounded">vertical_align_top</span>
             </div>
         
-            <div class="tabs">
+        <div class="item">
+            <label for="file"><span class="material-symbols-rounded">file_open</span></label>
+            <input type="file" accept=".js,.txt,.html,.css,.json" id="file"></input>
+        </div>
+
+        <div id="save" class="item"><span class="material-symbols-rounded">file_download</span></div>
+        <div id="openwin" class="item" onclick="openWin()"><span class="material-symbols-rounded">code</span></div>
+        <!-- ------------------------------Tabs------------------->
+           <div class="tabs">
                 <div id='main' class="tab active-tab">
                     <svg id="mainsvg" version="1.1" x="0px" y="0px" viewBox="0 0 56 56" style="enable-background:new 0 0 56 56;" xml:space="preserve">
                         <g>
@@ -87,7 +95,6 @@
                         </g>
                         </svg>
                 </div>
-
                 
                 <div  id="css" class="tab">
                     <svg id="csssvg" version="1.1 " x="0px" y="0px" viewBox="0 0 56 56" style="enable-background:new 0 0 56 56;"
@@ -252,17 +259,8 @@
                     <input id="jsCheck" type="checkbox" />
                 </div>
             
-            
             </div>
-
-        <div class="item">
-            <label for="file"><span class="material-symbols-rounded">file_open</span></label>
-            <input type="file" accept=".js,.txt,.html,.css,.json" id="file"></input>
-        </div>
-
-        <div id="save" class="item"><span class="material-symbols-rounded">file_download</span></div>
-        <div id="openwin" class="item" onclick="openWin()"><span class="material-symbols-rounded">code</span></div>
-        <div class="">
+        <!--------------------------Drop-Down-menu----------------->
 
         <div class="select selectA">
             <div id="lang" class="selectBtn" data-type="html">html</div>
@@ -273,7 +271,6 @@
               <div class="option" data-type="javascript">javascript</div>
               <div class="option" data-type="json">json</div>
             </div>
-        </div>
         </div>
           
         <div  class="select selectB">

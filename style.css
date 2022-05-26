@@ -93,7 +93,7 @@ nav .item{
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
   color: #3fcee1;
   animation-name: fade;
-  animation-duration: .5s;
+  animation-duration: .7s;
 }
 
 
@@ -115,6 +115,7 @@ nav .item{
    transform: translateX(-90px);
    position: relative;
    display: none;
+
  }
  label{
    cursor: pointer;
@@ -142,6 +143,7 @@ nav .item{
    align-items: center;
    justify-content: center;
  }
+
  .box input{
    min-width: 300px;
    border: none;
@@ -173,7 +175,7 @@ nav .item{
   font-size: 75%;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   animation-name: fade;
-  animation-duration: 1s;
+  animation-duration: .5s;
 }
 
 .select .selectBtn {
@@ -190,6 +192,7 @@ nav .item{
   background: rgba(255, 255, 255, 0.2);
   background-image: linear-gradient(to right,  rgba(255, 255, 255, 0.2), rgba(0, 0, 0, 0.2));
   color: #444;
+
 }
 .select .selectBtn:after {
   content: "";
@@ -203,6 +206,7 @@ nav .item{
   border-right: 2px solid #444;
   border-bottom: 2px solid #444;
   transition: 0.2s ease;
+
 }
 .select .selectBtn.toggle {
   border-radius: 3px 3px 0 0;
@@ -229,6 +233,7 @@ nav .item{
   transition: 0.2s ease;
   box-shadow: 0 3px 3px rgba(0, 0, 0, 0.2);
   background-image: linear-gradient(to right,  rgba(255, 255, 255), rgba(0, 0, 0, 0.1));
+
 }
 .select .selectDropdown .option {
   padding: 10px;
@@ -242,7 +247,4 @@ nav .item{
   visibility: visible;
   -webkit-transform: scale(1, 1);
   transform: scale(1, 1);
-}
-#openwin{
-  display: none;
 }
