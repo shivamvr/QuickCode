@@ -5,6 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
+    <style id="mystyle"></style>
   </head>
   <body>
     <div id="root">
@@ -12,6 +13,7 @@
     </div>
 
     <script id="myscript"></script>
+    <script id="myscript2"></script>
     <script>
       const gets = (selector) => {
         return document.querySelector(selector);
@@ -20,8 +22,20 @@
         return document.querySelectorAll(selector);
       };
       let code = localStorage.getItem("code");
+      let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
       let root = document.querySelector("#root");
+      let myScript2 = gets("#myscript2");
+      let localJs = localStorage.getItem("js");
+      let mystyle = gets("#mystyle");
+      let localCss = localStorage.getItem("css");
       root.innerHTML = code;
+
+      if (quickEdit.css) {
+        mystyle.innerHTML = localCss;
+      }
+      if (quickEdit.js) {
+        myScript2.innerHTML = localJs;
+      }
 
       window.onload = () => {
         let myScript = gets("#myscript");
@@ -33,15 +47,32 @@
       };
 
       window.addEventListener("storage", () => {
+        let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
         let code = localStorage.getItem("code");
+        let localJs = localStorage.getItem("js");
+        let localCss = localStorage.getItem("css").replace(/\s+/g, " ");
         let root = document.querySelector("#root");
+        let mystyle = gets("#mystyle");
         root.innerHTML = code;
+        mystyle.innerHTML = localCss;
+        if (quickEdit.css) {
+          mystyle.innerHTML = localCss;
+        }
+        if (quickEdit.js) {
+          myScript2.innerHTML = localJs;
+        }
         let script = gets(`#root>script`);
         let myScript = gets("#myscript");
-        if (script) {
-        if (script.innerHTML != myScript.innerHTML) {
-          window.location.reload();
-        }
+        let myScript2 = gets("#myscript2");
+        //  console.log(script.innerHTML != myScript.innerHTML)
+
+        if (script || localJs != null || localJs != "") {
+          if (
+            script.innerHTML != myScript.innerHTML ||
+            myScript2.innerHTML != localJs
+          ) {
+            // window.location.reload();
+          }
         }
       });
     </script>

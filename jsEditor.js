@@ -31,4 +31,13 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 
 window.jsEditor.getModel().onDidChangeContent(() => { saveItLocal('js') });
 
+let jsCheck = gets('#jsCheck')
+
+jsCheck.addEventListener('change',()=>{
+  let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
+  let jsCheck = gets('#jsCheck')
+  quickEdit.js = jsCheck.checked
+  console.log(quickEdit)
+  localStorage.setItem('quickEdit',JSON.stringify(quickEdit)) 
+})
 

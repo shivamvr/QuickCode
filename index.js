@@ -16,7 +16,8 @@ let savedCode = localStorage.getItem("code");
 let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
 if (!quickEdit) {
-  localStorage.setItem('quickEdit', JSON.stringify({ theme: 'vs', lang: 'html', tab: 'main' }))
+  localStorage.setItem('quickEdit', JSON.stringify({ theme: 'vs', lang: 'html', tab: 'main',js: false, css: false }))
+  quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 }
 
 gets('#lang').innerText = quickEdit.lang

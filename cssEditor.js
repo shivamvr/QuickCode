@@ -29,4 +29,12 @@ var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
 
 //---------------------Save-to-loacalstorage--------------------------
 window.cssEditor.getModel().onDidChangeContent(() => {saveItLocal('css') });
+let cssCheck = gets('#cssCheck')
 
+cssCheck.addEventListener('change',()=>{
+  let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
+  let cssCheck = gets('#cssCheck')
+  quickEdit.css = cssCheck.checked
+  console.log(quickEdit)
+  localStorage.setItem('quickEdit',JSON.stringify(quickEdit)) 
+})
