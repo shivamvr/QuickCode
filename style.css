@@ -10,7 +10,7 @@
 
 body{
   width: 100%;
-  /* overflow: hidden; */
+  overflow: hidden;
   background: #3a6a8b;
   display: flex;
   flex-direction: column;
@@ -19,6 +19,9 @@ body{
 #CodeBlock,#cssEditor,#jsEditor{
   width: 100%;
   min-height: 99vh;
+}
+#cssEditor,#jsEditor{
+  display: none;
 }
 
 .icon{
@@ -89,7 +92,10 @@ nav .item{
   background: none;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
   color: #3fcee1;
+  animation-name: fade;
+  animation-duration: .5s;
 }
+
 
 .item:hover{
   color: #62e7f8;
@@ -97,6 +103,7 @@ nav .item{
   text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
 
 }
+
 
 /* ---------------Input-File------------- */
  #file{
@@ -155,13 +162,20 @@ nav .item{
    cursor: pointer;
  }
  /* -----------------Dropdown-menu--------- */
+ @keyframes fade {
+  from {opacity: 0;}
+  to {opacity: 100%;}
+}
  .select {
   position: relative;
   margin-right: 1rem;
   width: 110px;
   font-size: 75%;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  animation-name: fade;
+  animation-duration: 1s;
 }
+
 .select .selectBtn {
   padding: 7px;
   box-sizing: border-box;

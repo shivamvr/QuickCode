@@ -7,7 +7,7 @@ const gets = (selector) => {
 const getsAll = (selector) => {
   return document.querySelectorAll(selector)
 }
-
+//---------------------------------------
 
 var codeContent = $.trim($("#CodeBlock").text());
 $("#CodeBlock").html("");
@@ -16,22 +16,23 @@ let savedCode = localStorage.getItem("code");
 let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
 if (!quickEdit) {
-  localStorage.setItem('quickEdit', JSON.stringify({ theme: 'vs', lang: 'html' }))
+  localStorage.setItem('quickEdit', JSON.stringify({ theme: 'vs', lang: 'html', tab: 'main' }))
 }
 
 gets('#lang').innerText = quickEdit.lang
 gets('#theme').innerText = quickEdit.theme
-if(quickEdit.lang==='html'){
+if (quickEdit.lang === 'html') {
   gets('.tabs').style.display = 'flex'
+
 }
 
-function displayRun(){
- let run =  gets('#openwin')
-if(quickEdit.lang == 'html' || quickEdit.lang=='javascript' || quickEdit.lang=='plaintext'){
-  run.style.display = 'block'
-}else{
-  run.style.display = 'none'
-}
+function displayRun() {
+  let run = gets('#openwin')
+  if (quickEdit.lang == 'html' || quickEdit.lang == 'javascript' || quickEdit.lang == 'plaintext') {
+    run.style.display = 'block'
+  } else {
+    run.style.display = 'none'
+  }
 }
 displayRun()
 
@@ -61,13 +62,21 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
 
 //---------------------Save-to-loacalstorage--------------------------
 
-function saveItLocal() {
-  let code = editor.getValue();
-  localStorage.setItem("code", code);
+function saveItLocal(call) {
+  if(call === 'main'){
+    let code = editor.getValue();
+    localStorage.setItem("code", code);
+  }else if(call == 'css'){
+    let css = cssEditor.getValue();
+    localStorage.setItem("css", css);
+  }else if(call === 'js'){
+    let js = jsEditor.getValue();
+    localStorage.setItem("js", js);
+  }
 }
 
 
-window.editor.getModel().onDidChangeContent((event) => { saveItLocal() });
+window.editor.getModel().onDidChangeContent(() => { saveItLocal('main') });
 
 //---------------------Save-as-file----------------------------------
 const fileNameInput = gets('#filename')
@@ -129,11 +138,11 @@ fileNameInput.addEventListener('keypress', (e) => {
   }
 })
 
-document.addEventListener("keydown", (e)=> {
+document.addEventListener("keydown", (e) => {
   let key = e.which
   let ctrl = e.ctrlKey
   let shift = e.shiftKey
-  if(key=='83'&&ctrl&&shift){
+  if (key == '83' && ctrl && shift) {
     showOverlay()
   }
 })
@@ -153,7 +162,14 @@ inputFile.addEventListener("change", function () {
   var file = new FileReader();
   file.onload = () => {
     let text = file.result + ""
-    localStorage.setItem('code', text)
+    let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
+    if(activeTab === 'main'){
+      localStorage.setItem('code', text)
+    }else if(activeTab === 'css'){
+      localStorage.setItem('css', text)
+    }else if(activeTab === 'js'){
+      localStorage.setItem('js', text)
+    }
     window.location.reload()
   };
 
@@ -203,10 +219,10 @@ const setLang = (ln) => {
   if (!fileName) {
     fileNameInput.value = 'file.' + ext
   }
-  let tabs =  gets('.tabs')
-  if(quickEdit.lang==='html'){
-   tabs.style.display = 'flex'
-  }else{
+  let tabs = gets('.tabs')
+  if (quickEdit.lang === 'html') {
+    tabs.style.display = 'flex'
+  } else {
     tabs.style.display = 'none'
   }
   displayRun()
@@ -252,20 +268,18 @@ gets('.selectB').addEventListener('click', () => {
 // ------------------Open-Code-New-Tab-------------
 
 function openWin() {
-  if(quickEdit.lang === 'html'){
-    window.open("./app.html",'_blank') 
+  if (quickEdit.lang === 'html') {
+    window.open("./app.html", '_blank')
     return
   }
   let savedCode = localStorage.getItem("code");
   var myWindow = window.open();
   var doc = myWindow.document;
   doc.open();
-  if(quickEdit.lang === 'javascript'){
+  if (quickEdit.lang === 'javascript') {
     savedCode = `<script>${savedCode}</script>`
-    console.log(savedCode)
-  }else if(quickEdit.lang === 'plaintext'){
-    savedCode = `<pre style="margin: .5rem">${savedCode.replaceAll('<','&lt').replaceAll('>','&gt')}</pre>`
-    console.log(savedCode)
+  } else if (quickEdit.lang === 'plaintext') {
+    savedCode = `<pre style="margin: .5rem">${savedCode.replaceAll('<', '&lt').replaceAll('>', '&gt')}</pre>`
   }
   doc.write(savedCode);
   doc.close();
@@ -296,39 +310,42 @@ function settheme(themeName) {
 let hidebtn = gets('#hidenav')
 let showbtn = gets('#shownav')
 let alignbtn = gets('#alignbtn')
-function hidenav(){
+function hidenav() {
   gets('nav').style.display = 'flex'
   showbtn.style.display = 'block'
   hidebtn.style.display = 'none'
 }
-function shownav(){
+function shownav() {
   gets('nav').style.display = 'none'
   showbtn.style.display = 'none'
   hidebtn.style.display = 'block'
 }
 
 let aligntop = true
-function alignNave(){
-  let nav =  gets('nav')
-  let navItems =  getsAll('.item')
-  if(aligntop){
-   alignbtn.style.transform = 'rotate(0deg)'
-   nav.style.height = '1000px'
-   nav.style.width = '4%'
-   nav.style.minWidth = '40px'
-   nav.style.flexDirection = 'column';
-   nav.style.justifyContent = 'start';
-   nav.style.paddingTop = '4rem';
-   nav.style.paddingRight = 0
-   gets('body').style.flexDirection = 'row'
+
+function alignNav() {
+  let nav = gets('nav')
+  let navItems = getsAll('.item')
+  let tabs = gets('.tabs')
+  if (aligntop) {
+    alignbtn.style.transform = 'rotate(0deg)'
+    nav.style.height = '1000px'
+    nav.style.width = '4%'
+    nav.style.minWidth = '40px'
+    nav.style.flexDirection = 'column';
+    nav.style.justifyContent = 'start';
+    nav.style.paddingTop = '4rem';
+    nav.style.paddingRight = 0
+    tabs.style.display = 'none'
+    gets('body').style.flexDirection = 'row'
     gets('#CodeBlock').style.width = '100%'
-    getsAll('.selectBtn').forEach(e=>e.style.display='none')
-     navItems.forEach(e=>e.style.marginBottom='1rem')
-     navItems.forEach(e=>e.style.marginRight=0)
+    getsAll('.selectBtn').forEach(e => e.style.display = 'none')
+    navItems.forEach(e => e.style.marginBottom = '1rem')
+    navItems.forEach(e => e.style.marginRight = 0)
     aligntop = false
     return
   }
-  getsAll('.selectBtn').forEach(e=>e.style.display='flex')
+  getsAll('.selectBtn').forEach(e => e.style.display = 'flex')
   aligntop = true
   alignbtn.style.transform = 'rotate(-90deg)'
   nav.style.height = '40px'
@@ -338,45 +355,75 @@ function alignNave(){
   nav.style.paddingTop = '0';
   nav.style.paddingRight = '2rem'
   gets('body').style.flexDirection = 'column'
-   gets('#CodeBlock').style.width = '100%'
-   getsAll('.selectBtn').forEach(e=>e.style.display='flex')
-    navItems.forEach(e=>e.style.marginBottom='0')
-    navItems.forEach(e=>e.style.marginRight= '1rem')
+  gets('#CodeBlock').style.width = '100%'
+  getsAll('.selectBtn').forEach(e => e.style.display = 'flex')
+  navItems.forEach(e => e.style.marginBottom = '0')
+  navItems.forEach(e => e.style.marginRight = '1rem')
+  let lang = JSON.parse(localStorage.getItem('quickEdit')).lang
+  if (lang == 'html') {
+    tabs.style.display = 'flex'
+  }
 }
 
-alignbtn.addEventListener('click',alignNave)
-hidebtn.addEventListener('click',hidenav)
-showbtn.addEventListener('click',shownav)
+alignbtn.addEventListener('click', alignNav)
+hidebtn.addEventListener('click', hidenav)
+showbtn.addEventListener('click', shownav)
 
 
 // ---------------tabs----------------
 
 let tab = getsAll('.tab')
-tab.forEach((e)=>{
-  e.addEventListener('click',makeActive)
+tab.forEach((e) => {
+  e.addEventListener('click', makeActive)
 })
 
-function makeActive(e){
-  console.log(e.target.id)
-let jsTab = gets('#js')
-let cssTab = gets('#css')
-let mainTab = gets('#main')
+let checkboxes = getsAll('.tab>inpue')
+checkboxes.forEach((e)=> e.stopPropagation())
 
-  if(e.target.id==='main'){
-    console.log('this is main')
+function makeActive(e) {
+  let jsTab = gets('#js')
+  let cssTab = gets('#css')
+  let mainTab = gets('#main')
+  let jsMonaco = gets('#jsEditor')
+  let cssMonaco = gets('#cssEditor')
+  let mainMonaco = gets('#CodeBlock')
+  let lang = gets('.selectA')
+  let openWin = gets('#openwin')
+  let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
+
+  if (e.target.id === 'main') {
     jsTab.classList.remove('active-tab')
     cssTab.classList.remove('active-tab')
     mainTab.classList.add('active-tab')
-  }else if(e.target.id==='css'){
-    console.log('this is css')
+    mainMonaco.style.display = 'block'
+    cssMonaco.style.display = 'none'
+    jsMonaco.style.display = 'none'
+    lang.style.display = 'flex'
+    openWin.style.display = 'flex'
+    quickEdit.tab = 'main'
+    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  } else if (e.target.id === 'css') {
     mainTab.classList.remove('active-tab')
     jsTab.classList.remove('active-tab')
     cssTab.classList.add('active-tab')
-  }else{
-    console.log('this is js')
+    mainMonaco.style.display = 'none'
+    cssMonaco.style.display = 'block'
+    jsMonaco.style.display = 'none'
+    lang.style.display = 'none'
+    openWin.style.display = 'none'
+    quickEdit.tab = 'css'
+    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  } else if(e.target.id === 'js') {
     cssTab.classList.remove('active-tab')
     mainTab.classList.remove('active-tab')
     jsTab.classList.add('active-tab')
+    mainMonaco.style.display = 'none'
+    cssMonaco.style.display = 'none'
+    jsMonaco.style.display = 'block'
+    lang.style.display = 'none'
+    openWin.style.display = 'none'
+    quickEdit.tab = 'js'
+    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   }
 
 }

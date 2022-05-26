@@ -1,13 +1,13 @@
 
-var cssContent = $.trim($("#cssEditor").text());
-$("#cssEditor").html("");
+var jsContent = $.trim($("#jsEditor").text());
+$("#jsEditor").html("");
 
-let savedcss = localStorage.getItem("css");
+let savedjs = localStorage.getItem("js");
 
 
-var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
-  value: savedcss,
-  language: 'css',
+var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
+  value: savedjs,
+  language: 'javascript',
   lineNumber: "on",
   glyphmargin: false,
   vertical: "auto",
@@ -28,5 +28,7 @@ var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
 });
 
 //---------------------Save-to-loacalstorage--------------------------
-window.cssEditor.getModel().onDidChangeContent(() => {saveItLocal('css') });
+
+window.jsEditor.getModel().onDidChangeContent(() => { saveItLocal('js') });
+
 
