@@ -24,7 +24,6 @@ gets('#theme').innerText = quickEdit.theme
 
 if (quickEdit.lang === 'html') {
   gets('.tabs').style.display = 'flex'
-  console.log('local: ', quickEdit.tab)
   makeActive(quickEdit.tab)
 }
 
@@ -65,7 +64,6 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
 //---------------------Save-to-loacalstorage--------------------------
 
 function saveItLocal(call) {
-  console.log(call)
   if (call === 'main') {
     let code = editor.getValue();
     localStorage.setItem("code", code);
@@ -90,8 +88,13 @@ let fileName = false
 //---------------------Handlers---------------------
 const showOverlay = () => {
   gets('#overlay').style.display = 'block'
-  if (!fileName) {
-    fileNameInput.value = quickEdit.lang + 'file.' + ext
+  let activeTab = JSON.parse(localStorage.getItem("quickEdit")).tab
+  if (activeTab == 'main') {
+    fileNameInput.value = 'file.' + ext
+  } else if (activeTab == 'css') {
+    fileNameInput.value = 'file.css'
+  } else if (activeTab == 'js') {
+    fileNameInput.value = 'file.js'
   }
   fileNameInput.focus()
 }
@@ -100,10 +103,22 @@ const hideOverlay = () => {
 }
 
 function saveFile() {
+  let activeTab = JSON.parse(localStorage.getItem("quickEdit")).tab
+  console.log(activeTab)
   let fname = fileNameInput.value
   let text = editor.getValue();
-  blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-  saveAs(blob, fname);
+  let css = cssEditor.getValue();
+  let js = jsEditor.getValue();
+  if (activeTab == 'main') {
+    blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    saveAs(blob, fname);
+  } else if (activeTab == 'css') {
+    blob = new Blob([css], { type: "text/plain;charset=utf-8" });
+    saveAs(blob, fname);
+  } else if (activeTab == 'js') {
+    blob = new Blob([js], { type: "text/plain;charset=utf-8" });
+    saveAs(blob, fname);
+  }
   hideOverlay()
 }
 
@@ -167,19 +182,14 @@ inputFile.addEventListener("change", function () {
     let text = file.result + ""
     let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
     let quickEd = JSON.parse(localStorage.getItem('quickEdit'))
-    console.log(quickEd)
-    console.log('activetab:', activeTab)
     if (activeTab === 'main') {
       localStorage.setItem('code', text)
-      console.log('open in main:', quickEdit.tab)
 
     } else if (activeTab === 'css') {
       localStorage.setItem('css', text)
-      console.log('open in ccs:', quickEdit.tab)
 
     } else if (activeTab === 'js') {
       localStorage.setItem('js', text)
-      console.log('open in js:', quickEdit.tab)
 
     }
     window.location.reload()
@@ -194,7 +204,6 @@ inputFile.addEventListener("change", function () {
   }
   file.readAsText(this.files[0]);
 });
-
 
 
 
@@ -399,8 +408,6 @@ let checkboxes = getsAll('.tab>input')
 checkboxes.forEach((e) => e.addEventListener('click', (e) => e.stopPropagation()))
 
 function makeActive(e) {
-  console.log('inside make active function:', e)
-  console.log('shivam')
   let jsTab = gets('#js')
   let cssTab = gets('#css')
   let mainTab = gets('#main')
@@ -412,7 +419,6 @@ function makeActive(e) {
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
   if (e === 'main') {
-    console.log('main condi')
     jsTab.classList.remove('active-tab')
     cssTab.classList.remove('active-tab')
     mainTab.classList.add('active-tab')
@@ -424,7 +430,6 @@ function makeActive(e) {
     quickEdit.tab = 'main'
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   } else if (e === 'css') {
-    console.log('css condi')
     mainTab.classList.remove('active-tab')
     jsTab.classList.remove('active-tab')
     cssTab.classList.add('active-tab')
@@ -436,7 +441,6 @@ function makeActive(e) {
     quickEdit.tab = 'css'
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   } else if (e === 'js') {
-    console.log('js condi')
     cssTab.classList.remove('active-tab')
     mainTab.classList.remove('active-tab')
     jsTab.classList.add('active-tab')
@@ -448,6 +452,4 @@ function makeActive(e) {
     quickEdit.tab = 'js'
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   }
-  console.log('make active at last :', quickEdit.tab)
-  console.log(localStorage.quickEdit)
 }
