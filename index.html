@@ -22,6 +22,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="tabs.css">
+    <!-- <link id="verticalNav" rel="stylesheet" href="verticalNav.css"> -->
     <script async src="fileSaver.js"> </script>
     <title>QuickCode</title>
 </head>
@@ -178,7 +179,7 @@
                         <g>
                         </g>
                     </svg>
-                    <input id="cssCheck" type="checkbox" />
+                    <input class="checkbox" id="cssCheck" type="checkbox" />
                 </div>
 
                 <div  id="js" class="tab">
@@ -256,7 +257,7 @@
                         <g>
                         </g>
                     </svg>
-                    <input id="jsCheck" type="checkbox" />
+                    <input class="checkbox" id="jsCheck" type="checkbox" />
                 </div>
             
             </div>
@@ -286,10 +287,11 @@
         </div>
 
     </nav>
-
+    <div id="editor">
     <pre id="CodeBlock" class="scrollbar"></pre>
     <pre id="cssEditor" class="scrollbar"></pre>
     <pre id="jsEditor" class="scrollbar"></pre>
+    </div>
 
     <div id="overlay">
         <div class="box">

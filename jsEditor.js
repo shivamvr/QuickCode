@@ -33,11 +33,34 @@ window.jsEditor.getModel().onDidChangeContent(() => { saveItLocal('js') });
 
 let jsCheck = gets('#jsCheck')
 
-jsCheck.addEventListener('change',()=>{
+jsCheck.addEventListener('change', () => {
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
   let jsCheck = gets('#jsCheck')
   quickEdit.js = jsCheck.checked
   console.log(quickEdit)
-  localStorage.setItem('quickEdit',JSON.stringify(quickEdit)) 
+  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
 })
 
+const cc = `
+color: green;
+border: solid;
+padding: .5rem;
+border-radius: .8rem`
+
+
+ if (window.outerWidth <= 670) {
+   alignNav(true)
+ }
+
+var onresize = function () {
+  width = window.outerWidth;
+  height = window.outerHeight;
+  console.log(width) 
+  if (width <= 670) {
+    alignNav(true)
+  }else{
+    alignNav(false)
+  }
+}
+
+window.addEventListener("resize", onresize);
