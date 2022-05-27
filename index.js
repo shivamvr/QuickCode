@@ -1,6 +1,7 @@
 //------------template-code-------------
 emmetMonaco.emmetHTML(monaco)
 
+
 const gets = (selector) => {
   return document.querySelector(selector)
 }
@@ -350,40 +351,17 @@ function shownav() {
 let aligntop = true
 
 function alignNav(p) {
-  let nav = gets('nav')
-  let navItems = getsAll('.item')
   let tabs = gets('.tabs')
+  let verticalNav = gets('#vnav')
   if (p) {
-    alignbtn.style.transform = 'rotate(0deg)'
-    nav.style.height = '99.9vh'
-    nav.style.width = '42px'
-    nav.style.flexDirection = 'column';
-    nav.style.justifyContent = 'start';
-    nav.style.paddingTop = '4rem';
-    nav.style.paddingRight = 0
-    tabs.style.display = 'none'
-    gets('#CodeBlock').style.width = 'calc(100% - 42px)'
-    gets('body').style.flexDirection = 'row'
-    getsAll('.selectBtn').forEach(e => e.style.display = 'none')
-    getsAll('nav .item').forEach(e => e.classList.add('mr0'))
-    navItems.forEach(e => e.style.marginBottom = '1rem')
     aligntop = false
+    verticalNav.disabled = false
+    alignbtn.style.transform = 'rotate(0deg)'
     return
   } else if (!p) {
-    getsAll('.selectBtn').forEach(e => e.style.display = 'flex')
-    getsAll('nav .item').forEach(e => e.classList.remove('mr0'))
     aligntop = true
+    verticalNav.disabled = true
     alignbtn.style.transform = 'rotate(-90deg)'
-    nav.style.height = '40px'
-    nav.style.width = '100%'
-    nav.style.flexDirection = 'row';
-    nav.style.justifyContent = 'flex-end';
-    nav.style.paddingTop = '0';
-    gets('body').style.flexDirection = 'column'
-    gets('#CodeBlock').style.width = '100%'
-    getsAll('.selectBtn').forEach(e => e.style.display = 'flex')
-    navItems.forEach(e => e.style.marginBottom = '0')
-    window.scrollTo(0,0);
     let lang = JSON.parse(localStorage.getItem('quickEdit')).lang
     if (lang == 'html') {
       tabs.style.display = 'flex'
