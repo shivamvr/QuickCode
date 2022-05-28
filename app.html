@@ -8,10 +8,7 @@
     <style id="mystyle"></style>
   </head>
   <body>
-    <div id="root">
-      <!-- code from local storage -->
-    </div>
-
+    <div id="root"><!-- code from local storage --></div>
     <script id="myscript"></script>
     <script id="myscript2"></script>
     <script>
@@ -52,26 +49,34 @@
         let localJs = localStorage.getItem("js");
         let localCss = localStorage.getItem("css").replace(/\s+/g, " ");
         let root = document.querySelector("#root");
-        let mystyle = gets("#mystyle");
         root.innerHTML = code;
-        mystyle.innerHTML = localCss;
-        if (quickEdit.css) {
-          mystyle.innerHTML = localCss;
-        }
-        if (quickEdit.js) {
-          myScript2.innerHTML = localJs;
-        }
+
         let script = gets(`#root>script`);
+        let mystyle = gets("#mystyle");
         let myScript = gets("#myscript");
         let myScript2 = gets("#myscript2");
-        //  console.log(script.innerHTML != myScript.innerHTML)
 
-        if (script || localJs != null || localJs != "") {
-          if (
-            script.innerHTML != myScript.innerHTML ||
-            myScript2.innerHTML != localJs
-          ) {
-            // window.location.reload();
+        mystyle.innerHTML = localCss;
+        
+        if (quickEdit.css) {
+          mystyle.disabled = false;
+        } else {
+          mystyle.disabled = true;
+        }
+        
+        if (quickEdit.js) {
+          myScript2.disabled = false;
+          if(localJs.replaceAll('\r','')!=myScript2.innerHTML){
+            myScript2.innerHTML = localJs;
+            window.location.reload()
+          }
+        } else {
+          myScript2.disabled = true;
+        }
+
+        if (script) {
+          if (script.innerHTML != myScript.innerHTML) {
+            window.location.reload();
           }
         }
       });

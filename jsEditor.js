@@ -12,8 +12,8 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
   glyphmargin: false,
   vertical: "auto",
   horizontal: "auto",
-  verticalScrollbarSize: 10,
-  horizontalScrollbarSize: 10,
+  verticalScrollbarSize: 8,
+  horizontalScrollbarSize: 8,
   scrollBeyoundLastLine: false,
   readOnly: false,
   automaticLayout: true,
@@ -30,22 +30,19 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 //---------------------Save-to-loacalstorage--------------------------
 
 window.jsEditor.getModel().onDidChangeContent(() => { saveItLocal('js') });
-
 let jsCheck = gets('#jsCheck')
+if(quickEdit.js){
+  jsCheck.checked = true
+}
 
 jsCheck.addEventListener('change', () => {
+  let script = gets('#myscript2')
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
   let jsCheck = gets('#jsCheck')
   quickEdit.js = jsCheck.checked
   console.log(quickEdit)
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
 })
-
-const cc = `
-color: green;
-border: solid;
-padding: .5rem;
-border-radius: .8rem`
 
 
  if (window.outerWidth <= 670) {
@@ -55,7 +52,6 @@ border-radius: .8rem`
 var onresize = function () {
   width = window.outerWidth;
   height = window.outerHeight;
-  console.log(width) 
   if (width <= 670) {
     alignNav(true)
   }else{

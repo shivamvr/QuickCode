@@ -12,8 +12,8 @@ var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
   glyphmargin: false,
   vertical: "auto",
   horizontal: "auto",
-  verticalScrollbarSize: 10,
-  horizontalScrollbarSize: 10,
+  verticalScrollbarSize: 8,
+  horizontalScrollbarSize: 8,
   scrollBeyoundLastLine: false,
   readOnly: false,
   automaticLayout: true,
@@ -31,7 +31,13 @@ var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
 window.cssEditor.getModel().onDidChangeContent(() => {saveItLocal('css') });
 let cssCheck = gets('#cssCheck')
 
+if(quickEdit.css){
+  cssCheck.checked = true
+}
+
 cssCheck.addEventListener('change',()=>{
+  let style = gets('#mystyle')
+
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
   let cssCheck = gets('#cssCheck')
   quickEdit.css = cssCheck.checked

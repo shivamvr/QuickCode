@@ -17,7 +17,8 @@ let savedCode = localStorage.getItem("code");
 let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
 if (!quickEdit) {
-  localStorage.setItem('quickEdit', JSON.stringify({ theme: 'vs', lang: 'html', tab: 'main', js: false, css: false }))
+let obj = { theme: 'vs', lang: 'html', tab: 'main', js: false, css: false, vnav: false }
+  localStorage.setItem('quickEdit', JSON.stringify(obj))
   quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 }
 
@@ -48,8 +49,8 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
   glyphmargin: false,
   vertical: "auto",
   horizontal: "auto",
-  verticalScrollbarSize: 10,
-  horizontalScrollbarSize: 10,
+  verticalScrollbarSize: 8,
+  horizontalScrollbarSize: 8,
   scrollBeyoundLastLine: false,
   readOnly: false,
   automaticLayout: true,
@@ -357,15 +358,19 @@ function alignNav(p) {
     aligntop = false
     verticalNav.disabled = false
     alignbtn.style.transform = 'rotate(0deg)'
+    quickEdit.vnav = true
+    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
     return
   } else if (!p) {
     aligntop = true
     verticalNav.disabled = true
+    quickEdit.vnav = false
     alignbtn.style.transform = 'rotate(-90deg)'
     let lang = JSON.parse(localStorage.getItem('quickEdit')).lang
     if (lang == 'html') {
       tabs.style.display = 'flex'
     }
+    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   }
 }
 

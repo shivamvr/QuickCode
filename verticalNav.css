@@ -2,8 +2,11 @@
 body{
   flex-direction: row;
 }
+#editor{
+  width: calc(100%-100px) !important;
+}
 #CodeBlock,#cssEditor,#jsEditor{
-  width: calc(100%);
+  width: 100%;
   min-height: 400px;
   height: 100vh;
 }

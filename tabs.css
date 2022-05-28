@@ -106,7 +106,6 @@
 
 @media only screen and (max-width: 1050px) {
   nav {
-    background: orange;
     padding-right: 0;
   }
   nav .item {
@@ -115,7 +114,6 @@
 }
 @media only screen and (max-width: 1032px) {
   nav {
-    background: magenta;
     padding-right: 0;
   }
 }
@@ -123,24 +121,17 @@
 @media only screen and (max-width: 930px) {
   nav .item {
     margin-right: 1rem;
-    background: pink;
   }
   .selectB {
     display: none;
   }
 }
 @media only screen and (max-width: 900px) {
-  nav {
-    background: blue;
-  }
   nav .item {
     margin-right: 1rem;
   }
 }
 @media only screen and (max-width: 750px) {
-  nav {
-    background: green;
-  }
   nav .item {
     margin-right: 1rem;
   }
@@ -150,9 +141,6 @@
 
 }
 @media only screen and (max-width: 650px) {
-  nav {
-    background: seagreen;
-  }
   nav .item {
     margin-right: 4px;
   }
