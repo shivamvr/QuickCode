@@ -6,3 +6,8 @@ scrollTop.addEventListener('click',()=>{
 } )
 
 alignNav(quickEdit.vnav)
+
+let split = gets('#split')
+split.addEventListener('click',()=>{
+    alert('slit trigged')
+})

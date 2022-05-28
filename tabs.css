@@ -68,9 +68,9 @@
   animation-duration: 0.7s;
 }
 
-.tab > svg {
-  width: fit-content;
-  height: 90%;
+.tab > img {
+  width: 27px;
+  height: 100%;
   margin: auto 0;
   pointer-events: none;
 }
@@ -101,7 +101,16 @@
     rgba(0, 200, 200, 0.3)
   );
 }
+#split{
+  width: 26px;
+  padding-left: 0;
+}
 
+#split:hover{
+  border: none;
+  color: #62e7f8;
+  cursor: pointer;
+}
 /* -------------------Media-query----------------- */
 
 @media only screen and (max-width: 1050px) {

@@ -41,7 +41,7 @@ body{
 .tab {
   padding: 0.2rem;
   width: 40px;
-  height: 95px;
+  height: 92px;
   flex-direction: column;
 }
 
@@ -49,7 +49,7 @@ body{
   width: 40px;
 }
 
-.tab > svg {
+.tab > img {
   width: 105%;
 }
 
@@ -81,4 +81,13 @@ nav .item {
 
 .active-tab {
   border-right: 1.5px solid #3fcee1;
+}
+
+#split{
+  width: 26px;
+  padding-left: 0;
+}
+
+#CodeBlock{
+  flex-grow: 1;
 }
