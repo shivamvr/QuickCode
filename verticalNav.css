@@ -3,14 +3,13 @@ body{
   flex-direction: row;
 }
 #editor{
-  width: calc(100%-100px) !important;
+  width: calc(100% - 49px);
 }
 #CodeBlock,#cssEditor,#jsEditor{
   width: 100%;
   min-height: 400px;
   height: 100vh;
 }
-
 
 .checkbox {
   width: 34px;
@@ -54,7 +53,7 @@ body{
 }
 
 nav {
-  padding-top: 3rem;
+  padding-top: 2.5rem;
   justify-content: start;
   height: 560px;
   width: 50px;

@@ -43,7 +43,10 @@
         }
       };
 
+      let cn = 0
+
       window.addEventListener("storage", () => {
+        let myScript2 = gets("#myscript2");
         let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
         let code = localStorage.getItem("code");
         let localJs = localStorage.getItem("js");
@@ -54,33 +57,37 @@
         let script = gets(`#root>script`);
         let mystyle = gets("#mystyle");
         let myScript = gets("#myscript");
-        let myScript2 = gets("#myscript2");
 
-        mystyle.innerHTML = localCss;
-        myScript2.innerHTML = localJs;
         
+        mystyle.innerHTML = localCss;
         if (quickEdit.css) {
           mystyle.disabled = false;
         } else {
           mystyle.disabled = true;
         }
         
+        myScript2.innerHTML = localJs;
+
         if (quickEdit.js) {
           myScript2.disabled = false;
-          if(localJs.replaceAll('\r','')!=myScript2.innerHTML){
-            myScript2.innerHTML = localJs;
-            window.location.reload()
-          }
+          console.log(myScript.innerHTML.length)
+          console.log(localJs.replaceAll("\r", "").length)
+          console.log((quickEdit.js && localJs.replaceAll("\r", "") != myScript2.innerHTML))
         } else {
           myScript2.disabled = true;
         }
 
-        if (script) {
-          if (script.innerHTML != myScript.innerHTML) {
-            window.location.reload();
-          }
+        if(quickEdit.js && localJs.replaceAll("\r", "") != myScript2.innerHTML){
+          myScript2.disabled = false;
+          window.location.reload();
         }
+
+        if (script && script.innerHTML != myScript.innerHTML) {
+           window.location.reload();
+        }
+
       });
+
     </script>
   </body>
 </html>

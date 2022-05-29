@@ -17,7 +17,7 @@ let savedCode = localStorage.getItem("code");
 let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
 if (!quickEdit) {
-let obj = { theme: 'vs', lang: 'html', tab: 'main', js: false, css: false, vnav: false }
+let obj = { theme: 'vs', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' }
   localStorage.setItem('quickEdit', JSON.stringify(obj))
   quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 }
@@ -75,6 +75,19 @@ function saveItLocal(call) {
     localStorage.setItem("css", css);
   } else if (call === 'js') {
     let js = jsEditor.getValue();
+    localStorage.setItem("js", js);
+  }
+}
+
+function saveBySplit(call) {
+  if (call === 'main') {
+    let code = splitEditor.getValue();
+    localStorage.setItem("code", code);
+  } else if (call == 'css') {
+    let css = splitEditor.getValue();
+    localStorage.setItem("css", css);
+  } else if (call === 'js') {
+    let js = splitEditor.getValue();
     localStorage.setItem("js", js);
   }
 }

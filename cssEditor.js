@@ -4,7 +4,6 @@ $("#cssEditor").html("");
 
 let savedcss = localStorage.getItem("css");
 
-
 var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
   value: savedcss,
   language: 'css',
@@ -36,8 +35,6 @@ if(quickEdit.css){
 }
 
 cssCheck.addEventListener('change',()=>{
-  let style = gets('#mystyle')
-
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
   let cssCheck = gets('#cssCheck')
   quickEdit.css = cssCheck.checked

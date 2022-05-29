@@ -31,6 +31,7 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 
 window.jsEditor.getModel().onDidChangeContent(() => { saveItLocal('js') });
 let jsCheck = gets('#jsCheck')
+
 if(quickEdit.js){
   jsCheck.checked = true
 }
@@ -45,18 +46,5 @@ jsCheck.addEventListener('change', () => {
 })
 
 
- if (window.outerWidth <= 670) {
-   alignNav(true)
- }
-
-var onresize = function () {
-  width = window.outerWidth;
-  height = window.outerHeight;
-  if (width <= 670) {
-    alignNav(true)
-  }else{
-    alignNav(false)
-  }
-}
 
 window.addEventListener("resize", onresize);

@@ -19,7 +19,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.nls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.js"></script>
     <!---------------------------------------------------->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="tabs.css">
     <link id="vnav"  rel="stylesheet" href="verticalNav.css" disabled>
@@ -47,9 +46,24 @@
         </div>
         <!-- ------------------------------Tabs------------------->
            <div class="tabs">
-               <div id="split" style="width: 40px; background: none; width: fit-content; height: fit-content;"class="tab">
-            <img  src="icon/splits.svg" alt="">
-               </div>
+     <div id="split" style="width: 40px; background: none; width: fit-content; height: fit-content;"class="tab">
+        <div class="splitMenu">
+            <img class="splitsvg" src="icon/splits.svg" alt="">
+           <div class="contianer">
+            <div class="triangle"></div>
+             <div class="splititems">
+                <div onClick="splitMenu('html')" class="splititem"> <img src="icon/html.svg"></img>   html</div>
+                 <div class="gradient"></div>
+                 <div onClick="splitMenu('css')" class="splititem"> <img src="icon/css.svg"></img>   css</div>
+                 <div class="gradient"></div>
+                <div onClick="splitMenu('javascript')" class="splititem"> <img src="icon/js.svg"></img>   js</div>
+             </div>
+           </div>
+       </div>
+       <div onclick="singleEditor()" class="single">
+           <img  src="icon/single.svg" alt="">
+        </div>
+    </div>
 
                 <div id='main' class="tab active-tab">
                     <img  id="mainsvg" src="icon/html.svg" alt="">
@@ -91,19 +105,19 @@
             </div>
         </div>
     
-        <!-- <div id="theme" class="item"><img src="icon/color.svg" alt=""> </div> -->
+    <!-- <div id="theme" class="item"><img src="icon/color.svg" alt=""> </div> -->
     </nav>
     <div id="editor">
     <pre id="CodeBlock" class="scrollbar"></pre>
     <pre id="cssEditor" class="scrollbar"></pre>
     <pre id="jsEditor" class="scrollbar"></pre>
-    <!-- <pre id="splitEditor" class="scrollbar"></pre> -->
+    <pre id="splitEditor" class="scrollbar"></pre>
     </div>
 
     <div id="overlay">
         <div class="box">
             <input type="text" id="filename" placeholder="file name">
-            <span onclick="downf()" class="material-symbols-rounded">file_download</span>
+            <img onclick="downf()" src="icon/download.svg" alt="">
         </div>
     </div>
     <div id="top">↑</div>
@@ -112,6 +126,7 @@
     <script  src="index.js"></script>
     <script  src="cssEditor.js"></script>
     <script  src="jsEditor.js"></script>
+    <script  src="splitEditor.js"></script>
     <script  src="eventListener.js"></script>
 </body>
 </html>
