@@ -49,11 +49,11 @@
                   <div class="contianer">
                      <div class="triangle"></div>
                      <div class="splititems">
-                        <div id="htmlo" onclick="splitMenu()" class="splititem"> <img src="icon/html.svg"></img>   html</div>
+                        <div onclick="splitMenu('html')" class="splititem"> <img src="icon/html.svg"></img> html</div>
                         <div class="gradient"></div>
-                        <div onclick="splitMenu()" class="splititem"> <img src="icon/css.svg"></img>   css</div>
+                        <div onclick="splitMenu('css')" class="splititem"> <img src="icon/css.svg"></img> css</div>
                         <div class="gradient"></div>
-                        <div onclick="splitMenu('javascript')" class="splititem"> <img src="icon/js.svg"></img>   js</div>
+                        <div onclick="splitMenu('javascript')" class="splititem"> <img src="icon/js.svg"></img> js</div>
                      </div>
                   </div>
                </div>
@@ -100,7 +100,8 @@
          <pre id="CodeBlock" class="scrollbar"></pre>
          <pre id="cssEditor" class="scrollbar"></pre>
          <pre id="jsEditor" class="scrollbar"></pre>
-         <pre id="splitEditor" class="scrollbar"></pre>
+         <!-- <img style="position: absolute; top: 0; left: 0;" src="icon/html.svg" class="splitlang"> -->
+         <pre id="splitEditor" class="scrollbar"></img></pre>
       </div>
       <div id="overlay">
          <div class="box">

@@ -26,13 +26,17 @@
       let mystyle = gets("#mystyle");
       let localCss = localStorage.getItem("css");
       root.innerHTML = code;
+      mystyle.innerHTML = localCss;
 
-      if (quickEdit.css) {
-        mystyle.innerHTML = localCss;
-      }
       if (quickEdit.js) {
         myScript2.innerHTML = localJs;
       }
+
+      if (quickEdit.css) {
+          mystyle.disabled = false;
+        } else {
+          mystyle.disabled = true;
+        }
 
       window.onload = () => {
         let myScript = gets("#myscript");
@@ -57,9 +61,9 @@
         let script = gets(`#root>script`);
         let mystyle = gets("#mystyle");
         let myScript = gets("#myscript");
-
         
         mystyle.innerHTML = localCss;
+
         if (quickEdit.css) {
           mystyle.disabled = false;
         } else {

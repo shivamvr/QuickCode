@@ -27,7 +27,7 @@ body{
   width: 100%;
   min-height: 400px;
   height: 100vh;
-  /* z-index: 1; */
+  z-index: 0;
 }
 
 #cssEditor,#jsEditor{
@@ -70,6 +70,7 @@ body{
 .monaco-editor{
   transition: none;
   animation: none;
+  z-index: 1;
 }
 /* -----------------Navbar------------------ */
 nav{
@@ -107,12 +108,12 @@ nav .item{
   display: block;
   width: 28px;
   padding: 2px;
-  filter: k-shadow(2px 2px 2px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.2));
 }
 
-.item:hover,#split:hover{
-  filter: brightness(140%) k-shadow(2px 2px 3px rgba(0, 0, 0, 0.5));
+.item:hover{
   cursor: pointer;
+  filter: brightness(140%);
 }
 
 

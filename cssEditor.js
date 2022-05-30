@@ -27,17 +27,17 @@ var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
 });
 
 //---------------------Save-to-loacalstorage--------------------------
-window.cssEditor.getModel().onDidChangeContent(() => {saveItLocal('css') });
+window.cssEditor.getModel().onDidChangeContent(() => {saveItLocal('css')});
 let cssCheck = gets('#cssCheck')
 
-if(quickEdit.css){
+if (quickEdit.css) {
   cssCheck.checked = true
 }
 
-cssCheck.addEventListener('change',()=>{
+cssCheck.addEventListener('change', () => {
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
   let cssCheck = gets('#cssCheck')
   quickEdit.css = cssCheck.checked
   console.log(quickEdit)
-  localStorage.setItem('quickEdit',JSON.stringify(quickEdit)) 
+  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
 })
