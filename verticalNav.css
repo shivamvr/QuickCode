@@ -4,7 +4,6 @@ body{
 }
 #editor{
   width: calc(100% - 49px);
-  display: none;
 }
 #CodeBlock,#cssEditor,#jsEditor{
   width: 100%;
