@@ -92,6 +92,7 @@
 #split {
   width: 26px;
   padding-left: 0;
+  z-index: 3;
 }
 
 #split:hover {
@@ -111,11 +112,9 @@
   justify-content: center;
   position: relative;
   flex-direction: column;
-  z-index: 2;
 }
 
 .splitMenu:hover{
-  filter: brightness(100%);
   box-shadow: none;
 }
 
@@ -124,14 +123,13 @@
   width: fit-content;
   top: 37.5px;
   display: none;
-  z-index: 2;
+  z-index: 3;
   background: linear-gradient(to right, #76A2B4,#2594A6);
   border-radius: 4px;
 }
 
 .splititems {
   border-radius: 4px;
-  width: fit-content;
 }
 .splititems > div:nth-child(1) {
   border-radius: 5px 5px 0 0;
@@ -151,6 +149,7 @@
   background: linear-gradient(to right,rgba(94, 94, 94, 0.333),rgba(0, 120, 200, 0.3));
   color: #77e3f1;
   text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.15);
+  z-index: 999999;
 }
 .splititem:hover{
   color: rgba(255, 255, 255, 0.902);
@@ -177,9 +176,6 @@
   border-left: 7px solid transparent;
   border-right: 7px solid transparent;
 }
-
-
-
 
 
 

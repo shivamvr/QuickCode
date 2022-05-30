@@ -6,7 +6,6 @@ scrollTop.addEventListener('click', () => {
 })
 
 
-
 alignNav(quickEdit.vnav)
 
 
@@ -17,7 +16,7 @@ if (window.outerWidth <= 670) {
 
 var onresize = function () {
     let width = window.outerWidth;
-    let height = window.outerHeight;
+    // let height = window.outerHeight;
     if (width <= 670) {
         alignNav(true)
     } else {
@@ -34,18 +33,30 @@ let contianer = gets('.contianer')
 let editors = getsAll('#editor>pre')
 
 function splitMenu(lang) {
-    alert('')
-    console.log(lang)
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     quickEdit.splitLang = lang
-    console.log(quickEdit)
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+    console.log('lang:', lang)
+    if (lang === 'html') {
+        let code = localStorage.getItem('code')
+        splitEditor.getModel().setValue(code);
+        quickEdit.splitLang = 'html'
+    } else if (lang === 'css') {
+        let css = localStorage.getItem('css')
+        splitEditor.getModel().setValue(css);
+        quickEdit.splitLang = 'css'
+    } else if (lang === 'js') {
+        let js = localStorage.getItem('js')
+        splitEditor.getModel().setValue(js);
+        quickEdit.splitLang = 'javascript'
+    }
+    monaco.editor.setModelLanguage(splitEditor.getModel(), lang)
     doSplit()
-    // window.location.reload()
+    updateSplit(lang)
 }
 
 
-function doSplit(){
+function doSplit() {
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     quickEdit.split = true
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
@@ -92,11 +103,8 @@ gets('#editor').addEventListener('click', () => {
     }
 })
 
-// if(quickEdit.split){
-//     doSplit(quickEdit.splitLang)
-// }
+if (quickEdit.split) {
+    doSplit(quickEdit.splitLang)
+}
 
-gets('#html0').addEventListener('click',()=>{
-    
-    alert('clicked')
-})
+

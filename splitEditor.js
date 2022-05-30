@@ -1,6 +1,5 @@
 var splitContent = $.trim($("#splitEditor").text());
 $("#splitEditor").html("");
-console.log('splitContent:', splitContent)
 
 let savedsplit = localStorage.getItem("split");
 
@@ -8,19 +7,17 @@ let splitLang = JSON.parse(localStorage.getItem("quickEdit")).splitLang
 let splitLangCode = ''
 let splitSave = 'code'
 
-if(splitLang === 'html'){
-    splitLangCode = savedCode
-    splitSave = 'code'
-}else if(splitLang === 'css'){
-    splitLangCode = savedcss
-    splitSave = 'css'
-}else if(splitLang === 'javascript'){
+if (splitLang === 'html') {
+  splitLangCode = savedCode
+  splitSave = 'code'
+} else if (splitLang === 'css') {
+  splitLangCode = savedcss
+  splitSave = 'css'
+} else if (splitLang === 'javascript') {
   splitLangCode = savedjs
   splitSave = 'js'
 }
- 
-console.log('splitLang:', splitLang)
-console.log('splitSave:', splitSave)
+
 
 var splitEditor = monaco.editor.create(document.getElementById("splitEditor"), {
   value: splitLangCode,
@@ -46,6 +43,18 @@ var splitEditor = monaco.editor.create(document.getElementById("splitEditor"), {
 
 //---------------------Save-to-loacalstorage--------------------------
 
-window.splitEditor.getModel().onDidChangeContent(() => { saveBySplit(splitSave) });
+window.splitEditor.getModel().onDidChangeContent(() => {
+  let splitLang = JSON.parse(localStorage.getItem('quickEdit')).splitLang
+  if (splitLang === 'html') {
+    splitSave = 'code'
+  } else if (splitLang === 'css') {
+    splitSave = 'css'
+  } else if (splitLang === 'javascript') {
+    splitSave = 'js'
+  }
+
+  console.log('splitSave:', splitSave)
+  saveBySplit(splitSave)
+});
 
 

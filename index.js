@@ -17,7 +17,7 @@ let savedCode = localStorage.getItem("code");
 let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
 if (!quickEdit) {
-let obj = { theme: 'vs', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' }
+  let obj = { theme: 'vs', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' }
   localStorage.setItem('quickEdit', JSON.stringify(obj))
   quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 }
@@ -80,7 +80,8 @@ function saveItLocal(call) {
 }
 
 function saveBySplit(call) {
-  if (call === 'main') {
+  console.log('call:', call)
+  if (call === 'code') {
     let code = splitEditor.getValue();
     localStorage.setItem("code", code);
   } else if (call == 'css') {
@@ -93,7 +94,7 @@ function saveBySplit(call) {
 }
 
 
-window.editor.getModel().onDidChangeContent(() => { saveItLocal('main') });
+window.editor.getModel().onDidChangeContent(() => {saveItLocal('main')});
 
 //---------------------Save-as-file----------------------------------
 const fileNameInput = gets('#filename')
@@ -397,6 +398,7 @@ let tab = getsAll('.tab')
 tab.forEach((e) => {
   e.addEventListener('click', () => {
     makeActive(e.id)
+    updateEditor(e.id)
   })
 })
 
@@ -448,4 +450,40 @@ function makeActive(e) {
     quickEdit.tab = 'js'
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   }
+
+}
+
+function updateSplit(e){
+  console.log('e:', e)
+  let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
+  if(quickEdit.split){
+  if (e === 'html') {
+    let code = editor.getValue()
+    console.log(code)
+    splitEditor.getModel().setValue(code);
+  } else if (e === 'css') {
+    let css = cssEditor.getValue()
+    splitEditor.getModel().setValue(css);
+    console.log(css)
+  } else if (e === 'javascript') {
+    let js = jsEditor.getValue()
+    splitEditor.getModel().setValue(js);
+    console.log(e, js)
+  }
+  }
+}
+
+function updateEditor(e){
+  console.log('e:', e)
+  let code = localStorage.getItem('code')
+  let js = localStorage.getItem('js')
+  let css = localStorage.getItem('css')
+  if(e==='main'){
+    editor.getModel().setValue(code);
+  }else if(e==='css'){
+    cssEditor.getModel().setValue(css);
+  }else if(e==='js'){
+    jsEditor.getModel().setValue(js);
+  }
+
 }

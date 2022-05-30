@@ -29,15 +29,15 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 
 //---------------------Save-to-loacalstorage--------------------------
 
-window.jsEditor.getModel().onDidChangeContent(() => { saveItLocal('js') });
+window.jsEditor.getModel().onDidChangeContent(() => {saveItLocal('js')});
+
 let jsCheck = gets('#jsCheck')
 
-if(quickEdit.js){
+if (quickEdit.js) {
   jsCheck.checked = true
 }
 
 jsCheck.addEventListener('change', () => {
-  let script = gets('#myscript2')
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
   let jsCheck = gets('#jsCheck')
   quickEdit.js = jsCheck.checked
@@ -45,6 +45,3 @@ jsCheck.addEventListener('change', () => {
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
 })
 
-
-
-window.addEventListener("resize", onresize);
