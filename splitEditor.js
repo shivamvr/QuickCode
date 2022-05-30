@@ -1,5 +1,6 @@
 var splitContent = $.trim($("#splitEditor").text());
 $("#splitEditor").html("");
+console.log('splitContent:', splitContent)
 
 let savedsplit = localStorage.getItem("split");
 

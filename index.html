@@ -1,132 +1,120 @@
-
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!------------------------------Jquery------------------------->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <!-----------------------------emmet--------------------------->
-    <script src="https://unpkg.com/emmet-monaco-es/dist/emmet-monaco.min.js"></script>
-    <!------------------------------------------------------------->
-    <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
-    <!----------------------monaco-editor----------------->
-    <script type="text/javascript" src="https://unpkg.com/monaco-themes/dist/monaco-themes.js"></script>
-    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.css" integrity="sha512-Iv1lj5SbHg+aiqetfjcMB/kk2L4RMsocHvjrBO//Z32HZJLoNy3Y1VfMUMXDigVCfmagjd7zogVnbNBHda4aIQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script> var require = {paths: {'vs': "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs" } };</script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/loader.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.nls.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.js"></script>
-    <!---------------------------------------------------->
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="tabs.css">
-    <link id="vnav"  rel="stylesheet" href="verticalNav.css" disabled>
-    <script async src="fileSaver.js"> </script>
-    <title>QuickCode</title>
-</head>
-<body >
+   <head>
+      <meta charset="UTF-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <!------------------------------Jquery------------------------->
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+      <!-----------------------------emmet--------------------------->
+      <script src="https://unpkg.com/emmet-monaco-es/dist/emmet-monaco.min.js"></script>
+      <!------------------------------------------------------------->
+      <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
+      <!----------------------monaco-editor----------------->
+      <script type="text/javascript" src="https://unpkg.com/monaco-themes/dist/monaco-themes.js"></script>
+      <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.css" integrity="sha512-Iv1lj5SbHg+aiqetfjcMB/kk2L4RMsocHvjrBO//Z32HZJLoNy3Y1VfMUMXDigVCfmagjd7zogVnbNBHda4aIQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+      <script> var require = {paths: {'vs': "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs" } };</script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/loader.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.nls.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.js"></script>
+      <!---------------------------------------------------->
+      <link rel="stylesheet" href="style.css">
+      <link rel="stylesheet" href="tabs.css">
+      <link id="vnav"  rel="stylesheet" href="verticalNav.css" disabled>
+      <script async src="fileSaver.js"> </script>
+      <title>QuickCode</title>
+   </head>
+   <body >
       <nav>
-          <div class="item">
+         <div class="item">
             <img id="alignbtn" src="icon/align.svg" alt="">
          </div>
-        
-        <div class="item">
+         <div class="item">
             <label for="file">
-                <img style="width: 25px"  src="icon/open.svg" alt="">
+            <img style="width: 25px"  src="icon/open.svg" alt="">
             </label>
             <input type="file" accept=".js,.txt,.html,.css,.json" id="file"></input>
-        </div>
-
-        <div id="save" class="item">
+         </div>
+         <div id="save" class="item">
             <img style="transform: rotate(0deg);" id="alignbtn" src="icon/download.svg" alt="">
-        </div>
-        <div id="openwin" class="item" onclick="openWin()">
+         </div>
+         <div id="openwin" class="item" onclick="openWin()">
             <img src="icon/code1.svg" alt="">
-        </div>
-        <!-- ------------------------------Tabs------------------->
-           <div class="tabs">
-     <div id="split" style="width: 40px; background: none; width: fit-content; height: fit-content;"class="tab">
-        <div class="splitMenu">
-            <img class="splitsvg" src="icon/splits.svg" alt="">
-           <div class="contianer">
-            <div class="triangle"></div>
-             <div class="splititems">
-                <div onClick="splitMenu('html')" class="splititem"> <img src="icon/html.svg"></img>   html</div>
-                 <div class="gradient"></div>
-                 <div onClick="splitMenu('css')" class="splititem"> <img src="icon/css.svg"></img>   css</div>
-                 <div class="gradient"></div>
-                <div onClick="splitMenu('javascript')" class="splititem"> <img src="icon/js.svg"></img>   js</div>
-             </div>
-           </div>
-       </div>
-       <div onclick="singleEditor()" class="single">
-           <img  src="icon/single.svg" alt="">
-        </div>
-    </div>
-
-                <div id='main' class="tab active-tab">
-                    <img  id="mainsvg" src="icon/html.svg" alt="">
-                </div>
-                
-                <div  id="css" class="tab">
-                    <img id="csssvg" src="icon/css.svg" alt="">
-                    <input class="checkbox" id="cssCheck" type="checkbox" />
-                </div>
-
-                <div  id="js" class="tab">
-                    <img id="js" src="icon/js.svg" alt="">
-                    <input class="checkbox" id="jsCheck" type="checkbox" />
-                </div>
-            
+         </div>
+         <!-- ------------------------------Tabs------------------->
+         <div class="tabs">
+            <div id="split" style="width: 40px; background: none; width: fit-content; height: fit-content;"class="tab">
+               <div class="splitMenu">
+                  <img class="splitsvg" src="icon/splits.svg" alt="">
+                  <div class="contianer">
+                     <div class="triangle"></div>
+                     <div class="splititems">
+                        <div id="htmlo" onclick="splitMenu()" class="splititem"> <img src="icon/html.svg"></img>   html</div>
+                        <div class="gradient"></div>
+                        <div onclick="splitMenu()" class="splititem"> <img src="icon/css.svg"></img>   css</div>
+                        <div class="gradient"></div>
+                        <div onclick="splitMenu('javascript')" class="splititem"> <img src="icon/js.svg"></img>   js</div>
+                     </div>
+                  </div>
+               </div>
+               <div onclick="singleEditor()" class="single">
+                  <img  src="icon/single.svg" alt="">
+               </div>
             </div>
-        <!--------------------------Drop-Down-menu----------------->
-
-        <div class="select selectA">
+            <div id='main' class="tab active-tab">
+               <img  id="mainsvg" src="icon/html.svg" alt="">
+            </div>
+            <div  id="css" class="tab">
+               <img id="csssvg" src="icon/css.svg" alt="">
+               <input class="checkbox" id="cssCheck" type="checkbox" />
+            </div>
+            <div  id="js" class="tab">
+               <img id="js" src="icon/js.svg" alt="">
+               <input class="checkbox" id="jsCheck" type="checkbox" />
+            </div>
+         </div>
+         <!--------------------------Drop-Down-menu----------------->
+         <div class="select selectA">
             <div id="lang" class="selectBtn" data-type="html">html</div>
             <div class="selectDropdown">
-              <div class="option" data-type="plaintext">plaintext</div>
-              <div class="option" data-type="html">html</div>
-              <div class="option" data-type="css">css</div>
-              <div class="option" data-type="javascript">javascript</div>
-              <div class="option" data-type="json">json</div>
+               <div class="option" data-type="plaintext">plaintext</div>
+               <div class="option" data-type="html">html</div>
+               <div class="option" data-type="css">css</div>
+               <div class="option" data-type="javascript">javascript</div>
+               <div class="option" data-type="json">json</div>
             </div>
-        </div>
-          
-        <div  class="select selectB">
-            
+         </div>
+         <div  class="select selectB">
             <div id="theme" class="selectBtn" data-type="theme1">vs</div>
-            <div class="selectDropdown"> 
-              <div class="option" data-type="vs">vs</div>
-              <div class="option" data-type="vs-dark">vs-dark</div>
-              <div class="option" data-type="cobalt2">cobalt2</div>
-              <div class="option" data-type="dracula">dracula</div>
-              <div class="option" data-type="monokai">monokai</div>
+            <div class="selectDropdown">
+               <div class="option" data-type="vs">vs</div>
+               <div class="option" data-type="vs-dark">vs-dark</div>
+               <div class="option" data-type="cobalt2">cobalt2</div>
+               <div class="option" data-type="dracula">dracula</div>
+               <div class="option" data-type="monokai">monokai</div>
             </div>
-        </div>
-    
-    <!-- <div id="theme" class="item"><img src="icon/color.svg" alt=""> </div> -->
-    </nav>
-    <div id="editor">
-    <pre id="CodeBlock" class="scrollbar"></pre>
-    <pre id="cssEditor" class="scrollbar"></pre>
-    <pre id="jsEditor" class="scrollbar"></pre>
-    <pre id="splitEditor" class="scrollbar"></pre>
-    </div>
-
-    <div id="overlay">
-        <div class="box">
+         </div>
+         <!-- <div id="theme" class="item"><img src="icon/color.svg" alt=""> </div> -->
+      </nav>
+      <div id="editor">
+         <pre id="CodeBlock" class="scrollbar"></pre>
+         <pre id="cssEditor" class="scrollbar"></pre>
+         <pre id="jsEditor" class="scrollbar"></pre>
+         <pre id="splitEditor" class="scrollbar"></pre>
+      </div>
+      <div id="overlay">
+         <div class="box">
             <input type="text" id="filename" placeholder="file name">
             <img onclick="downf()" src="icon/download.svg" alt="">
-        </div>
-    </div>
-    <div id="top">↑</div>
-    <img id="hidenav" src="icon/show.svg" alt="">
-    <img id="shownav" src="icon/hide.svg" alt="">
-    <script  src="index.js"></script>
-    <script  src="cssEditor.js"></script>
-    <script  src="jsEditor.js"></script>
-    <script  src="splitEditor.js"></script>
-    <script  src="eventListener.js"></script>
-</body>
+         </div>
+      </div>
+      <div id="top">↑</div>
+      <img id="hidenav" src="icon/show.svg" alt="">
+      <img id="shownav" src="icon/hide.svg" alt="">
+      <script  src="index.js"></script>
+      <script  src="cssEditor.js"></script>
+      <script  src="jsEditor.js"></script>
+      <script  src="splitEditor.js"></script>
+      <script  src="eventListener.js"></script>
+   </body>
 </html>

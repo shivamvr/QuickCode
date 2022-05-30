@@ -90,3 +90,16 @@ nav .item {
 #CodeBlock{
   flex-grow: 1;
 }
+
+.contianer {
+  top: 50%;
+  transform: translateY(-50%);
+  left: 40px;
+}
+
+.triangle {
+  border-bottom-color: #6A8D99;
+  left: -13.2px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg); 
+}

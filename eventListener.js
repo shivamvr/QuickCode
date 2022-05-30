@@ -34,13 +34,14 @@ let contianer = gets('.contianer')
 let editors = getsAll('#editor>pre')
 
 function splitMenu(lang) {
+    alert('')
     console.log(lang)
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     quickEdit.splitLang = lang
     console.log(quickEdit)
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
     doSplit()
-    window.location.reload()
+    // window.location.reload()
 }
 
 
@@ -91,6 +92,11 @@ gets('#editor').addEventListener('click', () => {
     }
 })
 
-if(quickEdit.split){
-    doSplit(quickEdit.splitLang)
-}
+// if(quickEdit.split){
+//     doSplit(quickEdit.splitLang)
+// }
+
+gets('#html0').addEventListener('click',()=>{
+    
+    alert('clicked')
+})
