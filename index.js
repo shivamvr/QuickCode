@@ -196,7 +196,6 @@ inputFile.addEventListener("change", function () {
   file.onload = () => {
     let text = file.result + ""
     let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
-    let quickEd = JSON.parse(localStorage.getItem('quickEdit'))
     if (activeTab === 'main') {
       localStorage.setItem('code', text)
 

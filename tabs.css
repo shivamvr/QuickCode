@@ -199,6 +199,9 @@
   margin: 0 1px;
   padding: 3px;
 }
+.splitTab:hover{
+  border-bottom: 1.5px solid #3fcee1;
+}
 
 .splitTab>img{
   height: 100%;

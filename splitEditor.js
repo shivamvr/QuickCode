@@ -45,8 +45,6 @@ var splitEditor = monaco.editor.create(document.getElementById("splitEditor"), {
 
 window.splitEditor.getModel().onDidChangeContent(() => {
   let splitLang = JSON.parse(localStorage.getItem('quickEdit')).splitLang
-
-
   if (splitLang === 'html') {
     splitSave = 'code'
   } else if (splitLang === 'css') {
@@ -54,7 +52,7 @@ window.splitEditor.getModel().onDidChangeContent(() => {
   } else if (splitLang === 'javascript') {
     splitSave = 'js'
   }
-
+  
   saveBySplit(splitSave)
 });
 

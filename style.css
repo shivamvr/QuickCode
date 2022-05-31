@@ -129,6 +129,7 @@ nav .item{
 
 #split>.single{
   display: none;
+  cursor: pointer;
 }
 
 /* ---------------Input-File------------- */
