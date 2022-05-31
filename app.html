@@ -48,19 +48,13 @@
         }
       };
 
+      let reload = JSON.parse(localStorage.getItem("reload"));
+        console.log('reload 1:', reload)
+
       window.addEventListener("storage", () => {
         let myScript2 = gets("#myscript2");
         let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
         let code = localStorage.getItem("code");
-        let reload = localStorage.getItem("reload");
-        console.log("reload:", reload);
-        let localJs = localStorage.getItem("js");
-        if (reload && quickEdit.js) {
-          reload = false;
-          localStorage.setItem("reload", reload);
-          console.log('quickEdit.js:', quickEdit.js)
-          console.log("reload:", reload);
-        }
         let localCss = localStorage.getItem("css").replace(/\s+/g, " ");
         let root = document.querySelector("#root");
         root.innerHTML = code;
@@ -77,17 +71,28 @@
           mystyle.disabled = true;
         }
 
-        myScript2.innerHTML = localJs;
-
+        let localJs = localStorage.getItem("js");
         if (quickEdit.js) {
+          myScript2.innerHTML = localJs;
           myScript2.disabled = false;
+          console.log('enable')
         } else {
+          console.log('disabled')
           myScript2.disabled = true;
+        }
+
+
+        let reload = JSON.parse(localStorage.getItem("reload"));
+        if (reload && quickEdit.js) {
+          reload = false;
+          localStorage.setItem("reload", reload);
+          window.location.reload();
         }
 
         if (script && script.innerHTML != myScript.innerHTML) {
           window.location.reload();
         }
+
       });
     </script>
   </body>

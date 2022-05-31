@@ -2,7 +2,7 @@ body {
   flex-direction: row;
 }
 #editor {
-  width: calc(100% - 49px);
+  width: 100%;
 }
 #CodeBlock,
 #cssEditor,
@@ -122,8 +122,6 @@ nav .item {
   left: 6px;
   width: 17px;
 }
-
-
 
 
 @media only screen and (max-width: 750px) {

@@ -29,11 +29,12 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 
 //---------------------Save-to-loacalstorage--------------------------
 let reload = false
-
+localStorage.setItem("reload", reload);
 window.jsEditor.getModel().onDidChangeContent(() => {saveItLocal('js')
   reload = true
   localStorage.setItem('reload',reload)
 });
+
 let jsCheck = gets('#jsCheck')
 if (quickEdit.js) {
   jsCheck.checked = true
@@ -43,7 +44,8 @@ jsCheck.addEventListener('change', () => {
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
   let jsCheck = gets('#jsCheck')
   quickEdit.js = jsCheck.checked
-  console.log(quickEdit)
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  reload = true
+  localStorage.setItem('reload',reload)
 })
 
