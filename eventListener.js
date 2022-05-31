@@ -82,7 +82,7 @@ function makeSplitTabActive(e){
   }else if(e=== 'css'){
     splitTabs.forEach((e)=>{e.classList.remove('active-tab')})
     splitcss.classList.add('active-tab')
-  }else if(e=== 'js'){
+  }else if(e=== 'javascript'){
     splitTabs.forEach((e)=>{e.classList.remove('active-tab')})
     splitjs.classList.add('active-tab')
   }
