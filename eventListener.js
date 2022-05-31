@@ -30,13 +30,12 @@ let singleicon = gets('.single')
 let spliticon = gets('.splitsvg')
 let split = gets('#split')
 let contianer = gets('.contianer')
-let editors = getsAll('#editor>pre')
+let editors = getsAll('.editor')
 
 function splitMenu(lang) {
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     quickEdit.splitLang = lang
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
-    console.log('lang:', lang)
     if (lang === 'html') {
         let code = localStorage.getItem('code')
         splitEditor.getModel().setValue(code);
@@ -52,6 +51,7 @@ function splitMenu(lang) {
     }
     monaco.editor.setModelLanguage(splitEditor.getModel(), lang)
     doSplit()
+    makeSplitTabActive(lang)
     updateSplit(lang)
 }
 
@@ -60,7 +60,7 @@ function doSplit() {
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     quickEdit.split = true
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
-    let splitEditor = gets('#splitEditor')
+    let splitEditor = gets('#splitContainer')
     spliticon.style.display = 'none'
     singleicon.style.display = 'block'
     editors.forEach((e) => {
@@ -71,12 +71,29 @@ function doSplit() {
     });
 }
 
+function makeSplitTabActive(e){
+    let splithtml = gets('.splithtml')
+    let splitcss = gets('.splitcss')
+    let splitjs = gets('.splitjs')
+    let splitTabs = getsAll('.splitTab')
+  if(e === 'html'){
+    splitTabs.forEach((e)=>{e.classList.remove('active-tab')})
+    splithtml.classList.add('active-tab')
+  }else if(e=== 'css'){
+    splitTabs.forEach((e)=>{e.classList.remove('active-tab')})
+    splitcss.classList.add('active-tab')
+  }else if(e=== 'js'){
+    splitTabs.forEach((e)=>{e.classList.remove('active-tab')})
+    splitjs.classList.add('active-tab')
+  }
+}
+
 
 function singleEditor() {
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     quickEdit.split = false
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
-    let splitEditor = gets('#splitEditor')
+    let splitEditor = gets('#splitContainer')
     singleicon.style.display = 'none'
     spliticon.style.display = 'block'
     contianer.style.display = 'none'
@@ -105,6 +122,7 @@ gets('#editor').addEventListener('click', () => {
 
 if (quickEdit.split) {
     doSplit(quickEdit.splitLang)
+    makeSplitTabActive(quickEdit.splitLang)
 }
 
 

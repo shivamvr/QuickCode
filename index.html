@@ -97,11 +97,17 @@
          <!-- <div id="theme" class="item"><img src="icon/color.svg" alt=""> </div> -->
       </nav>
       <div id="editor">
-         <pre id="CodeBlock" class="scrollbar"></pre>
-         <pre id="cssEditor" class="scrollbar"></pre>
-         <pre id="jsEditor" class="scrollbar"></pre>
-         <!-- <img style="position: absolute; top: 0; left: 0;" src="icon/html.svg" class="splitlang"> -->
-         <pre id="splitEditor" class="scrollbar"></img></pre>
+         <pre id="CodeBlock" class="scrollbar editor"></pre>
+         <pre id="cssEditor" class="scrollbar editor"></pre>
+         <pre id="jsEditor" class="scrollbar editor"></pre>
+         <div id="splitContainer" class="editor">
+            <div class="splitTabs">
+               <div onclick="splitMenu('html')" class="splitTab splithtml"><img src="icon/html.svg" alt="">html</div>
+               <div onclick="splitMenu('css')" class="splitTab splitcss"><img src="icon/css.svg" alt="">css</div>
+               <div onclick="splitMenu('javascript')" class="splitTab splitjs"><img src="icon/js.svg" alt="">js</div>
+            </div>
+            <pre id="splitEditor" class="scrollbar"></img></pre>
+         </div>
       </div>
       <div id="overlay">
          <div class="box">

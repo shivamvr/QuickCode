@@ -80,7 +80,6 @@ function saveItLocal(call) {
 }
 
 function saveBySplit(call) {
-  console.log('call:', call)
   if (call === 'code') {
     let code = splitEditor.getValue();
     localStorage.setItem("code", code);
@@ -121,7 +120,6 @@ const hideOverlay = () => {
 
 function saveFile() {
   let activeTab = JSON.parse(localStorage.getItem("quickEdit")).tab
-  console.log(activeTab)
   let fname = fileNameInput.value
   let text = editor.getValue();
   let css = cssEditor.getValue();
@@ -453,27 +451,22 @@ function makeActive(e) {
 }
 
 function updateSplit(e){
-  console.log('e:', e)
   let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
   if(quickEdit.split){
   if (e === 'html') {
     let code = editor.getValue()
-    console.log(code)
     splitEditor.getModel().setValue(code);
   } else if (e === 'css') {
     let css = cssEditor.getValue()
     splitEditor.getModel().setValue(css);
-    console.log(css)
   } else if (e === 'javascript') {
     let js = jsEditor.getValue()
     splitEditor.getModel().setValue(js);
-    console.log(e, js)
   }
   }
 }
 
 function updateEditor(e){
-  console.log('e:', e)
   let code = localStorage.getItem('code')
   let js = localStorage.getItem('js')
   let css = localStorage.getItem('css')

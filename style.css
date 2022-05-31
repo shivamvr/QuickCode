@@ -33,10 +33,16 @@ body{
 #cssEditor,#jsEditor{
   display: none;
 }
+#splitContainer{
+  width: 50%;
+  display: none;
+  height: 100vh;
+}
 
 #splitEditor{
- width: 50%;
- display: none;
+ width: 100%;
+ height: 100vh;
+ min-height: 400px;
 }
 
 #hidenav,#shownav{
@@ -159,7 +165,7 @@ nav .item{
    width: 35%;
    border-radius: .8rem;
    background: rgb(227, 227, 227);
-   height: 160px;
+   min-height: 160px;
    display: flex;
    align-items: center;
    justify-content: center;
