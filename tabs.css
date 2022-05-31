@@ -19,7 +19,7 @@
   width: 22px;
   height: 18px;
   top: 50%;
-  left: 2px;
+  left: 1px;
   transform: translateY(-50%);
   border-radius: 20px;
   background-color: #fff;
@@ -32,7 +32,7 @@
 }
 
 .checkbox:checked::before {
-  left: 26px;
+  left: 27px;
   background-color: #fff;
 }
 
@@ -43,7 +43,6 @@
   flex-direction: row;
   justify-content: center;
   display: none;
-  transition: all 2s;
 }
 
 .tab {
@@ -82,7 +81,7 @@
 }
 
 .tab:active {
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 .tab:hover {
@@ -90,15 +89,17 @@
   background: linear-gradient(to right,rgba(255, 255, 255, 0.333),rgba(0, 200, 200, 0.3));
 }
 #split {
-  width: 26px;
-  padding-left: 0;
+  width: fit-content;
+  display: flex;
+  justify-content: center;
+  height: fit-content;
+  background: none;
   z-index: 3;
 }
 
 #split:hover {
   border: none;
   color: #62e7f8;
-  cursor: pointer;
 }
 
 .mr0 {
@@ -112,6 +113,7 @@
   justify-content: center;
   position: relative;
   flex-direction: column;
+  cursor: pointer;
 }
 
 .splitMenu:hover{
@@ -149,7 +151,7 @@
   background: linear-gradient(to right,rgba(94, 94, 94, 0.333),rgba(0, 120, 200, 0.3));
   color: #77e3f1;
   text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.15);
-  z-index: 999999;
+  z-index: 5;
 }
 .splititem:hover{
   color: rgba(255, 255, 255, 0.902);
@@ -163,6 +165,7 @@
   height: 2px;
   width: 100%;
   background: #31bbce;
+  border-radius: 1rem;
 }
 .triangle {
   position: absolute;
@@ -176,8 +179,6 @@
   border-left: 7px solid transparent;
   border-right: 7px solid transparent;
 }
-
-
 
 
 /* -------------------Media-query----------------- */
@@ -210,17 +211,44 @@
   }
 }
 @media only screen and (max-width: 750px) {
-  nav .item {
-    margin-right: 1rem;
+  nav {
+   justify-content: flex-end;
+   padding-left: 1rem;
+   padding-right: .4rem;
   }
   .selectA {
     display: none;
   }
+  #split{
+    display: none;
+  }
+  .checkbox:checked::before {
+    left: 20px;
+    background-color: #fff;
+  }
 }
 @media only screen and (max-width: 650px) {
   nav .item {
-    margin-right: 4px;
+    margin-right: 6px;
+  }
+  .tab{
+    width: 60px;
+    padding: 0;
+    justify-content: center;
+    margin: 0 6px;
+  }
+  .tab img{
+    margin: 0;
+    padding: 2px;
+    height: 90%;
+  }
+  .tabs{
+    width: fit-content;
+  }
+  .checkbox{
+    display: none;
   }
 }
+
 
 

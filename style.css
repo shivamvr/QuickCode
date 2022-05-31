@@ -42,7 +42,7 @@ body{
 #hidenav,#shownav{
   position: absolute;
   color: #4ec0d0;
-  width: 22px;
+  width: 20px;
   cursor: pointer;
 }
 #hidenav{

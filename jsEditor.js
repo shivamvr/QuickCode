@@ -28,11 +28,13 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 });
 
 //---------------------Save-to-loacalstorage--------------------------
+let reload = false
 
-window.jsEditor.getModel().onDidChangeContent(() => {saveItLocal('js')});
-
+window.jsEditor.getModel().onDidChangeContent(() => {saveItLocal('js')
+  reload = true
+  localStorage.setItem('reload',reload)
+});
 let jsCheck = gets('#jsCheck')
-
 if (quickEdit.js) {
   jsCheck.checked = true
 }

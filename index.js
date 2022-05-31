@@ -371,15 +371,14 @@ function alignNav(p) {
   if (p) {
     aligntop = false
     verticalNav.disabled = false
-    alignbtn.style.transform = 'rotate(0deg)'
     quickEdit.vnav = true
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+    
     return
   } else if (!p) {
     aligntop = true
     verticalNav.disabled = true
     quickEdit.vnav = false
-    alignbtn.style.transform = 'rotate(-90deg)'
     let lang = JSON.parse(localStorage.getItem('quickEdit')).lang
     if (lang == 'html') {
       tabs.style.display = 'flex'

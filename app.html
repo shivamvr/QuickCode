@@ -25,6 +25,7 @@
       let localJs = localStorage.getItem("js");
       let mystyle = gets("#mystyle");
       let localCss = localStorage.getItem("css");
+
       root.innerHTML = code;
       mystyle.innerHTML = localCss;
 
@@ -33,10 +34,10 @@
       }
 
       if (quickEdit.css) {
-          mystyle.disabled = false;
-        } else {
-          mystyle.disabled = true;
-        }
+        mystyle.disabled = false;
+      } else {
+        mystyle.disabled = true;
+      }
 
       window.onload = () => {
         let myScript = gets("#myscript");
@@ -47,13 +48,19 @@
         }
       };
 
-      let cn = 0
-
       window.addEventListener("storage", () => {
         let myScript2 = gets("#myscript2");
         let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
         let code = localStorage.getItem("code");
+        let reload = localStorage.getItem("reload");
+        console.log("reload:", reload);
         let localJs = localStorage.getItem("js");
+        if (reload && quickEdit.js) {
+          reload = false;
+          localStorage.setItem("reload", reload);
+          console.log('quickEdit.js:', quickEdit.js)
+          console.log("reload:", reload);
+        }
         let localCss = localStorage.getItem("css").replace(/\s+/g, " ");
         let root = document.querySelector("#root");
         root.innerHTML = code;
@@ -61,7 +68,7 @@
         let script = gets(`#root>script`);
         let mystyle = gets("#mystyle");
         let myScript = gets("#myscript");
-        
+
         mystyle.innerHTML = localCss;
 
         if (quickEdit.css) {
@@ -69,29 +76,19 @@
         } else {
           mystyle.disabled = true;
         }
-        
+
         myScript2.innerHTML = localJs;
 
         if (quickEdit.js) {
           myScript2.disabled = false;
-          console.log(myScript.innerHTML.length)
-          console.log(localJs.replaceAll("\r", "").length)
-          console.log((quickEdit.js && localJs.replaceAll("\r", "") != myScript2.innerHTML))
         } else {
           myScript2.disabled = true;
         }
 
-        if(quickEdit.js && localJs.replaceAll("\r", "") != myScript2.innerHTML){
-          myScript2.disabled = false;
+        if (script && script.innerHTML != myScript.innerHTML) {
           window.location.reload();
         }
-
-        if (script && script.innerHTML != myScript.innerHTML) {
-           window.location.reload();
-        }
-
       });
-
     </script>
   </body>
 </html>
