@@ -170,21 +170,3 @@ function exportProject(){
       });
     }
   }
-  
-
-  function extract() {
-    JSZipUtils.getBinaryContent('./QuickCode.zip', function (err, data) {
-      if (err) {
-        throw err;
-      }
-      JSZip.loadAsync(data).then(function (zip) {
-        let file = {}
-         file.html = zip.files['QuickCode/index.html'].async('string')
-         file.css = zip.files['QuickCode/style.css'].async('string')
-         file.js = zip.files['QuickCode/index.js'].async('string')
-        return file;
-      }).then((file)=>{
-      console.log('file:', file)
-      })
-    });
-  }

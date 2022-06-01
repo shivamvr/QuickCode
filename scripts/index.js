@@ -94,7 +94,7 @@ function saveBySplit(call) {
 }
 
 
-window.editor.getModel().onDidChangeContent(() => {saveItLocal('main')});
+window.editor.getModel().onDidChangeContent(() => { saveItLocal('main') });
 
 //---------------------Save-as-file----------------------------------
 const fileNameInput = gets('#filename')
@@ -137,7 +137,7 @@ function saveFile() {
   }
   hideOverlay()
 }
- 
+
 
 const downf = () => {
   saveFile()
@@ -151,6 +151,7 @@ let fileExt = {
   json: 'json',
   html: 'html',
   css: 'css',
+  zip: 'zip'
 }
 
 overylay.onclick = hideOverlay
@@ -182,7 +183,7 @@ document.addEventListener("keydown", (e) => {
   }
 })
 
-// ------------------Open-file-----------------
+// ------------------Open-file-&-Project---------------
 
 function getExtension(filename) {
   let newName = filename.split('.').pop()
@@ -193,28 +194,69 @@ function getExtension(filename) {
 }
 
 let inputFile = gets('#file')
-inputFile.addEventListener("change", function () {
-  var file = new FileReader();
-  file.onload = () => {
-    let text = file.result + ""
+inputFile.addEventListener("change", function (e) {
+  let ext = getExtension(this.files[0].name)
+  let zipFile = e.target.files[0]
+ //-------------------Open-project-----------------------
+  if (ext === 'zip') {
+    if (zipFile == undefined) {
+      return;
+    }
+    var filename = zipFile.name;
+    var reader = new FileReader();
+    // ----------------------------------
+    reader.onload = function (ev) {
+      JSZip.loadAsync(ev.target.result).then(async function (zip) {
+        let file = {}
+        file.html = await zip.files['QuickCode/index.html'].async('string')
+        file.css = await zip.files['QuickCode/style.css'].async('string')
+        file.js = await zip.files['QuickCode/index.js'].async('string')
+        return file;
+      }).then((file)=>{
+       let newHtml = file.html
+       newHtml = newHtml.replace(`<link rel="stylesheet" href="style.css">`,'')
+       newHtml = newHtml.replace(`<script src="index.js"></script>`,'')
+       editor.getModel().setValue(newHtml);
+       cssEditor.getModel().setValue(file.css);
+       jsEditor.getModel().setValue(file.js);
+
+      }).catch(function (err) {
+        console.error("Failed to open", filename, " as ZIP file:", err);
+      })
+    };
+    // ------------------------------------
+    reader.onerror = function (err) {
+      console.error("Failed to read file", err);
+    }
+    reader.readAsArrayBuffer(zipFile);
+  }
+ //---------------open-file------------------
+  if (ext != 'zip') {
+    var file = new FileReader();
+    file.onload = () => {
+      let text = file.result + ""
+      let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
+      if (activeTab === 'main') {
+        editor.getModel().setValue(text);
+      } else if (activeTab === 'css') {
+        cssEditor.getModel().setValue(text);
+      } else if (activeTab === 'js') {
+        jsEditor.getModel().setValue(text);
+      }
+    };
+
+    fileName = this.files[0].name
+    fileNameInput.value = fileName
+    let fExt = getExtension(fileName)
     let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
     if (activeTab === 'main') {
-      editor.getModel().setValue(text);
-    } else if (activeTab === 'css') {
-      cssEditor.getModel().setValue(text);
-    } else if (activeTab === 'js') {
-      jsEditor.getModel().setValue(text);
+      setLang(fileExt[fExt])
     }
-  };
-
-  fileName = this.files[0].name
-  fileNameInput.value = fileName
-  let fExt = getExtension(fileName)
-  let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
-  if (activeTab === 'main') {
-    setLang(fileExt[fExt])
+    file.readAsText(this.files[0]);
   }
-  file.readAsText(this.files[0]);
+
+
+
 });
 
 
@@ -370,7 +412,7 @@ function alignNav(p) {
     verticalNav.disabled = false
     quickEdit.vnav = true
     localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
-    
+
     return
   } else if (!p) {
     aligntop = true
@@ -449,31 +491,31 @@ function makeActive(e) {
 
 }
 
-function updateSplit(e){
+function updateSplit(e) {
   let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
-  if(quickEdit.split){
-  if (e === 'html') {
-    let code = editor.getValue()
-    splitEditor.getModel().setValue(code);
-  } else if (e === 'css') {
-    let css = cssEditor.getValue()
-    splitEditor.getModel().setValue(css);
-  } else if (e === 'javascript') {
-    let js = jsEditor.getValue()
-    splitEditor.getModel().setValue(js);
-  }
+  if (quickEdit.split) {
+    if (e === 'html') {
+      let code = editor.getValue()
+      splitEditor.getModel().setValue(code);
+    } else if (e === 'css') {
+      let css = cssEditor.getValue()
+      splitEditor.getModel().setValue(css);
+    } else if (e === 'javascript') {
+      let js = jsEditor.getValue()
+      splitEditor.getModel().setValue(js);
+    }
   }
 }
 
-function updateEditor(e){
+function updateEditor(e) {
   let code = localStorage.getItem('code')
   let js = localStorage.getItem('js')
   let css = localStorage.getItem('css')
-  if(e==='main'){
+  if (e === 'main') {
     editor.getModel().setValue(code);
-  }else if(e==='css'){
+  } else if (e === 'css') {
     cssEditor.getModel().setValue(css);
-  }else if(e==='js'){
+  } else if (e === 'js') {
     jsEditor.getModel().setValue(js);
   }
 
