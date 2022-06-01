@@ -156,12 +156,13 @@ nav .item{
    position: absolute;
    top: 0;
    left: 0;
-   z-index: 5;
+   z-index: 9;
    display: none;
+
  }
 
  .box{
-  min-width: 300px;
+   min-width: 300px;
    margin: 5rem auto;
    width: 35%;
    border-radius: .8rem;
@@ -170,9 +171,11 @@ nav .item{
    display: flex;
    align-items: center;
    justify-content: center;
+   flex-direction: column;
  }
+ 
 
- .box input{
+ .box input,#export{
    min-width: 180px;
    width: 80%;
    border: none;
@@ -184,7 +187,11 @@ nav .item{
    box-shadow: 2px 10px 10px #34343433;
    outline: none;
  }
-
+ .box>div:nth-child(1){
+   display: flex;
+   align-items: center;
+   justify-content: center;
+ }
  .box img{
    width: 49px;
    background: #5B6C7F;
@@ -192,6 +199,14 @@ nav .item{
    padding: .5rem .8rem;
    cursor: pointer;
  }
+
+ #export{
+  cursor: pointer;
+  border-radius: 5px;
+  text-align: center;
+  margin-top: 25px;
+  display: none;
+}
  /* -----------------Dropdown-menu--------- */
  @keyframes fade {
   from {opacity: 0;}

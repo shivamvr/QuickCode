@@ -125,4 +125,49 @@ if (quickEdit.split) {
     makeSplitTabActive(quickEdit.splitLang)
 }
 
+let htmlpre =  `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>App</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>`
+let htmlpost = `
+  </body>
+ </html>`
 
+let htmlScrpit = `<script src="index.js"></script>`
+
+
+function exportProject(){
+    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
+    if(quickEdit.lang === 'html'){
+      var zip = new JSZip();
+      let htmlCode = localStorage.getItem('code')
+      let cssCode = localStorage.getItem('css')
+      let jsCode = localStorage.getItem('js')
+      if(htmlCode.includes('<body>') && htmlCode.includes('<head>')){
+        htmlCode =   htmlCode.replace('</head>',`<link rel="stylesheet" href="style.css">
+  </head>`)
+        htmlCode =   htmlCode.replace('</body>',`<script src="index.js"></script>
+ </body>`)
+      }else{
+          htmlCode = htmlpre+htmlCode+htmlScrpit+htmlpost
+      }
+
+      let html = new Blob([htmlCode], { type: "text/plain;charset=utf-8" });
+      let css = new Blob([cssCode], { type: "text/plain;charset=utf-8" });
+      let js = new Blob([jsCode], { type: "text/plain;charset=utf-8" });
+      zip.file("QuickCode/index.html",html);
+      zip.file("QuickCode/style.css", css);
+      zip.file("QuickCode/index.js",js);
+  
+      zip.generateAsync({ type: "blob" }).then(function (content) {
+        saveAs(content, "QuickCode.zip");
+      });
+    }
+  }
+  

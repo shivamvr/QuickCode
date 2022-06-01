@@ -1,13 +1,12 @@
 
-var jsContent = $.trim($("#jsEditor").text());
-$("#jsEditor").html("");
+var cssContent = $.trim($("#cssEditor").text());
+$("#cssEditor").html("");
 
-let savedjs = localStorage.getItem("js");
+let savedcss = localStorage.getItem("css");
 
-
-var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
-  value: savedjs,
-  language: 'javascript',
+var cssEditor = monaco.editor.create(document.getElementById("cssEditor"), {
+  value: savedcss,
+  language: 'css',
   lineNumber: "on",
   glyphmargin: false,
   vertical: "auto",
@@ -28,17 +27,16 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 });
 
 //---------------------Save-to-loacalstorage--------------------------
-window.jsEditor.getModel().onDidChangeContent(() => {saveItLocal('js')});
+window.cssEditor.getModel().onDidChangeContent(() => {saveItLocal('css')});
+let cssCheck = gets('#cssCheck')
 
-let jsCheck = gets('#jsCheck')
-if (quickEdit.js) {
-  jsCheck.checked = true
+if (quickEdit.css) {
+  cssCheck.checked = true
 }
 
-jsCheck.addEventListener('change', () => {
+cssCheck.addEventListener('change', () => {
   let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
-  let jsCheck = gets('#jsCheck')
-  quickEdit.js = jsCheck.checked
+  let cssCheck = gets('#cssCheck')
+  quickEdit.css = cssCheck.checked
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
 })
-

@@ -43,53 +43,29 @@
         let myScript = gets("#myscript");
         let body = gets("body");
         let data = gets(`#root>script`);
+        let bodyScript = gets(`#root>body>script`);
+        console.log('bodyScript:', bodyScript)
         if (data) {
           myScript.innerHTML = data.innerHTML;
         }
       };
 
-      let reload = JSON.parse(localStorage.getItem("reload"));
-        console.log('reload 1:', reload)
 
       window.addEventListener("storage", () => {
         let myScript2 = gets("#myscript2");
         let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
         let code = localStorage.getItem("code");
         let localCss = localStorage.getItem("css").replace(/\s+/g, " ");
-        let root = document.querySelector("#root");
-        root.innerHTML = code;
-
-        let script = gets(`#root>script`);
-        let mystyle = gets("#mystyle");
-        let myScript = gets("#myscript");
-
-        mystyle.innerHTML = localCss;
-
-        if (quickEdit.css) {
-          mystyle.disabled = false;
-        } else {
-          mystyle.disabled = true;
-        }
-
         let localJs = localStorage.getItem("js");
-        if (quickEdit.js) {
-          myScript2.innerHTML = localJs;
-          myScript2.disabled = false;
-          console.log('enable')
-        } else {
-          console.log('disabled')
-          myScript2.disabled = true;
-        }
+        let root = document.querySelector("#root");
+        let mystyle = gets("#mystyle");
+        root.innerHTML = code;
+        mystyle.innerHTML = localCss;
+        myScript2.innerHTML = localJs;
+        let script = gets(`#root>script`);
+    
 
-
-        let reload = JSON.parse(localStorage.getItem("reload"));
-        if (reload && quickEdit.js) {
-          reload = false;
-          localStorage.setItem("reload", reload);
-          window.location.reload();
-        }
-
-        if (script && script.innerHTML != myScript.innerHTML) {
+        if (script || quickEdit.js ) {
           window.location.reload();
         }
 

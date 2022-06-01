@@ -28,6 +28,7 @@ gets('#theme').innerText = quickEdit.theme
 if (quickEdit.lang === 'html') {
   gets('.tabs').style.display = 'flex'
   makeActive(quickEdit.tab)
+  gets('#export').style.display = 'block'
 }
 
 function displayRun() {
@@ -136,6 +137,7 @@ function saveFile() {
   }
   hideOverlay()
 }
+ 
 
 const downf = () => {
   saveFile()
@@ -197,16 +199,12 @@ inputFile.addEventListener("change", function () {
     let text = file.result + ""
     let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
     if (activeTab === 'main') {
-      localStorage.setItem('code', text)
-
+      editor.getModel().setValue(text);
     } else if (activeTab === 'css') {
-      localStorage.setItem('css', text)
-
+      cssEditor.getModel().setValue(text);
     } else if (activeTab === 'js') {
-      localStorage.setItem('js', text)
-
+      jsEditor.getModel().setValue(text);
     }
-    window.location.reload()
   };
 
   fileName = this.files[0].name
@@ -300,6 +298,8 @@ gets('.selectB').addEventListener('click', () => {
     } else if (theme == 'dracula') {
       settheme('dracula')
     }
+    console.log('theme:', theme)
+    settheme(theme)
   }
   countB++
 })
@@ -334,7 +334,7 @@ function settheme(themeName) {
     return
   }
 
-  fetch("./" + themeName + ".json")
+  fetch("./themes/" + themeName + ".json")
     .then(response => {
       return response.json();
     })
