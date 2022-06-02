@@ -71,21 +71,21 @@ function doSplit() {
     });
 }
 
-function makeSplitTabActive(e){
+function makeSplitTabActive(e) {
     let splithtml = gets('.splithtml')
     let splitcss = gets('.splitcss')
     let splitjs = gets('.splitjs')
     let splitTabs = getsAll('.splitTab')
-  if(e === 'html'){
-    splitTabs.forEach((e)=>{e.classList.remove('active-tab')})
-    splithtml.classList.add('active-tab')
-  }else if(e=== 'css'){
-    splitTabs.forEach((e)=>{e.classList.remove('active-tab')})
-    splitcss.classList.add('active-tab')
-  }else if(e=== 'javascript'){
-    splitTabs.forEach((e)=>{e.classList.remove('active-tab')})
-    splitjs.classList.add('active-tab')
-  }
+    if (e === 'html') {
+        splitTabs.forEach((e) => { e.classList.remove('active-tab') })
+        splithtml.classList.add('active-tab')
+    } else if (e === 'css') {
+        splitTabs.forEach((e) => { e.classList.remove('active-tab') })
+        splitcss.classList.add('active-tab')
+    } else if (e === 'javascript') {
+        splitTabs.forEach((e) => { e.classList.remove('active-tab') })
+        splitjs.classList.add('active-tab')
+    }
 }
 
 
@@ -125,7 +125,7 @@ if (quickEdit.split) {
     makeSplitTabActive(quickEdit.splitLang)
 }
 
-let htmlpre =  `<!DOCTYPE html>
+let htmlpre = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -142,31 +142,62 @@ let htmlpost = `
 let htmlScrpit = `<script src="index.js"></script>`
 
 
-function exportProject(){
+function exportProject() {
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
-    if(quickEdit.lang === 'html'){
-      var zip = new JSZip();
-      let htmlCode = localStorage.getItem('code')
-      let cssCode = localStorage.getItem('css')
-      let jsCode = localStorage.getItem('js')
-      if(htmlCode.includes('<body>') && htmlCode.includes('<head>')){
-        htmlCode =   htmlCode.replace('</head>',`<link rel="stylesheet" href="style.css">
+    if (quickEdit.lang === 'html') {
+        var zip = new JSZip();
+        let htmlCode = localStorage.getItem('code')
+        let cssCode = localStorage.getItem('css')
+        let jsCode = localStorage.getItem('js')
+        if (htmlCode.includes('<body>') && htmlCode.includes('<head>')) {
+            htmlCode = htmlCode.replace('</head>', `<link rel="stylesheet" href="style.css">
   </head>`)
-        htmlCode =   htmlCode.replace('</body>',`<script src="index.js"></script>
+            htmlCode = htmlCode.replace('</body>', `<script src="index.js"></script>
  </body>`)
-      }else{
-          htmlCode = htmlpre+htmlCode+htmlScrpit+htmlpost
-      }
+        } else {
+            htmlCode = htmlpre + htmlCode + htmlScrpit + htmlpost
+        }
 
-      let html = new Blob([htmlCode], { type: "text/plain;charset=utf-8" });
-      let css = new Blob([cssCode], { type: "text/plain;charset=utf-8" });
-      let js = new Blob([jsCode], { type: "text/plain;charset=utf-8" });
-      zip.file("QuickCode/index.html",html);
-      zip.file("QuickCode/style.css", css);
-      zip.file("QuickCode/index.js",js);
-  
-      zip.generateAsync({ type: "blob" }).then(function (content) {
-        saveAs(content, "QuickCode.zip");
-      });
+        let html = new Blob([htmlCode], { type: "text/plain;charset=utf-8" });
+        let css = new Blob([cssCode], { type: "text/plain;charset=utf-8" });
+        let js = new Blob([jsCode], { type: "text/plain;charset=utf-8" });
+        zip.file("QuickCode/index.html", html);
+        zip.file("QuickCode/style.css", css);
+        zip.file("QuickCode/index.js", js);
+
+        zip.generateAsync({ type: "blob" }).then(function (content) {
+            saveAs(content, "QuickCode.zip");
+        });
     }
-  }
+}
+
+gets('#top').addEventListener('click', moveTop)
+
+editor.onDidBlurEditorWidget(()=>{
+    console.log("Focus event triggerd !")
+})
+
+cssEditor.onDidBlurEditorWidget(()=>{
+    console.log("Focus event triggerd !")
+})
+
+jsEditor.onDidBlurEditorWidget(()=>{
+    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
+    let splitActive = quickEdit.split
+    let splitlang = quickEdit.splitLang
+    editors = editors.getValue()
+    cssEditors = cssEditors.getValue()
+    jsEditors = jsEditors.getValue()
+    console.log('splitlang:', splitlang)
+    console.log('splitActive:', splitActive)
+    if(splitActive && splitlang=='javascript'){
+      console.log('both active')
+    }
+})
+
+
+function moveTop() {
+    let editor = gets('#CodeBlock')
+    editor.focus()
+    editor.setSelectionRange(0, 0);
+}

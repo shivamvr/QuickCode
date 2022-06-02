@@ -8,8 +8,8 @@ body {
 #cssEditor,
 #jsEditor {
   width: 100%;
-  min-height: 400px;
-  height: 100vh;
+  min-height: 100px;
+  height: 100%;
 }
 
 .checkbox {

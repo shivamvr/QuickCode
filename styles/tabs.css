@@ -205,7 +205,9 @@
 
 .splitTab>img{
   height: 100%;
-  margin-right: 10px;
+}
+.splitTab>span{
+  margin-left: 10px;
 }
 
 .active-tab {
@@ -262,6 +264,12 @@
     left: 20px;
     background-color: #fff;
   }
+  .splitTab>span{
+    display: none;
+  }
+  
+  /* -------------------------------------------------------  */
+
 }
 @media only screen and (max-width: 650px) {
   nav .item {
@@ -284,6 +292,24 @@
   .checkbox{
     display: none;
   }
+#editor{
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column !important;
+}
+#CodeBlock,#cssEditor,#jsEditor,#splitContainer{
+  width: 100%  !important;
+  height: calc(50% - 15px) !important;
+  overflow: hidden;
+}
+#splitContainer{
+  height: calc(50% + 15px) !important;
+}
+#splitEditor{
+ height: 100% !important;
+}
+
 }
 
 
