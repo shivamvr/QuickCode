@@ -171,33 +171,63 @@ function exportProject() {
     }
 }
 
-gets('#top').addEventListener('click', moveTop)
 
-editor.onDidBlurEditorWidget(()=>{
-    console.log("Focus event triggerd !")
-})
-
-cssEditor.onDidBlurEditorWidget(()=>{
-    console.log("Focus event triggerd !")
-})
-
-jsEditor.onDidBlurEditorWidget(()=>{
+editor.onDidBlurEditorWidget(() => {
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
-    editors = editors.getValue()
-    cssEditors = cssEditors.getValue()
-    jsEditors = jsEditors.getValue()
-    console.log('splitlang:', splitlang)
-    console.log('splitActive:', splitActive)
-    if(splitActive && splitlang=='javascript'){
-      console.log('both active')
+    editorCode = editor.getValue()
+    if (splitActive && splitlang === 'html') {
+        splitEditor.getModel().setValue(editorCode)
     }
+})
+
+cssEditor.onDidBlurEditorWidget(() => {
+    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
+    let splitActive = quickEdit.split
+    let splitlang = quickEdit.splitLang
+    let cssCode = cssEditor.getValue()
+    if (splitActive && splitlang === 'css') {
+        splitEditor.getModel().setValue(cssCode)
+    }
+})
+
+jsEditor.onDidBlurEditorWidget(() => {
+    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
+    let splitActive = quickEdit.split
+    let splitlang = quickEdit.splitLang
+    let jsCode = jsEditor.getValue()
+    if (splitActive && splitlang === 'javascript') {
+        splitEditor.getModel().setValue(jsCode)
+    }
+})
+
+splitEditor.onDidBlurEditorWidget(() => {
+    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
+    let splitActive = quickEdit.split
+    let splitlang = quickEdit.splitLang
+    let code = splitEditor.getValue()
+
+    if (splitActive && splitlang === 'html') {
+        editor.getModel().setValue(code)
+    }
+    else if (splitActive && splitlang === 'css') {
+        cssEditor.getModel().setValue(code)
+    }
+    if (splitActive && splitlang === 'javascript') {
+        jsEditor.getModel().setValue(code)
+    }
+
 })
 
 
 function moveTop() {
-    let editor = gets('#CodeBlock')
-    editor.focus()
-    editor.setSelectionRange(0, 0);
+    let tab = JSON.parse(localStorage.getItem('quickEdit')).tab
+        if (tab === 'main') {
+            editor.revealLine(1);
+        } else if (tab === 'css') {
+            cssEditor.revealLine(1);
+        } else if (tab === 'js') {
+            jsEditor.revealLine(1);
+        }
 }
