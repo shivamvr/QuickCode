@@ -171,7 +171,11 @@ function exportProject() {
     }
 }
 
-let ep = editor.getPosition()
+let codeLine = localStorage.code.split(/\r\n|\r|\n/).length
+let cssLine = localStorage.css.split(/\r\n|\r|\n/).length
+let jsLine = localStorage.js.split(/\r\n|\r|\n/).length
+
+let ep = { lineNumber: 1000, column: 10000 }
 editor.onDidBlurEditorWidget(() => {
     ep = editor.getPosition()
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
@@ -183,7 +187,7 @@ editor.onDidBlurEditorWidget(() => {
     }
 })
 
-let cssp = { lineNumber: 1, column: 1 }
+let cssp = { lineNumber: cssLine, column: 1 }
 cssEditor.onDidBlurEditorWidget(() => {
     cssp = cssEditor.getPosition()
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
@@ -194,7 +198,7 @@ cssEditor.onDidBlurEditorWidget(() => {
         splitEditor.getModel().setValue(cssCode)
     }
 })
-let jsp = { lineNumber: 1, column: 1 }
+let jsp = { lineNumber: jsLine, column: 1 }
 jsEditor.onDidBlurEditorWidget(() => {
     jsp = jsEditor.getPosition()
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
@@ -207,7 +211,6 @@ jsEditor.onDidBlurEditorWidget(() => {
 })
 
 splitEditor.onDidFocusEditorWidget(() => {
-    setTimeout(() => splitEditor.setPosition(jsp), 10)
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let activeTab = quickEdit.tab
     setTimeout(() => {
@@ -222,7 +225,7 @@ splitEditor.onDidFocusEditorWidget(() => {
         }
     }, 10)
 })
-let sp = { lineNumber: 1, column: 1 }
+let sp = { spLine: 1, column: 1 }
 
 splitEditor.onDidBlurEditorWidget(() => {
     sp = splitEditor.getPosition()
@@ -253,8 +256,6 @@ function setCursor(e, i) {
         let splitLang = quickEdit.splitLang
         let splitActive = quickEdit.split
         setTimeout(() => {
-            console.log('splitActive:', splitActive)
-            console.log('splitLang:', splitLang)
             if (splitActive) {
                 if (splitLang === 'html' && i === 0) {
                     editor.setPosition(sp)
@@ -280,6 +281,24 @@ function moveTop() {
     const range = editor.getModel().getFullModelRange();
     console.log('range:', range)
 }
+// -------------------------Word-Wrap---------------------------
 
-
-// editor.setSelection(range);
+let allEditors = [editor, cssEditor, jsEditor, splitEditor]
+allEditor.forEach((e) => {
+    e.addAction({
+        id: 'my-unique-id', label: 'Toggle Word Wrap',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KEY_Z],
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1.5,
+        toggle: true,
+        run: function () {
+            if (this.toggle) {
+                e.updateOptions({ wordWrap: "on" })
+                this.toggle = false
+            } else {
+                e.updateOptions({ wordWrap: "off" })
+                this.toggle = true
+            }
+        }
+    });
+})

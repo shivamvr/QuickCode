@@ -29,7 +29,6 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 
 //---------------------Save-to-loacalstorage--------------------------
 window.jsEditor.getModel().onDidChangeContent(() => {
-  console.log(jsEditor.getPosition())
   saveItLocal('js')
 });
 
