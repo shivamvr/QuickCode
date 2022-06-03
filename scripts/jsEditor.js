@@ -28,7 +28,10 @@ var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
 });
 
 //---------------------Save-to-loacalstorage--------------------------
-window.jsEditor.getModel().onDidChangeContent(() => {saveItLocal('js')});
+window.jsEditor.getModel().onDidChangeContent(() => {
+  console.log(jsEditor.getPosition())
+  saveItLocal('js')
+});
 
 let jsCheck = gets('#jsCheck')
 if (quickEdit.js) {

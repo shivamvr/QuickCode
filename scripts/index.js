@@ -216,6 +216,7 @@ inputFile.addEventListener("change", function (e) {
        let newHtml = file.html
        newHtml = newHtml.replace(`<link rel="stylesheet" href="style.css">`,'')
        newHtml = newHtml.replace(`<script src="index.js"></script>`,'')
+       newHtml = newHtml.replace(`<style src="index.js"></style>`,'')
        editor.getModel().setValue(newHtml);
        cssEditor.getModel().setValue(file.css);
        jsEditor.getModel().setValue(file.js);

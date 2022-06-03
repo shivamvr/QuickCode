@@ -171,8 +171,9 @@ function exportProject() {
     }
 }
 
-
+let ep = editor.getPosition()
 editor.onDidBlurEditorWidget(() => {
+    ep = editor.getPosition()
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
@@ -182,7 +183,9 @@ editor.onDidBlurEditorWidget(() => {
     }
 })
 
+let cssp = { lineNumber: 1, column: 1 }
 cssEditor.onDidBlurEditorWidget(() => {
+    cssp = cssEditor.getPosition()
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
@@ -191,8 +194,9 @@ cssEditor.onDidBlurEditorWidget(() => {
         splitEditor.getModel().setValue(cssCode)
     }
 })
-
+let jsp = { lineNumber: 1, column: 1 }
 jsEditor.onDidBlurEditorWidget(() => {
+    jsp = jsEditor.getPosition()
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
@@ -202,12 +206,30 @@ jsEditor.onDidBlurEditorWidget(() => {
     }
 })
 
+splitEditor.onDidFocusEditorWidget(() => {
+    setTimeout(() => splitEditor.setPosition(jsp), 10)
+    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
+    let activeTab = quickEdit.tab
+    setTimeout(() => {
+        if (activeTab == 'main') {
+            splitEditor.setPosition(ep)
+        }
+        else if (activeTab == 'css') {
+            splitEditor.setPosition(cssp)
+        }
+        if (activeTab == 'js') {
+            splitEditor.setPosition(jsp)
+        }
+    }, 10)
+})
+let sp = { lineNumber: 1, column: 1 }
+
 splitEditor.onDidBlurEditorWidget(() => {
+    sp = splitEditor.getPosition()
     let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
     let code = splitEditor.getValue()
-
     if (splitActive && splitlang === 'html') {
         editor.getModel().setValue(code)
     }
@@ -217,17 +239,47 @@ splitEditor.onDidBlurEditorWidget(() => {
     if (splitActive && splitlang === 'javascript') {
         jsEditor.getModel().setValue(code)
     }
-
 })
 
+let allEditor = [editor, cssEditor, jsEditor]
+
+allEditor.forEach((e, i) => {
+    setCursor(e, i)
+})
+
+function setCursor(e, i) {
+    e.onDidFocusEditorWidget(() => {
+        let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
+        let splitLang = quickEdit.splitLang
+        let splitActive = quickEdit.split
+        setTimeout(() => {
+            console.log('splitActive:', splitActive)
+            console.log('splitLang:', splitLang)
+            if (splitActive) {
+                if (splitLang === 'html' && i === 0) {
+                    editor.setPosition(sp)
+                } else if (splitLang === 'css' && i === 1) {
+                    jsEditor.setPosition(sp)
+                } else if (splitLang === 'javascript' && i === 2) {
+                    cssEditor.setPosition(sp)
+                }
+            }
+        }, 10)
+    })
+}
 
 function moveTop() {
     let tab = JSON.parse(localStorage.getItem('quickEdit')).tab
-        if (tab === 'main') {
-            editor.revealLine(1);
-        } else if (tab === 'css') {
-            cssEditor.revealLine(1);
-        } else if (tab === 'js') {
-            jsEditor.revealLine(1);
-        }
+    if (tab === 'main') {
+        editor.revealLine(1);
+    } else if (tab === 'css') {
+        cssEditor.revealLine(1);
+    } else if (tab === 'js') {
+        jsEditor.revealLine(1);
+    }
+    const range = editor.getModel().getFullModelRange();
+    console.log('range:', range)
 }
+
+
+// editor.setSelection(range);
