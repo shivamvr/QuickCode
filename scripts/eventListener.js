@@ -383,4 +383,22 @@ function addAction(e) {
         }
     });
 
+    e.addAction({
+        id: 'toggleFoldAll',
+        label: 'Fold All / Unfold All',
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1.5,
+        toggleFoldAll: true,
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_F],
+        run: function () {
+            if (this.toggleFoldAll) {
+                e.trigger('fold all', 'editor.foldAll');
+                this.toggleFoldAll = false
+            } else {
+                e.trigger('unfold all', 'editor.unfoldAll');
+                this.toggleFoldAll = true
+            }
+        }
+    });
+
 }
