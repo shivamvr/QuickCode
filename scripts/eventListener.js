@@ -244,9 +244,9 @@ splitEditor.onDidBlurEditorWidget(() => {
     }
 })
 
-let allEditor = [editor, cssEditor, jsEditor]
+let myEditor = [editor, cssEditor, jsEditor]
 
-allEditor.forEach((e, i) => {
+myEditor.forEach((e, i) => {
     setCursor(e, i)
 })
 
@@ -281,10 +281,14 @@ function moveTop() {
     const range = editor.getModel().getFullModelRange();
     console.log('range:', range)
 }
-// -------------------------Word-Wrap---------------------------
+
+// -------------------------Actions---------------------------
 
 let allEditors = [editor, cssEditor, jsEditor, splitEditor]
-allEditor.forEach((e) => {
+
+allEditors.forEach((e) => addAction(e))
+
+function addAction(e) {
     e.addAction({
         id: 'my-unique-id', label: 'Toggle Word Wrap',
         keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KEY_Z],
@@ -301,4 +305,64 @@ allEditor.forEach((e) => {
             }
         }
     });
-})
+
+    e.addAction({
+        id: 'copyLines_Down', label: 'Copy Lines Down ',
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_D],
+        run: function () {
+            e.trigger('copyLineDown', 'editor.action.copyLinesDownAction');
+        }
+    });
+
+    e.addAction({
+        id: 'addSelectionTo_Next', label: 'Add Selection TO NEXT',
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_Q],
+        run: function () {
+            e.trigger('addSelectionToNext', 'editor.action.addSelectionToNextFindMatch');
+        }
+    });
+
+
+    e.addAction({
+        id: 'font_small',
+        label: 'Font Zoom Out',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.US_MINUS],
+        contextMenuGroupId: 'fontsmall',
+        contextMenuOrder: 1.2,
+        run: function () {
+            e.trigger('font_small', 'editor.action.fontZoomOut');
+        },
+        precondition: null,
+        keybindingContext: null,
+        contextMenuGroupId: 'navigation',
+    });
+
+    e.addAction({
+        id: 'font_big',
+        label: 'Font Zoom In',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.US_EQUAL],
+        contextMenuGroupId: 'fontbig',
+        contextMenuOrder: 1.2,
+        run: function () {
+            e.trigger('font_big', 'editor.action.fontZoomIn');
+        },
+        precondition: null,
+        keybindingContext: null,
+        contextMenuGroupId: 'navigation',
+    });
+
+    e.addAction({
+        id: 'font_reset',
+        label: 'Font Reset',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KEY_0],
+        contextMenuGroupId: 'fontreset',
+        contextMenuOrder: 1.3,
+        run: function () {
+            e.trigger('font_reset', 'editor.action.fontZoomReset');
+        },
+        precondition: null,
+        keybindingContext: null,
+        contextMenuGroupId: 'navigation',
+    });
+
+}
