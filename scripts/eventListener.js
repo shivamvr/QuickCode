@@ -294,14 +294,14 @@ function addAction(e) {
         keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KEY_Z],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.5,
-        toggle: true,
+        togglewrap: true,
         run: function () {
-            if (this.toggle) {
+            if (this.togglewrap) {
                 e.updateOptions({ wordWrap: "on" })
-                this.toggle = false
+                this.togglewrap = false
             } else {
                 e.updateOptions({ wordWrap: "off" })
-                this.toggle = true
+                this.togglewrap = true
             }
         }
     });
@@ -363,6 +363,24 @@ function addAction(e) {
         precondition: null,
         keybindingContext: null,
         contextMenuGroupId: 'navigation',
+    });
+
+    e.addAction({
+        id: 'toggleFontLigatures',
+        label: 'Toggle Font ligatures',
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1.4,
+        toggleFontLigatures: true,
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_L],
+        run: function () {
+            if (this.toggleFontLigatures) {
+                e.updateOptions({ fontLigatures: true })
+                this.toggleFontLigatures = false
+            } else {
+                e.updateOptions({ fontLigatures: false })
+                this.toggleFontLigatures = true
+            }
+        }
     });
 
 }
