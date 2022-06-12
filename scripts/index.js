@@ -330,19 +330,8 @@ gets('.selectA').addEventListener('click', () => {
 gets('.selectB').addEventListener('click', () => {
   if (countB % 2 == 0) {
     let theme = gets('#theme').getAttribute("data-type")
-    if (theme == 'vs') {
-      settheme('vs')
-    } else if (theme == 'vs-dark') {
-      settheme('vs-dark')
-    } else if (theme == 'monokai') {
-      settheme('monokai')
-    } else if (theme == 'cobalt2') {
-      settheme('cobalt2')
-    } else if (theme == 'dracula') {
-      settheme('dracula')
-    }
+      settheme(theme)
     console.log('theme:', theme)
-    settheme(theme)
   }
   countB++
 })

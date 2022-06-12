@@ -322,7 +322,6 @@ function addAction(e) {
         }
     });
 
-
     e.addAction({
         id: 'font_small',
         label: 'Font Zoom Out',
@@ -371,7 +370,7 @@ function addAction(e) {
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.4,
         toggleFontLigatures: true,
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_L],
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KEY_L],
         run: function () {
             if (this.toggleFontLigatures) {
                 e.updateOptions({ fontLigatures: true })
@@ -402,3 +401,5 @@ function addAction(e) {
     });
 
 }
+
+// editor.updateOptions({"editor.cursorSmoothCaretAnimation": true })

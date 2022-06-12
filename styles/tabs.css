@@ -311,6 +311,41 @@
 }
 
 }
+/* -----------------monaco-theme------------------------ */
+
+.mtk13{
+  color: #5CCFE6 !important;
+}
+.mtk4 {
+  color: #FFD173 !important ;
+}
+.mtk5{ 
+  color:  #D5FF80 !important;
+}
+.mtk1{
+  color: #CCCAC2 !important;
+}
+.mtk16{
+  color: #33778E !important;
+}
+.mtk25{
+  color: #FFAD66 !important; 
+}
+.mtk4.mtki{
+  color: #5CCFE6 !important;
+}
+.mtk12.mtki{
+  color: #6C7C8E;
+}
+.mtk7.mtki{
+  color: #DFBFFF !important;
+}
 
 
-
+.mtk4.mtki,
+.mtk1.mtki{
+  color: #FFD173 !important;
+} 
+.mtk1{
+  color: #5CCFE6 !important;;
+}
