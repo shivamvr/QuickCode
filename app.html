@@ -18,13 +18,24 @@
       const getsAll = (selector) => {
         return document.querySelectorAll(selector);
       };
-      let code = localStorage.getItem("code");
-      let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
+      // this page can be opened before the editor has stored anything, so
+      // never assume a key is present
+      const read = (key) => localStorage.getItem(key) || "";
+      const readSettings = () => {
+        try {
+          return JSON.parse(localStorage.getItem("quickEdit")) || {};
+        } catch (err) {
+          return {};
+        }
+      };
+
+      let code = read("code");
+      let quickEdit = readSettings();
       let root = document.querySelector("#root");
       let myScript2 = gets("#myscript2");
-      let localJs = localStorage.getItem("js");
+      let localJs = read("js");
       let mystyle = gets("#mystyle");
-      let localCss = localStorage.getItem("css");
+      let localCss = read("css");
 
       root.innerHTML = code;
       mystyle.innerHTML = localCss;
@@ -53,10 +64,10 @@
 
       window.addEventListener("storage", () => {
         let myScript2 = gets("#myscript2");
-        let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
-        let code = localStorage.getItem("code");
-        let localCss = localStorage.getItem("css").replace(/\s+/g, " ");
-        let localJs = localStorage.getItem("js");
+        let quickEdit = readSettings();
+        let code = read("code");
+        let localCss = read("css").replace(/\s+/g, " ");
+        let localJs = read("js");
         let root = document.querySelector("#root");
         let mystyle = gets("#mystyle");
         root.innerHTML = code;

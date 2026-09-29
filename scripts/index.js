@@ -13,14 +13,48 @@ const getsAll = (selector) => {
 var codeContent = $.trim($("#CodeBlock").text());
 $("#CodeBlock").html("");
 
-let savedCode = localStorage.getItem("code");
-let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
+//---------------------First-run-defaults-----------------------------
+// Everything below assumes these keys exist and hold strings, so seed them
+// before the first read: on a brand new browser they are all null.
+const defaultSettings = { theme: 'vs', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' };
 
-if (!quickEdit) {
-  let obj = { theme: 'vs', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' }
-  localStorage.setItem('quickEdit', JSON.stringify(obj))
-  quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
+// themes stored before the dropdown values were corrected to match the file
+// names on disk, which 404 on a case sensitive host. Declared up here because
+// settheme() runs while the page is still loading.
+const themeAliases = { ayudark: 'AyuDark', dracula: 'Dracula' };
+
+['code', 'css', 'js'].forEach((key) => {
+  if (localStorage.getItem(key) === null) {
+    localStorage.setItem(key, '')
+  }
+});
+
+// merged over the defaults so a missing, partial or corrupt object still has every key
+const readSettings = () => {
+  let saved
+  try {
+    saved = JSON.parse(localStorage.getItem("quickEdit"))
+  } catch (err) {
+    saved = null
+  }
+  return Object.assign({}, defaultSettings, saved)
 }
+
+// The one in-memory copy of the settings. Every write goes through
+// saveSettings so this object and localStorage can never disagree: writing a
+// stale copy back used to silently revert the active tab, the language and
+// the split state.
+let quickEdit = readSettings()
+
+const saveSettings = (patch) => {
+  Object.assign(quickEdit, readSettings(), patch)
+  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  return quickEdit
+}
+
+saveSettings({})
+
+let savedCode = localStorage.getItem("code");
 
 gets('#lang').innerText = quickEdit.lang
 gets('#theme').innerText = quickEdit.theme
@@ -105,7 +139,7 @@ let fileName = false
 //---------------------Handlers---------------------
 const showOverlay = () => {
   gets('#overlay').style.display = 'block'
-  let activeTab = JSON.parse(localStorage.getItem("quickEdit")).tab
+  let activeTab = quickEdit.tab
   if (activeTab == 'main') {
     fileNameInput.value = 'file.' + ext
   } else if (activeTab == 'css') {
@@ -120,7 +154,7 @@ const hideOverlay = () => {
 }
 
 function saveFile() {
-  let activeTab = JSON.parse(localStorage.getItem("quickEdit")).tab
+  let activeTab = quickEdit.tab
   let fname = fileNameInput.value
   let text = editor.getValue();
   let css = cssEditor.getValue();
@@ -195,6 +229,9 @@ function getExtension(filename) {
 
 let inputFile = gets('#file')
 inputFile.addEventListener("change", function (e) {
+  if (!this.files[0]) {
+    return;
+  }
   let ext = getExtension(this.files[0].name)
   let zipFile = e.target.files[0]
  //-------------------Open-project-----------------------
@@ -236,7 +273,7 @@ inputFile.addEventListener("change", function (e) {
     var file = new FileReader();
     file.onload = () => {
       let text = file.result + ""
-      let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
+      let activeTab = quickEdit.tab
       if (activeTab === 'main') {
         editor.getModel().setValue(text);
       } else if (activeTab === 'css') {
@@ -249,15 +286,17 @@ inputFile.addEventListener("change", function (e) {
     fileName = this.files[0].name
     fileNameInput.value = fileName
     let fExt = getExtension(fileName)
-    let activeTab = JSON.parse(localStorage.getItem('quickEdit')).tab
+    let activeTab = quickEdit.tab
     if (activeTab === 'main') {
       setLang(fileExt[fExt])
     }
     file.readAsText(this.files[0]);
   }
 
-
-
+  // the File objects above are already handed to the readers, and clearing the
+  // input is what lets the same file be picked a second time: without this no
+  // change event fires because the value has not changed
+  this.value = '';
 });
 
 
@@ -285,17 +324,15 @@ option.forEach((a) => {
   });
 });
 
-let countA = 1;
-let countB = 1;
-
 // ------------------------------------------------------------
 
 const setLang = (ln) => {
-  let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
-  quickEdit.lang = ln
-  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  saveSettings({ lang: ln })
   monaco.editor.setModelLanguage(editor.getModel(), ln)
   ext = Object.keys(fileExt).find(key => fileExt[key] === quickEdit.lang);
+  if (!ext) {
+    ext = 'txt'
+  }
   if (!fileName) {
     fileNameInput.value = 'file.' + ext
   }
@@ -305,35 +342,34 @@ const setLang = (ln) => {
   } else {
     tabs.style.display = 'none'
   }
+  // export only makes sense for a html project, and this has to follow the
+  // language for the whole session, not just on the initial load
+  gets('#export').style.display = quickEdit.lang === 'html' ? 'block' : 'none'
   displayRun()
 }
 
 
-gets('.selectA').addEventListener('click', () => {
-  if (countA % 2 == 0) {
-    let lang = gets('#lang').getAttribute("data-type")
-    if (lang == 'html') {
-      setLang('html')
-    } else if (lang == 'javascript') {
-      setLang('javascript')
-    } else if (lang == 'css') {
-      setLang('css')
-    } else if (lang == 'plaintext') {
-      setLang('plaintext')
-    } else if (lang == 'json') {
-      setLang('json')
-    }
-  }
-  countA++
+// Apply the choice straight from the option that was clicked. This used to
+// count clicks on the whole .select container and only act on even ones, so a
+// stray click anywhere inside it (padding, the gap between options) swallowed
+// the next selection and left the button label disagreeing with the editor.
+getsAll('.selectA .option').forEach((opt) => {
+  opt.addEventListener('click', () => {
+    setLang(opt.getAttribute('data-type'))
+  })
 })
 
-gets('.selectB').addEventListener('click', () => {
-  if (countB % 2 == 0) {
-    let theme = gets('#theme').getAttribute("data-type")
-      settheme(theme)
-    console.log('theme:', theme)
+getsAll('.selectB .option').forEach((opt) => {
+  opt.addEventListener('click', () => {
+    settheme(opt.getAttribute('data-type'))
+  })
+})
+
+// close any open dropdown when clicking away from it
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.select')) {
+    getsAll('.selectDropdown').forEach((d) => d.classList.remove('toggle'))
   }
-  countB++
 })
 
 // ------------------Open-Code-New-Tab-------------
@@ -358,8 +394,8 @@ function openWin() {
 
 //---------------------Themes--------------------
 function settheme(themeName) {
-  quickEdit.theme = themeName
-  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  themeName = themeAliases[themeName] || themeName
+  saveSettings({ theme: themeName })
 
   if (themeName == 'vs' || themeName == 'vs-dark') {
     monaco.editor.setTheme(themeName)
@@ -368,11 +404,21 @@ function settheme(themeName) {
 
   fetch("./themes/" + themeName + ".json")
     .then(response => {
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status)
+      }
       return response.json();
     })
     .then((data) => {
       monaco.editor.defineTheme(themeName, data)
       monaco.editor.setTheme(themeName)
+    })
+    .catch((err) => {
+      // without this the theme silently stayed on the previous one
+      console.error("Failed to load theme", themeName, err)
+      monaco.editor.setTheme('vs-dark')
+      gets('#theme').innerText = 'vs-dark'
+      saveSettings({ theme: 'vs-dark' })
     })
 }
 
@@ -400,19 +446,15 @@ function alignNav(p) {
   if (p) {
     aligntop = false
     verticalNav.disabled = false
-    quickEdit.vnav = true
-    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
-
+    saveSettings({ vnav: true })
     return
   } else if (!p) {
     aligntop = true
     verticalNav.disabled = true
-    quickEdit.vnav = false
-    let lang = JSON.parse(localStorage.getItem('quickEdit')).lang
-    if (lang == 'html') {
+    saveSettings({ vnav: false })
+    if (quickEdit.lang == 'html') {
       tabs.style.display = 'flex'
     }
-    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   }
 }
 
@@ -442,7 +484,6 @@ function makeActive(e) {
   let mainMonaco = gets('#CodeBlock')
   let lang = gets('.selectA')
   let openWin = gets('#openwin')
-  let quickEdit = JSON.parse(localStorage.getItem("quickEdit"))
 
   if (e === 'main') {
     jsTab.classList.remove('active-tab')
@@ -453,8 +494,7 @@ function makeActive(e) {
     jsMonaco.style.display = 'none'
     lang.style.visibility = 'visible'
     openWin.style.visibility = 'visible'
-    quickEdit.tab = 'main'
-    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+    saveSettings({ tab: 'main' })
   } else if (e === 'css') {
     mainTab.classList.remove('active-tab')
     jsTab.classList.remove('active-tab')
@@ -464,8 +504,7 @@ function makeActive(e) {
     jsMonaco.style.display = 'none'
     lang.style.visibility = 'hidden'
     openWin.style.visibility = 'hidden'
-    quickEdit.tab = 'css'
-    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+    saveSettings({ tab: 'css' })
   } else if (e === 'js') {
     cssTab.classList.remove('active-tab')
     mainTab.classList.remove('active-tab')
@@ -475,14 +514,12 @@ function makeActive(e) {
     jsMonaco.style.display = 'block'
     lang.style.visibility = 'hidden'
     openWin.style.visibility = 'visible'
-    quickEdit.tab = 'js'
-    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+    saveSettings({ tab: 'js' })
   }
 
 }
 
 function updateSplit(e) {
-  let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
   if (quickEdit.split) {
     if (e === 'html') {
       let code = editor.getValue()
@@ -497,16 +534,26 @@ function updateSplit(e) {
   }
 }
 
+// setValue() throws away the undo stack, so only reload an editor when what
+// is stored actually differs from what it is showing. Switching tabs used to
+// wipe undo history every single time.
 function updateEditor(e) {
-  let code = localStorage.getItem('code')
-  let js = localStorage.getItem('js')
-  let css = localStorage.getItem('css')
+  let target
+  let stored
   if (e === 'main') {
-    editor.getModel().setValue(code);
+    target = editor
+    stored = localStorage.getItem('code') || ''
   } else if (e === 'css') {
-    cssEditor.getModel().setValue(css);
+    target = cssEditor
+    stored = localStorage.getItem('css') || ''
   } else if (e === 'js') {
-    jsEditor.getModel().setValue(js);
+    target = jsEditor
+    stored = localStorage.getItem('js') || ''
+  } else {
+    return
   }
 
+  if (target.getValue() !== stored) {
+    target.getModel().setValue(stored);
+  }
 }

@@ -38,9 +38,6 @@ if (quickEdit.js) {
 }
 
 jsCheck.addEventListener('change', () => {
-  let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
-  let jsCheck = gets('#jsCheck')
-  quickEdit.js = jsCheck.checked
-  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  saveSettings({ js: gets('#jsCheck').checked })
 })
 

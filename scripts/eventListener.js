@@ -33,21 +33,13 @@ let contianer = gets('.contianer')
 let editors = getsAll('.editor')
 
 function splitMenu(lang) {
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
-    quickEdit.splitLang = lang
-    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+    saveSettings({ splitLang: lang })
     if (lang === 'html') {
-        let code = localStorage.getItem('code')
-        splitEditor.getModel().setValue(code);
-        quickEdit.splitLang = 'html'
+        splitEditor.getModel().setValue(localStorage.getItem('code') || '');
     } else if (lang === 'css') {
-        let css = localStorage.getItem('css')
-        splitEditor.getModel().setValue(css);
-        quickEdit.splitLang = 'css'
-    } else if (lang === 'js') {
-        let js = localStorage.getItem('js')
-        splitEditor.getModel().setValue(js);
-        quickEdit.splitLang = 'javascript'
+        splitEditor.getModel().setValue(localStorage.getItem('css') || '');
+    } else if (lang === 'javascript') {
+        splitEditor.getModel().setValue(localStorage.getItem('js') || '');
     }
     monaco.editor.setModelLanguage(splitEditor.getModel(), lang)
     doSplit()
@@ -57,9 +49,7 @@ function splitMenu(lang) {
 
 
 function doSplit() {
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
-    quickEdit.split = true
-    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+    saveSettings({ split: true })
     let splitEditor = gets('#splitContainer')
     spliticon.style.display = 'none'
     singleicon.style.display = 'block'
@@ -90,9 +80,7 @@ function makeSplitTabActive(e) {
 
 
 function singleEditor() {
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
-    quickEdit.split = false
-    localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+    saveSettings({ split: false })
     let splitEditor = gets('#splitContainer')
     singleicon.style.display = 'none'
     spliticon.style.display = 'block'
@@ -143,7 +131,6 @@ let htmlScrpit = `<script src="index.js"></script>`
 
 
 function exportProject() {
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     if (quickEdit.lang === 'html') {
         var zip = new JSZip();
         let htmlCode = localStorage.getItem('code')
@@ -171,14 +158,15 @@ function exportProject() {
     }
 }
 
-let codeLine = localStorage.code.split(/\r\n|\r|\n/).length
-let cssLine = localStorage.css.split(/\r\n|\r|\n/).length
-let jsLine = localStorage.js.split(/\r\n|\r|\n/).length
+const countLines = (key) => (localStorage.getItem(key) || '').split(/\r\n|\r|\n/).length
 
-let ep = { lineNumber: 1000, column: 10000 }
+let codeLine = countLines('code')
+let cssLine = countLines('css')
+let jsLine = countLines('js')
+
+let ep = { lineNumber: codeLine, column: 1 }
 editor.onDidBlurEditorWidget(() => {
     ep = editor.getPosition()
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
     editorCode = editor.getValue()
@@ -190,7 +178,6 @@ editor.onDidBlurEditorWidget(() => {
 let cssp = { lineNumber: cssLine, column: 1 }
 cssEditor.onDidBlurEditorWidget(() => {
     cssp = cssEditor.getPosition()
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
     let cssCode = cssEditor.getValue()
@@ -201,7 +188,6 @@ cssEditor.onDidBlurEditorWidget(() => {
 let jsp = { lineNumber: jsLine, column: 1 }
 jsEditor.onDidBlurEditorWidget(() => {
     jsp = jsEditor.getPosition()
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
     let jsCode = jsEditor.getValue()
@@ -211,7 +197,6 @@ jsEditor.onDidBlurEditorWidget(() => {
 })
 
 splitEditor.onDidFocusEditorWidget(() => {
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let activeTab = quickEdit.tab
     setTimeout(() => {
         if (activeTab == 'main') {
@@ -225,11 +210,10 @@ splitEditor.onDidFocusEditorWidget(() => {
         }
     }, 10)
 })
-let sp = { spLine: 1, column: 1 }
+let sp = { lineNumber: 1, column: 1 }
 
 splitEditor.onDidBlurEditorWidget(() => {
     sp = splitEditor.getPosition()
-    let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
     let code = splitEditor.getValue()
@@ -252,17 +236,18 @@ myEditor.forEach((e, i) => {
 
 function setCursor(e, i) {
     e.onDidFocusEditorWidget(() => {
-        let quickEdit = JSON.parse(localStorage.getItem('quickEdit'))
         let splitLang = quickEdit.splitLang
         let splitActive = quickEdit.split
         setTimeout(() => {
             if (splitActive) {
+                // carry the split pane's cursor into the editor holding the
+                // same language: css belongs to cssEditor, js to jsEditor
                 if (splitLang === 'html' && i === 0) {
                     editor.setPosition(sp)
                 } else if (splitLang === 'css' && i === 1) {
-                    jsEditor.setPosition(sp)
-                } else if (splitLang === 'javascript' && i === 2) {
                     cssEditor.setPosition(sp)
+                } else if (splitLang === 'javascript' && i === 2) {
+                    jsEditor.setPosition(sp)
                 }
             }
         }, 10)
@@ -270,7 +255,7 @@ function setCursor(e, i) {
 }
 
 function moveTop() {
-    let tab = JSON.parse(localStorage.getItem('quickEdit')).tab
+    let tab = quickEdit.tab
     if (tab === 'main') {
         editor.revealLine(1);
     } else if (tab === 'css') {

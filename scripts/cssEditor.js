@@ -35,8 +35,5 @@ if (quickEdit.css) {
 }
 
 cssCheck.addEventListener('change', () => {
-  let quickEdit = JSON.parse(localStorage.getItem("quickEdit"));
-  let cssCheck = gets('#cssCheck')
-  quickEdit.css = cssCheck.checked
-  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  saveSettings({ css: gets('#cssCheck').checked })
 })

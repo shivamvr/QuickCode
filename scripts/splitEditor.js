@@ -3,7 +3,7 @@ $("#splitEditor").html("");
 
 let savedsplit = localStorage.getItem("split");
 
-let splitLang = JSON.parse(localStorage.getItem("quickEdit")).splitLang
+let splitLang = quickEdit.splitLang
 let splitLangCode = ''
 let splitSave = 'code'
 
@@ -44,7 +44,7 @@ var splitEditor = monaco.editor.create(document.getElementById("splitEditor"), {
 //---------------------Save-to-loacalstorage--------------------------
 
 window.splitEditor.getModel().onDidChangeContent(() => {
-  let splitLang = JSON.parse(localStorage.getItem('quickEdit')).splitLang
+  let splitLang = quickEdit.splitLang
   if (splitLang === 'html') {
     splitSave = 'code'
   } else if (splitLang === 'css') {
