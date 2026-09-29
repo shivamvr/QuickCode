@@ -1,89 +1,99 @@
-//------------template-code-------------
-emmetMonaco.emmetHTML(monaco)
+//=====================================================================
+// QuickCode core: settings, storage, the editor table, toolbar wiring.
+// Nothing here runs on load; bootQuickCode() in eventListener.js starts it
+// once monaco has finished loading.
+//=====================================================================
 
+const gets = (selector) => document.querySelector(selector)
+const getsAll = (selector) => document.querySelectorAll(selector)
 
-const gets = (selector) => {
-  return document.querySelector(selector)
-}
-const getsAll = (selector) => {
-  return document.querySelectorAll(selector)
-}
-//---------------------------------------
+//----------------------------- settings ------------------------------
 
-gets("#CodeBlock").innerHTML = "";
-
-//---------------------First-run-defaults-----------------------------
-// Everything below assumes these keys exist and hold strings, so seed them
-// before the first read: on a brand new browser they are all null.
-const defaultSettings = { theme: 'vs-dark', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' };
+const defaultSettings = { theme: 'vs-dark', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' }
 
 // themes stored before the dropdown values were corrected to match the file
-// names on disk, which 404 on a case sensitive host. Declared up here because
-// settheme() runs while the page is still loading.
-const themeAliases = { ayudark: 'AyuDark', dracula: 'Dracula' };
-
-['code', 'css', 'js'].forEach((key) => {
-  if (localStorage.getItem(key) === null) {
-    localStorage.setItem(key, '')
-  }
-});
+// names on disk, which 404 on a case sensitive host
+const themeAliases = { ayudark: 'AyuDark', dracula: 'Dracula' }
 
 // merged over the defaults so a missing, partial or corrupt object still has every key
 const readSettings = () => {
   let saved
   try {
-    saved = JSON.parse(localStorage.getItem("quickEdit"))
+    saved = JSON.parse(localStorage.getItem('quickEdit'))
   } catch (err) {
     saved = null
   }
   return Object.assign({}, defaultSettings, saved)
 }
 
-// The one in-memory copy of the settings. Every write goes through
-// saveSettings so this object and localStorage can never disagree: writing a
-// stale copy back used to silently revert the active tab, the language and
-// the split state.
+// The single in-memory copy of the settings. Everything reads this and every
+// write goes through saveSettings, so the two can never drift apart.
 let quickEdit = readSettings()
 
+//-------------------------- batched storage --------------------------
+// localStorage.setItem is synchronous and hits the disk, so writing on every
+// keystroke made typing stutter in a large file. Queue writes and flush at
+// most every 300ms, plus whenever the text is about to be read back or the
+// page may go away.
+
+const STORAGE_FLUSH_MS = 300
+const pendingWrites = new Map()
+let writeTimer = null
+
+const flushStorage = () => {
+  if (writeTimer !== null) {
+    clearTimeout(writeTimer)
+    writeTimer = null
+  }
+  pendingWrites.forEach((value, key) => localStorage.setItem(key, value))
+  pendingWrites.clear()
+}
+
+const writeSoon = (key, value) => {
+  pendingWrites.set(key, value)
+  if (writeTimer === null) {
+    writeTimer = setTimeout(flushStorage, STORAGE_FLUSH_MS)
+  }
+}
+
+// a queued write has not reached localStorage yet, so reads come through here
+const readStored = (key) => {
+  if (pendingWrites.has(key)) {
+    return pendingWrites.get(key)
+  }
+  return localStorage.getItem(key) || ''
+}
+
+// Settings are written straight through rather than queued: they only change
+// on a click, they are tiny, and the preview window reads them back on the
+// storage event, so a delayed write would show it stale settings.
 const saveSettings = (patch) => {
-  Object.assign(quickEdit, readSettings(), patch)
+  Object.assign(quickEdit, patch)
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   return quickEdit
 }
 
-saveSettings({})
+//--------------------------- editor table ----------------------------
+// One description of the three editors. Everywhere that used to branch on
+// main/css/js and re-derive the storage key, the monaco language and the DOM
+// ids now reads them from here.
 
-let savedCode = localStorage.getItem("code");
-
-gets('#lang').innerText = quickEdit.lang
-gets('#theme').innerText = quickEdit.theme
-
-if (quickEdit.lang === 'html') {
-  gets('.tabs').style.display = 'flex'
-  makeActive(quickEdit.tab)
-  gets('#export').style.display = 'block'
+const TABS = {
+  main: { key: 'code', lang: 'html', tabSel: '#main', paneSel: '#CodeBlock', get: () => editor, ensure: () => ensureMainEditor() },
+  css: { key: 'css', lang: 'css', tabSel: '#css', paneSel: '#cssEditor', get: () => cssEditor, ensure: () => ensureCssEditor() },
+  js: { key: 'js', lang: 'javascript', tabSel: '#js', paneSel: '#jsEditor', get: () => jsEditor, ensure: () => ensureJsEditor() },
 }
+const TAB_IDS = ['main', 'css', 'js']
 
-function displayRun() {
-  let run = gets('#openwin')
-  if (quickEdit.lang == 'html' || quickEdit.lang == 'javascript' || quickEdit.lang == 'plaintext') {
-    run.style.visibility = 'visible'
-  } else {
-    run.style.visibility = 'hidden'
-  }
-}
-displayRun()
+// the split pane is addressed by monaco language name
+const SPLIT_TABS = { html: 'main', css: 'css', javascript: 'js' }
 
-settheme(quickEdit.theme)
-
-// Shared setup for all four editors. The option names matter: lineNumber,
-// glyphmargin and scrollBeyoundLastLine were misspelled and silently ignored,
-// and the loose vertical/horizontal scrollbar sizes were never options at all
-// (the nested scrollbar block is the real one).
+// Shared monaco setup. The option names matter: lineNumber, glyphmargin and
+// scrollBeyoundLastLine were misspelled and silently ignored.
 const editorOptions = (value, language) => ({
   value: value,
   language: language,
-  lineNumbers: "on",
+  lineNumbers: 'on',
   glyphMargin: false,
   scrollBeyondLastLine: false,
   readOnly: false,
@@ -98,340 +108,207 @@ const editorOptions = (value, language) => ({
   },
 })
 
-var editor = monaco.editor.create(document.getElementById("CodeBlock"), editorOptions(savedCode, quickEdit.lang));
-
-//---------------------Save-to-loacalstorage--------------------------
-
-function saveItLocal(call) {
-  if (call === 'main') {
-    let code = editor.getValue();
-    localStorage.setItem("code", code);
-  } else if (call == 'css') {
-    let css = cssEditor.getValue();
-    localStorage.setItem("css", css);
-  } else if (call === 'js') {
-    let js = jsEditor.getValue();
-    localStorage.setItem("js", js);
+// setValue() throws away the undo stack, so only write when the text differs
+const syncValue = (target, text) => {
+  if (target && target.getValue() !== text) {
+    target.getModel().setValue(text)
   }
 }
 
-function saveBySplit(call) {
-  if (call === 'code') {
-    let code = splitEditor.getValue();
-    localStorage.setItem("code", code);
-  } else if (call == 'css') {
-    let css = splitEditor.getValue();
-    localStorage.setItem("css", css);
-  } else if (call === 'js') {
-    let js = splitEditor.getValue();
-    localStorage.setItem("js", js);
+// The main editor is the only one built up front; the css, js and split panes
+// are created the first time they are actually shown.
+let editor = null
+
+const ensureMainEditor = () => {
+  if (!editor) {
+    gets('#CodeBlock').innerHTML = ''
+    editor = monaco.editor.create(gets('#CodeBlock'), editorOptions(readStored('code'), quickEdit.lang))
+    editor.getModel().onDidChangeContent(() => saveEditor('main'))
+    editor.onDidBlurEditorWidget(() => onEditorBlur('main'))
+    editor.onDidFocusEditorWidget(() => onEditorFocus('main'))
+    addAction(editor)
+  }
+  return editor
+}
+
+const saveEditor = (id) => {
+  const spec = TABS[id]
+  const ed = spec && spec.get()
+  if (ed) {
+    writeSoon(spec.key, ed.getValue())
   }
 }
 
-
-window.editor.getModel().onDidChangeContent(() => { saveItLocal('main') });
-
-//---------------------Save-as-file----------------------------------
-const fileNameInput = gets('#filename')
-const overylay = gets('#overlay')
-const saveBtn = gets('#save')
-const box = gets('.box')
-let fileName = false
-//---------------------Handlers---------------------
-const showOverlay = () => {
-  gets('#overlay').style.display = 'block'
-  let activeTab = quickEdit.tab
-  if (activeTab == 'main') {
-    // keep the name of a file that was opened instead of overwriting it with
-    // the generic default every time the dialog is shown
-    fileNameInput.value = fileName || 'file.' + ext
-  } else if (activeTab == 'css') {
-    fileNameInput.value = 'file.css'
-  } else if (activeTab == 'js') {
-    fileNameInput.value = 'file.js'
-  }
-  fileNameInput.focus()
-  fileNameInput.select()
-}
-const hideOverlay = () => {
-  gets('#overlay').style.display = 'none'
+// the text of a pane, whether or not its editor has been created yet
+const contentOf = (id) => {
+  const spec = TABS[id]
+  if (!spec) return ''
+  const ed = spec.get()
+  return ed ? ed.getValue() : readStored(spec.key)
 }
 
-function saveFile() {
-  let activeTab = quickEdit.tab
-  let content
-  if (activeTab == 'main') {
-    content = editor.getValue()
-  } else if (activeTab == 'css') {
-    content = cssEditor.getValue()
-  } else if (activeTab == 'js') {
-    content = jsEditor.getValue()
-  } else {
-    return
-  }
-  let fname = fileNameInput.value.trim() || 'file.' + ext
-  let blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  saveAs(blob, fname);
-  hideOverlay()
-}
+//--------------------------- save as file ----------------------------
 
-
-const downf = () => {
-  saveFile()
-}
-
-//------------------------file-name-popup---------------------------
-
-let fileExt = {
+const fileExt = {
   js: 'javascript',
   txt: 'plaintext',
   json: 'json',
   html: 'html',
   css: 'css',
-  zip: 'zip'
+  zip: 'zip',
 }
 
-overylay.onclick = hideOverlay
-saveBtn.onclick = showOverlay
+let fileName = false
+let ext = 'html'
 
-box.onclick = (e) => {
-  e.stopPropagation()
-}
+const extFor = (language) => Object.keys(fileExt).find((key) => fileExt[key] === language) || 'txt'
 
-let ext = Object.keys(fileExt).find(key => fileExt[key] === quickEdit.lang);
-
-
-if (!ext) {
-  ext = 'txt'
-}
-
-fileNameInput.addEventListener('keypress', (e) => {
-  if (e.key == 'Enter') {
-    saveFile()
+const suggestedFileName = () => {
+  if (quickEdit.tab === 'main') {
+    // keep the name of a file that was opened rather than overwriting it
+    return fileName || 'file.' + ext
   }
-})
+  return 'file.' + TABS[quickEdit.tab].key
+}
 
-document.addEventListener("keydown", (e) => {
-  // e.which is deprecated, and without preventDefault the browser's own
-  // save dialog can open on top of ours
-  if ((e.key === 's' || e.key === 'S') && e.ctrlKey && e.shiftKey) {
-    e.preventDefault()
-    showOverlay()
-  }
-})
+const showOverlay = () => {
+  gets('#overlay').style.display = 'block'
+  const input = gets('#filename')
+  input.value = suggestedFileName()
+  input.focus()
+  input.select()
+}
 
-// ------------------Open-file-&-Project---------------
+const hideOverlay = () => {
+  gets('#overlay').style.display = 'none'
+}
+
+function saveFile() {
+  const spec = TABS[quickEdit.tab]
+  if (!spec) return
+  flushStorage()
+  const fname = gets('#filename').value.trim() || suggestedFileName()
+  const blob = new Blob([contentOf(quickEdit.tab)], { type: 'text/plain;charset=utf-8' })
+  saveAs(blob, fname)
+  hideOverlay()
+}
+
+//------------------------ open file & project ------------------------
 
 function getExtension(filename) {
-  let newName = filename.split('.').pop()
-  if (fileExt[newName]) {
-    return newName
-  }
-  return 'txt'
+  const found = filename.split('.').pop()
+  return fileExt[found] ? found : 'txt'
 }
 
-let inputFile = gets('#file')
-inputFile.addEventListener("change", function (e) {
-  if (!this.files[0]) {
-    return;
-  }
-  let ext = getExtension(this.files[0].name)
-  let zipFile = e.target.files[0]
- //-------------------Open-project-----------------------
-  if (ext === 'zip') {
-    if (zipFile == undefined) {
-      return;
-    }
-    var filename = zipFile.name;
-    var reader = new FileReader();
-    // ----------------------------------
-    reader.onload = function (ev) {
-      JSZip.loadAsync(ev.target.result).then(function (zip) {
-        // read whichever of the three a QuickCode export normally holds, so a
-        // zip that is missing one still imports instead of failing outright
-        const pick = (name) => {
-          let entry = zip.file(name)
-          return entry ? entry.async('string') : Promise.resolve(null)
-        }
-        return Promise.all([
-          pick('QuickCode/index.html'),
-          pick('QuickCode/style.css'),
-          pick('QuickCode/index.js')
-        ])
-      }).then((parts) => {
-        let newHtml = parts[0]
-        let newCss = parts[1]
-        let newJs = parts[2]
-        if (newHtml === null && newCss === null && newJs === null) {
-          throw new Error('it contains no QuickCode/index.html, style.css or index.js')
-        }
-        if (newHtml !== null) {
-          newHtml = newHtml.replace(`<link rel="stylesheet" href="style.css">`, '')
-          newHtml = newHtml.replace(`<script src="index.js"></script>`, '')
-          editor.getModel().setValue(newHtml);
-        }
-        if (newCss !== null) {
-          cssEditor.getModel().setValue(newCss);
-        }
-        if (newJs !== null) {
-          jsEditor.getModel().setValue(newJs);
-        }
-      }).catch(function (err) {
-        // this used to fail with nothing but a console message
-        console.error("Failed to open", filename, "as a QuickCode project:", err);
-        alert('Could not open "' + filename + '" as a QuickCode project: ' + err.message)
-      })
-    };
-    // ------------------------------------
-    reader.onerror = function (err) {
-      console.error("Failed to read file", err);
-      alert('Could not read "' + filename + '".')
-    }
-    reader.readAsArrayBuffer(zipFile);
-  }
- //---------------open-file------------------
-  if (ext != 'zip') {
-    var file = new FileReader();
-    file.onload = () => {
-      let text = file.result + ""
-      let activeTab = quickEdit.tab
-      if (activeTab === 'main') {
-        editor.getModel().setValue(text);
-      } else if (activeTab === 'css') {
-        cssEditor.getModel().setValue(text);
-      } else if (activeTab === 'js') {
-        jsEditor.getModel().setValue(text);
+function openProject(zipFile) {
+  const filename = zipFile.name
+  const reader = new FileReader()
+
+  reader.onload = (ev) => {
+    JSZip.loadAsync(ev.target.result).then((zip) => {
+      // read whichever of the three a QuickCode export normally holds, so a
+      // zip missing one still imports instead of failing outright
+      const pick = (name) => {
+        const entry = zip.file(name)
+        return entry ? entry.async('string') : Promise.resolve(null)
       }
-    };
-
-    fileName = this.files[0].name
-    fileNameInput.value = fileName
-    let fExt = getExtension(fileName)
-    let activeTab = quickEdit.tab
-    if (activeTab === 'main') {
-      setLang(fileExt[fExt])
-    }
-    file.readAsText(this.files[0]);
+      return Promise.all([
+        pick('QuickCode/index.html'),
+        pick('QuickCode/style.css'),
+        pick('QuickCode/index.js'),
+      ])
+    }).then((parts) => {
+      let [newHtml, newCss, newJs] = parts
+      if (newHtml === null && newCss === null && newJs === null) {
+        throw new Error('it contains no QuickCode/index.html, style.css or index.js')
+      }
+      if (newHtml !== null) {
+        newHtml = newHtml.replace('<link rel="stylesheet" href="style.css">', '')
+        newHtml = newHtml.replace('<script src="index.js"></script>', '')
+        setPaneText('main', newHtml)
+      }
+      if (newCss !== null) setPaneText('css', newCss)
+      if (newJs !== null) setPaneText('js', newJs)
+    }).catch((err) => {
+      // this used to fail with nothing but a console message
+      console.error('Failed to open', filename, 'as a QuickCode project:', err)
+      alert('Could not open "' + filename + '" as a QuickCode project: ' + err.message)
+    })
   }
 
-  // the File objects above are already handed to the readers, and clearing the
-  // input is what lets the same file be picked a second time: without this no
-  // change event fires because the value has not changed
-  this.value = '';
-});
+  reader.onerror = (err) => {
+    console.error('Failed to read file', err)
+    alert('Could not read "' + filename + '".')
+  }
 
+  reader.readAsArrayBuffer(zipFile)
+}
 
+// write into a pane whether or not its editor exists yet
+const setPaneText = (id, text) => {
+  const spec = TABS[id]
+  if (!spec) return
+  const ed = spec.get()
+  if (ed) {
+    syncValue(ed, text)
+  } else {
+    writeSoon(spec.key, text)
+  }
+}
 
-//---------------custom-select-dropdown-----------
+function openFile(file) {
+  const reader = new FileReader()
+  reader.onload = () => {
+    setPaneText(quickEdit.tab, String(reader.result))
+  }
+  fileName = file.name
+  gets('#filename').value = fileName
+  if (quickEdit.tab === 'main') {
+    setLang(fileExt[getExtension(fileName)])
+  }
+  reader.readAsText(file)
+}
 
-const select = getsAll(".selectBtn");
-const option = getsAll(".option");
-let index = 1;
+//------------------------- language & theme --------------------------
 
-select.forEach((a) => {
-  a.addEventListener("click", (b) => {
-    const next = b.target.nextElementSibling;
-    next.classList.toggle("toggle");
-    next.style.zIndex = index++;
-  });
-});
-
-option.forEach((a) => {
-  a.addEventListener("click", (b) => {
-    b.target.parentElement.classList.remove("toggle");
-    const parent = b.target.closest(".select").children[0];
-    parent.setAttribute("data-type", b.target.getAttribute("data-type"));
-    parent.innerText = b.target.innerText;
-  });
-});
-
-// ------------------------------------------------------------
+function displayRun() {
+  const runnable = quickEdit.lang === 'html' || quickEdit.lang === 'javascript' || quickEdit.lang === 'plaintext'
+  gets('#openwin').style.visibility = runnable ? 'visible' : 'hidden'
+}
 
 const setLang = (ln) => {
   saveSettings({ lang: ln })
-  monaco.editor.setModelLanguage(editor.getModel(), ln)
-  ext = Object.keys(fileExt).find(key => fileExt[key] === quickEdit.lang);
-  if (!ext) {
-    ext = 'txt'
-  }
+  monaco.editor.setModelLanguage(ensureMainEditor().getModel(), ln)
+  ext = extFor(ln)
   if (fileName) {
     // keep the opened file's base name, just follow the new language
-    fileNameInput.value = fileName.replace(/\.[^.]*$/, '') + '.' + ext
+    gets('#filename').value = fileName.replace(/\.[^.]*$/, '') + '.' + ext
   } else {
-    fileNameInput.value = 'file.' + ext
+    gets('#filename').value = 'file.' + ext
   }
-  let tabs = gets('.tabs')
-  if (quickEdit.lang === 'html') {
-    tabs.style.display = 'flex'
-  } else {
-    tabs.style.display = 'none'
-  }
+  const isHtml = ln === 'html'
+  gets('.tabs').style.display = isHtml ? 'flex' : 'none'
   // export only makes sense for a html project, and this has to follow the
   // language for the whole session, not just on the initial load
-  gets('#export').style.display = quickEdit.lang === 'html' ? 'block' : 'none'
+  gets('#export').style.display = isHtml ? 'block' : 'none'
   displayRun()
 }
 
-
-// Apply the choice straight from the option that was clicked. This used to
-// count clicks on the whole .select container and only act on even ones, so a
-// stray click anywhere inside it (padding, the gap between options) swallowed
-// the next selection and left the button label disagreeing with the editor.
-getsAll('.selectA .option').forEach((opt) => {
-  opt.addEventListener('click', () => {
-    setLang(opt.getAttribute('data-type'))
-  })
-})
-
-getsAll('.selectB .option').forEach((opt) => {
-  opt.addEventListener('click', () => {
-    settheme(opt.getAttribute('data-type'))
-  })
-})
-
-// close any open dropdown when clicking away from it
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.select')) {
-    getsAll('.selectDropdown').forEach((d) => d.classList.remove('toggle'))
-  }
-})
-
-// ------------------Open-Code-New-Tab-------------
-
-function openWin() {
-  if (quickEdit.lang === 'html') {
-    window.open("./app.html", '_blank')
-    return
-  }
-  let savedCode = localStorage.getItem("code");
-  var myWindow = window.open();
-  var doc = myWindow.document;
-  doc.open();
-  if (quickEdit.lang === 'javascript') {
-    savedCode = `<script>${savedCode}</script>`
-  } else if (quickEdit.lang === 'plaintext') {
-    savedCode = `<pre style="margin: .5rem">${savedCode.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</pre>`
-  }
-  doc.write(savedCode);
-  doc.close();
-}
-
-//---------------------Themes--------------------
 function settheme(themeName) {
   themeName = themeAliases[themeName] || themeName
   saveSettings({ theme: themeName })
 
-  if (themeName == 'vs' || themeName == 'vs-dark') {
+  if (themeName === 'vs' || themeName === 'vs-dark') {
     monaco.editor.setTheme(themeName)
     return
   }
 
-  fetch("./themes/" + themeName + ".json")
-    .then(response => {
+  fetch('./themes/' + themeName + '.json')
+    .then((response) => {
       if (!response.ok) {
-        throw new Error("HTTP " + response.status)
+        throw new Error('HTTP ' + response.status)
       }
-      return response.json();
+      return response.json()
     })
     .then((data) => {
       monaco.editor.defineTheme(themeName, data)
@@ -439,145 +316,247 @@ function settheme(themeName) {
     })
     .catch((err) => {
       // without this the theme silently stayed on the previous one
-      console.error("Failed to load theme", themeName, err)
+      console.error('Failed to load theme', themeName, err)
       monaco.editor.setTheme('vs-dark')
       gets('#theme').innerText = 'vs-dark'
       saveSettings({ theme: 'vs-dark' })
     })
 }
 
-//-------------Hide-show-and-align-navbar-------------------
+//---------------------------- preview tab ----------------------------
 
-let hidebtn = gets('#hidenav')
-let showbtn = gets('#shownav')
-let alignbtn = gets('#alignbtn')
-function hidenav() {
+function openWin() {
+  flushStorage()
+  if (quickEdit.lang === 'html') {
+    window.open('./app.html', '_blank')
+    return
+  }
+  let code = readStored('code')
+  const win = window.open()
+  const doc = win.document
+  doc.open()
+  if (quickEdit.lang === 'javascript') {
+    code = `<script>${code}</script>`
+  } else if (quickEdit.lang === 'plaintext') {
+    const escaped = code.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    code = `<pre style="margin: .5rem">${escaped}</pre>`
+  }
+  doc.write(code)
+  doc.close()
+}
+
+//------------------------------- navbar ------------------------------
+
+const NARROW_WIDTH = 670
+
+// Below the breakpoint the vertical nav is forced; above it the stored
+// preference wins. Resizing used to overwrite that preference, so choosing
+// the vertical nav on a wide screen was undone by the very next resize.
+let prefersVerticalNav = false
+
+const applyNavLayout = () => {
+  const vertical = prefersVerticalNav || window.innerWidth <= NARROW_WIDTH
+  gets('#vnav').disabled = !vertical
+  if (!vertical && quickEdit.lang === 'html') {
+    gets('.tabs').style.display = 'flex'
+  }
+}
+
+const setVerticalNav = (vertical) => {
+  prefersVerticalNav = vertical
+  saveSettings({ vnav: vertical })
+  applyNavLayout()
+}
+
+function restoreNavbar() {
   gets('nav').style.display = 'flex'
-  showbtn.style.display = 'block'
-  hidebtn.style.display = 'none'
+  gets('#shownav').style.display = 'block'
+  gets('#hidenav').style.display = 'none'
 }
-function shownav() {
+
+function collapseNavbar() {
   gets('nav').style.display = 'none'
-  showbtn.style.display = 'none'
-  hidebtn.style.display = 'block'
+  gets('#shownav').style.display = 'none'
+  gets('#hidenav').style.display = 'block'
 }
 
-let aligntop = true
+//-------------------------------- tabs -------------------------------
 
-function alignNav(p) {
-  let tabs = gets('.tabs')
-  let verticalNav = gets('#vnav')
-  if (p) {
-    aligntop = false
-    verticalNav.disabled = false
-    saveSettings({ vnav: true })
-    return
-  } else if (!p) {
-    aligntop = true
-    verticalNav.disabled = true
-    saveSettings({ vnav: false })
-    if (quickEdit.lang == 'html') {
-      tabs.style.display = 'flex'
-    }
-  }
-}
-
-alignbtn.addEventListener('click', () => { alignNav(aligntop) })
-hidebtn.addEventListener('click', hidenav)
-showbtn.addEventListener('click', shownav)
-
-// ---------------tabs----------------
-
-let tab = getsAll('.tab')
-tab.forEach((e) => {
-  e.addEventListener('click', () => {
-    makeActive(e.id)
-    updateEditor(e.id)
+function makeActive(id) {
+  if (!TABS[id]) return
+  TABS[id].ensure()
+  TAB_IDS.forEach((other) => {
+    const active = other === id
+    gets(TABS[other].tabSel).classList.toggle('active-tab', active)
+    gets(TABS[other].paneSel).style.display = active ? 'block' : 'none'
   })
-})
-
-let checkboxes = getsAll('.tab>input')
-checkboxes.forEach((e) => e.addEventListener('click', (e) => e.stopPropagation()))
-
-function makeActive(e) {
-  let jsTab = gets('#js')
-  let cssTab = gets('#css')
-  let mainTab = gets('#main')
-  let jsMonaco = gets('#jsEditor')
-  let cssMonaco = gets('#cssEditor')
-  let mainMonaco = gets('#CodeBlock')
-  let lang = gets('.selectA')
-  let openWin = gets('#openwin')
-
-  if (e === 'main') {
-    jsTab.classList.remove('active-tab')
-    cssTab.classList.remove('active-tab')
-    mainTab.classList.add('active-tab')
-    mainMonaco.style.display = 'block'
-    cssMonaco.style.display = 'none'
-    jsMonaco.style.display = 'none'
-    lang.style.visibility = 'visible'
-    openWin.style.visibility = 'visible'
-    saveSettings({ tab: 'main' })
-  } else if (e === 'css') {
-    mainTab.classList.remove('active-tab')
-    jsTab.classList.remove('active-tab')
-    cssTab.classList.add('active-tab')
-    mainMonaco.style.display = 'none'
-    cssMonaco.style.display = 'block'
-    jsMonaco.style.display = 'none'
-    lang.style.visibility = 'hidden'
-    openWin.style.visibility = 'hidden'
-    saveSettings({ tab: 'css' })
-  } else if (e === 'js') {
-    cssTab.classList.remove('active-tab')
-    mainTab.classList.remove('active-tab')
-    jsTab.classList.add('active-tab')
-    mainMonaco.style.display = 'none'
-    cssMonaco.style.display = 'none'
-    jsMonaco.style.display = 'block'
-    lang.style.visibility = 'hidden'
-    openWin.style.visibility = 'visible'
-    saveSettings({ tab: 'js' })
-  }
-
+  // the language dropdown only applies to the main editor
+  gets('.selectA').style.visibility = id === 'main' ? 'visible' : 'hidden'
+  // css on its own cannot be previewed
+  gets('#openwin').style.visibility = id === 'css' ? 'hidden' : 'visible'
+  saveSettings({ tab: id })
 }
 
-function updateSplit(e) {
-  if (quickEdit.split) {
-    if (e === 'html') {
-      let code = editor.getValue()
-      splitEditor.getModel().setValue(code);
-    } else if (e === 'css') {
-      let css = cssEditor.getValue()
-      splitEditor.getModel().setValue(css);
-    } else if (e === 'javascript') {
-      let js = jsEditor.getValue()
-      splitEditor.getModel().setValue(js);
+function updateEditor(id) {
+  const spec = TABS[id]
+  if (!spec) return
+  const target = spec.get()
+  // an editor that does not exist yet reads storage when it is created
+  if (target) {
+    syncValue(target, readStored(spec.key))
+  }
+}
+
+function updateSplit(lang) {
+  if (!quickEdit.split || !splitEditor) return
+  const id = SPLIT_TABS[lang]
+  if (!id) return
+  syncValue(splitEditor, contentOf(id))
+}
+
+//---------------------------- click wiring ---------------------------
+
+const onClick = (el, fn) => {
+  if (el) el.addEventListener('click', fn)
+}
+
+//---------------------------- core startup ---------------------------
+
+function initCore() {
+  emmetMonaco.emmetHTML(monaco)
+
+  // seed the content keys so app.html and the line counters never see null
+  TAB_IDS.forEach((id) => {
+    if (localStorage.getItem(TABS[id].key) === null) {
+      localStorage.setItem(TABS[id].key, '')
     }
+  })
+  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+
+  // never lose queued text
+  window.addEventListener('pagehide', flushStorage)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushStorage()
+  })
+
+  ext = extFor(quickEdit.lang)
+  gets('#lang').innerText = quickEdit.lang
+  gets('#theme').innerText = quickEdit.theme
+  gets('#filename').value = 'file.' + ext
+
+  settheme(quickEdit.theme)
+  ensureMainEditor()
+
+  if (quickEdit.lang === 'html') {
+    gets('.tabs').style.display = 'flex'
+    gets('#export').style.display = 'block'
+    makeActive(quickEdit.tab)
   }
+  displayRun()
+
+  prefersVerticalNav = quickEdit.vnav
+  applyNavLayout()
+  window.addEventListener('resize', applyNavLayout)
+
+  wireToolbar()
+  wireDropdowns()
 }
 
-// setValue() throws away the undo stack, so only reload an editor when what
-// is stored actually differs from what it is showing. Switching tabs used to
-// wipe undo history every single time.
-function updateEditor(e) {
-  let target
-  let stored
-  if (e === 'main') {
-    target = editor
-    stored = localStorage.getItem('code') || ''
-  } else if (e === 'css') {
-    target = cssEditor
-    stored = localStorage.getItem('css') || ''
-  } else if (e === 'js') {
-    target = jsEditor
-    stored = localStorage.getItem('js') || ''
-  } else {
-    return
-  }
+function wireToolbar() {
+  // save dialog
+  onClick(gets('#save'), showOverlay)
+  onClick(gets('#savefile'), saveFile)
+  gets('#overlay').addEventListener('click', hideOverlay)
+  gets('.box').addEventListener('click', (e) => e.stopPropagation())
+  gets('#filename').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') saveFile()
+  })
+  document.addEventListener('keydown', (e) => {
+    // e.which is deprecated, and without preventDefault the browser's own
+    // save dialog can open on top of ours
+    if ((e.key === 's' || e.key === 'S') && e.ctrlKey && e.shiftKey) {
+      e.preventDefault()
+      showOverlay()
+    }
+  })
 
-  if (target.getValue() !== stored) {
-    target.getModel().setValue(stored);
-  }
+  // open a file or a project zip
+  gets('#file').addEventListener('change', function () {
+    const picked = this.files[0]
+    if (picked) {
+      if (getExtension(picked.name) === 'zip') {
+        openProject(picked)
+      } else {
+        openFile(picked)
+      }
+    }
+    // clearing the input is what lets the same file be picked again: without
+    // it the value is unchanged and no change event fires
+    this.value = ''
+  })
+
+  onClick(gets('#openwin'), openWin)
+  onClick(gets('#export'), exportProject)
+  onClick(gets('#top'), moveTop)
+
+  // navbar
+  onClick(gets('#alignbtn'), () => setVerticalNav(!prefersVerticalNav))
+  onClick(gets('#hidenav'), restoreNavbar)
+  onClick(gets('#shownav'), collapseNavbar)
+
+  // tab strip
+  TAB_IDS.forEach((id) => {
+    onClick(gets(TABS[id].tabSel), () => {
+      makeActive(id)
+      updateEditor(id)
+    })
+  })
+
+  // the enable-in-preview checkboxes must not also switch tabs
+  getsAll('.tab>input').forEach((box) => {
+    box.addEventListener('click', (e) => e.stopPropagation())
+  })
+  const cssCheck = gets('#cssCheck')
+  const jsCheck = gets('#jsCheck')
+  cssCheck.checked = Boolean(quickEdit.css)
+  jsCheck.checked = Boolean(quickEdit.js)
+  cssCheck.addEventListener('change', () => saveSettings({ css: cssCheck.checked }))
+  jsCheck.addEventListener('change', () => saveSettings({ js: jsCheck.checked }))
+}
+
+//-------------------------- select dropdowns -------------------------
+
+function wireDropdowns() {
+  let dropdownZ = 1
+
+  getsAll('.selectBtn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const list = btn.nextElementSibling
+      list.classList.toggle('toggle')
+      list.style.zIndex = dropdownZ++
+    })
+  })
+
+  // Apply the choice straight from the option that was clicked. This used to
+  // count clicks on the whole .select container and act only on even ones, so
+  // a stray click inside it swallowed the next selection.
+  const apply = { selectA: setLang, selectB: settheme }
+  getsAll('.option').forEach((opt) => {
+    opt.addEventListener('click', () => {
+      const select = opt.closest('.select')
+      const btn = select.children[0]
+      opt.parentElement.classList.remove('toggle')
+      btn.setAttribute('data-type', opt.getAttribute('data-type'))
+      btn.innerText = opt.innerText
+      const which = select.classList.contains('selectA') ? 'selectA' : 'selectB'
+      apply[which](opt.getAttribute('data-type'))
+    })
+  })
+
+  // close any open dropdown when clicking away from it
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.select')) {
+      getsAll('.selectDropdown').forEach((d) => d.classList.remove('toggle'))
+    }
+  })
 }

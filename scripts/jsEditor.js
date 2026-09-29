@@ -1,22 +1,17 @@
+//---------------------------------------------------------------------
+// The JS pane, created on first use. See cssEditor.js.
+//---------------------------------------------------------------------
 
-gets("#jsEditor").innerHTML = "";
+let jsEditor = null
 
-let savedjs = localStorage.getItem("js");
-
-
-var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), editorOptions(savedjs, 'javascript'));
-
-//---------------------Save-to-loacalstorage--------------------------
-window.jsEditor.getModel().onDidChangeContent(() => {
-  saveItLocal('js')
-});
-
-let jsCheck = gets('#jsCheck')
-if (quickEdit.js) {
-  jsCheck.checked = true
+function ensureJsEditor() {
+  if (!jsEditor) {
+    gets('#jsEditor').innerHTML = ''
+    jsEditor = monaco.editor.create(gets('#jsEditor'), editorOptions(readStored('js'), 'javascript'))
+    jsEditor.getModel().onDidChangeContent(() => saveEditor('js'))
+    jsEditor.onDidBlurEditorWidget(() => onEditorBlur('js'))
+    jsEditor.onDidFocusEditorWidget(() => onEditorFocus('js'))
+    addAction(jsEditor)
+  }
+  return jsEditor
 }
-
-jsCheck.addEventListener('change', () => {
-  saveSettings({ js: gets('#jsCheck').checked })
-})
-

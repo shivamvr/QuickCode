@@ -8,17 +8,26 @@
       <!-- not async: export and import call JSZip straight from a click, and
            it was a race whether the library had arrived yet -->
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js" integrity="sha512-xcHCGC5tQ0SHlRX8Anbz6oy/OullASJkEhb4gjkneVpGE3/QGYejf14CUO5n5q5paiHfRFTa9HKgByxzidw2Bw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-      <script src="scripts/jszip-utils.js"></script>
       <!-----------------------------emmet--------------------------->
       <script src="https://unpkg.com/emmet-monaco-es/dist/emmet-monaco.min.js"></script>
       <!------------------------------------------------------------->
       <link rel="shortcut icon" href="icon/favicon.png" type="image/x-icon">
       <!------------------------monaco-editor------------------------->
-      <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.css" integrity="sha512-Iv1lj5SbHg+aiqetfjcMB/kk2L4RMsocHvjrBO//Z32HZJLoNy3Y1VfMUMXDigVCfmagjd7zogVnbNBHda4aIQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-      <script> var require = {paths: {'vs': "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs" } };</script>
+      <script>
+         var MONACO_BASE = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/";
+         var require = { paths: { vs: MONACO_BASE + "vs" } };
+         // Without this monaco cannot start its language workers cross-origin
+         // and runs validation and IntelliSense on the main thread, competing
+         // with typing. The tiny data: worker just re-points the base url.
+         window.MonacoEnvironment = {
+            getWorkerUrl: function () {
+               var boot = "self.MonacoEnvironment={baseUrl:'" + MONACO_BASE + "'};" +
+                          "importScripts('" + MONACO_BASE + "vs/base/worker/workerMain.js');";
+               return "data:text/javascript;charset=utf-8," + encodeURIComponent(boot);
+            }
+         };
+      </script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/loader.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.nls.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/editor/editor.main.js"></script>
       <!---------------------Styles--------------------------------->
       <link rel="stylesheet" href="styles/style.css">
       <link rel="stylesheet" href="styles/tabs.css">
@@ -43,7 +52,7 @@
          <div id="save" class="item">
             <img  src="icon/download.svg" alt="">
          </div>
-         <div id="openwin" class="item" onclick="openWin()">
+         <div id="openwin" class="item">
             <img src="icon/code1.svg" alt="">
          </div>
          <!-- ------------------------------Tabs------------------->
@@ -51,18 +60,18 @@
             <div id="split" class="tab">
                <div class="splitMenu">
                   <img class="splitsvg" src="icon/splits.svg" alt="">
-                  <div class="contianer">
+                  <div class="container">
                      <div class="triangle"></div>
                      <div class="splititems">
-                        <div onclick="splitMenu('html')" class="splititem"> <img src="icon/html.svg"> html</div>
+                        <div class="splititem" data-split-lang="html"> <img src="icon/html.svg"> html</div>
                         <div class="gradient"></div>
-                        <div onclick="splitMenu('css')" class="splititem"> <img src="icon/css.svg"> css</div>
+                        <div class="splititem" data-split-lang="css"> <img src="icon/css.svg"> css</div>
                         <div class="gradient"></div>
-                        <div onclick="splitMenu('javascript')" class="splititem"> <img src="icon/js.svg"> js</div>
+                        <div class="splititem" data-split-lang="javascript"> <img src="icon/js.svg"> js</div>
                      </div>
                   </div>
                </div>
-               <div onclick="singleEditor()" class="single">
+               <div class="single">
                   <img  src="icon/single.svg" alt="">
                </div>
             </div>
@@ -123,9 +132,9 @@
          <pre id="jsEditor" class="scrollbar editor"></pre>
          <div id="splitContainer" class="editor">
             <div class="splitTabs">
-               <div onclick="splitMenu('html')" class="splitTab splithtml"><img src="icon/html.svg" alt=""><span>html</span></div>
-               <div onclick="splitMenu('css')" class="splitTab splitcss"><img src="icon/css.svg" alt=""><span>css</span></div>
-               <div onclick="splitMenu('javascript')" class="splitTab splitjs"><img src="icon/js.svg" alt=""><span>js</span></div>
+               <div class="splitTab splithtml" data-split-lang="html"><img src="icon/html.svg" alt=""><span>html</span></div>
+               <div class="splitTab splitcss" data-split-lang="css"><img src="icon/css.svg" alt=""><span>css</span></div>
+               <div class="splitTab splitjs" data-split-lang="javascript"><img src="icon/js.svg" alt=""><span>js</span></div>
             </div>
             <pre id="splitEditor" class="scrollbar"></pre>
          </div>
@@ -135,21 +144,26 @@
          <div class="box">
             <div>
                <input type="text" id="filename" placeholder="file name">
-               <img onclick="downf()" src="icon/download.svg" alt="">
+               <img id="savefile" src="icon/download.svg" alt="">
             </div>
-            <div onclick="exportProject()" id="export"> 💾 export project</div>
+            <div id="export"> 💾 export project</div>
          </div>
       </div>
    <!------------------------------------------------------------------>
-      <div onclick="moveTop()" id="top">↑</div>
+      <div id="top">↑</div>
    <!-----------------------Show/Hide-Navbar--------------------------->
       <img id="hidenav" src="icon/show.svg" alt="">
       <img id="shownav" src="icon/hide.svg" alt="">
    <!-----------------------Scripts------------------------------------>
-      <script  src="scripts/index.js"></script>
-      <script  src="scripts/cssEditor.js"></script>
-      <script  src="scripts/jsEditor.js"></script>
-      <script  src="scripts/splitEditor.js"></script>
-      <script  src="scripts/eventListener.js"></script>
+      <script src="scripts/index.js"></script>
+      <script src="scripts/cssEditor.js"></script>
+      <script src="scripts/jsEditor.js"></script>
+      <script src="scripts/splitEditor.js"></script>
+      <script src="scripts/eventListener.js"></script>
+      <script>
+         // the editor.main bundle is large; letting the loader fetch it keeps
+         // it off the critical path instead of three blocking script tags
+         require(["vs/editor/editor.main"], bootQuickCode);
+      </script>
    </body>
 </html>

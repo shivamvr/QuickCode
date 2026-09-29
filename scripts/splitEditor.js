@@ -1,36 +1,28 @@
-gets("#splitEditor").innerHTML = "";
+//---------------------------------------------------------------------
+// The second pane of the split view, created the first time the split is
+// opened. It shows whichever language quickEdit.splitLang names and writes
+// back to that language's storage key.
+//---------------------------------------------------------------------
 
-let splitLang = quickEdit.splitLang
-let splitLangCode = ''
-let splitSave = 'code'
+let splitEditor = null
 
-if (splitLang === 'html') {
-  splitLangCode = savedCode
-  splitSave = 'code'
-} else if (splitLang === 'css') {
-  splitLangCode = savedcss
-  splitSave = 'css'
-} else if (splitLang === 'javascript') {
-  splitLangCode = savedjs
-  splitSave = 'js'
+function ensureSplitEditor() {
+  if (!splitEditor) {
+    const lang = SPLIT_TABS[quickEdit.splitLang] ? quickEdit.splitLang : 'html'
+    gets('#splitEditor').innerHTML = ''
+    splitEditor = monaco.editor.create(gets('#splitEditor'), editorOptions(contentOf(SPLIT_TABS[lang]), lang))
+    splitEditor.getModel().onDidChangeContent(saveSplitEditor)
+    splitEditor.onDidBlurEditorWidget(onSplitBlur)
+    splitEditor.onDidFocusEditorWidget(onSplitFocus)
+    addAction(splitEditor)
+  }
+  return splitEditor
 }
 
-
-var splitEditor = monaco.editor.create(document.getElementById("splitEditor"), editorOptions(splitLangCode, quickEdit.splitLang));
-
-//---------------------Save-to-loacalstorage--------------------------
-
-window.splitEditor.getModel().onDidChangeContent(() => {
-  let splitLang = quickEdit.splitLang
-  if (splitLang === 'html') {
-    splitSave = 'code'
-  } else if (splitLang === 'css') {
-    splitSave = 'css'
-  } else if (splitLang === 'javascript') {
-    splitSave = 'js'
+// the split pane writes to the key of whatever language it is currently showing
+function saveSplitEditor() {
+  const spec = TABS[SPLIT_TABS[quickEdit.splitLang]]
+  if (spec && splitEditor) {
+    writeSoon(spec.key, splitEditor.getValue())
   }
-  
-  saveBySplit(splitSave)
-});
-
-
+}

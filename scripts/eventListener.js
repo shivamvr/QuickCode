@@ -1,116 +1,98 @@
+//=====================================================================
+// Split view, cursor sync between panes, project export, editor actions,
+// and the entry point monaco's loader calls once it is ready.
+//=====================================================================
 
+let splitMenuClosed = true
 
-// #top is wired to moveTop() from the markup. There used to be a second
-// listener here setting #CodeBlock.scrollTop, which never did anything:
-// monaco scrolls its own inner element, not the container.
-
-
-alignNav(quickEdit.vnav)
-
-
-if (window.outerWidth <= 670) {
-    alignNav(true)
-}
-
-
-var onresize = function () {
-    let width = window.outerWidth;
-    // let height = window.outerHeight;
-    if (width <= 670) {
-        alignNav(true)
-    } else {
-        alignNav(false)
-    }
-}
-
-let setSplitMenu = true
-let singleicon = gets('.single')
-let spliticon = gets('.splitsvg')
-let contianer = gets('.contianer')
-let editors = getsAll('.editor')
+//------------------------------ split view ---------------------------
 
 function splitMenu(lang) {
+    if (!SPLIT_TABS[lang]) return
     saveSettings({ splitLang: lang })
-    if (lang === 'html') {
-        syncValue(splitEditor, localStorage.getItem('code') || '');
-    } else if (lang === 'css') {
-        syncValue(splitEditor, localStorage.getItem('css') || '');
-    } else if (lang === 'javascript') {
-        syncValue(splitEditor, localStorage.getItem('js') || '');
-    }
+    ensureSplitEditor()
     monaco.editor.setModelLanguage(splitEditor.getModel(), lang)
     doSplit()
     makeSplitTabActive(lang)
     updateSplit(lang)
 }
 
-
 function doSplit() {
     saveSettings({ split: true })
-    let splitEditor = gets('#splitContainer')
-    spliticon.style.display = 'none'
-    singleicon.style.display = 'block'
-    editors.forEach((e) => {
-        e.style.width = '50%'
-        splitEditor.style.display = 'block'
-        contianer.style.display = 'none'
-        setSplitMenu = true
-    });
+    ensureSplitEditor()
+    gets('.splitsvg').style.display = 'none'
+    gets('.single').style.display = 'block'
+    getsAll('.editor').forEach((e) => { e.style.width = '50%' })
+    gets('#splitContainer').style.display = 'block'
+    gets('.container').style.display = 'none'
+    splitMenuClosed = true
 }
-
-function makeSplitTabActive(e) {
-    let splithtml = gets('.splithtml')
-    let splitcss = gets('.splitcss')
-    let splitjs = gets('.splitjs')
-    let splitTabs = getsAll('.splitTab')
-    if (e === 'html') {
-        splitTabs.forEach((e) => { e.classList.remove('active-tab') })
-        splithtml.classList.add('active-tab')
-    } else if (e === 'css') {
-        splitTabs.forEach((e) => { e.classList.remove('active-tab') })
-        splitcss.classList.add('active-tab')
-    } else if (e === 'javascript') {
-        splitTabs.forEach((e) => { e.classList.remove('active-tab') })
-        splitjs.classList.add('active-tab')
-    }
-}
-
 
 function singleEditor() {
     saveSettings({ split: false })
-    let splitEditor = gets('#splitContainer')
-    singleicon.style.display = 'none'
-    spliticon.style.display = 'block'
-    contianer.style.display = 'none'
-    editors.forEach((e) => {
-        e.style.width = '100%'
-        splitEditor.style.display = 'none'
-    });
+    gets('.single').style.display = 'none'
+    gets('.splitsvg').style.display = 'block'
+    gets('.container').style.display = 'none'
+    getsAll('.editor').forEach((e) => { e.style.width = '100%' })
+    gets('#splitContainer').style.display = 'none'
 }
 
-spliticon.addEventListener('click', () => {
-    if (setSplitMenu) {
-        setSplitMenu = false
-        contianer.style.display = 'block'
-    } else {
-        setSplitMenu = true
-        contianer.style.display = 'none'
-    }
-})
-
-gets('#editor').addEventListener('click', () => {
-    if (!setSplitMenu) {
-        setSplitMenu = true
-        contianer.style.display = 'none'
-    }
-})
-
-if (quickEdit.split) {
-    doSplit(quickEdit.splitLang)
-    makeSplitTabActive(quickEdit.splitLang)
+function makeSplitTabActive(lang) {
+    getsAll('.splitTab').forEach((t) => {
+        t.classList.toggle('active-tab', t.dataset.splitLang === lang)
+    })
 }
 
-let htmlpre = `<!DOCTYPE html>
+//------------------------- cursor sync between panes -----------------
+// Each pane remembers where its caret was, so moving between the tab editors
+// and the split pane does not jump the cursor somewhere unrelated.
+
+const cursors = { main: null, css: null, js: null, split: { lineNumber: 1, column: 1 } }
+
+function onEditorBlur(id) {
+    const ed = TABS[id].get()
+    if (!ed) return
+    cursors[id] = ed.getPosition()
+    // push into the split pane when it is showing the same language
+    if (quickEdit.split && splitEditor && SPLIT_TABS[quickEdit.splitLang] === id) {
+        syncValue(splitEditor, ed.getValue())
+    }
+}
+
+function onEditorFocus(id) {
+    if (!quickEdit.split || SPLIT_TABS[quickEdit.splitLang] !== id) return
+    // monaco places the caret from the click itself, so apply ours after it
+    setTimeout(() => {
+        const ed = TABS[id].get()
+        if (ed && cursors.split) ed.setPosition(cursors.split)
+    }, 10)
+}
+
+function onSplitBlur() {
+    cursors.split = splitEditor.getPosition()
+    const id = SPLIT_TABS[quickEdit.splitLang]
+    if (quickEdit.split && TABS[id]) {
+        // the tab editor may not exist yet; its storage key is already current
+        syncValue(TABS[id].get(), splitEditor.getValue())
+    }
+}
+
+function onSplitFocus() {
+    const pos = cursors[quickEdit.tab]
+    if (!pos) return
+    setTimeout(() => splitEditor.setPosition(pos), 10)
+}
+
+function moveTop() {
+    const ed = TABS[quickEdit.tab] && TABS[quickEdit.tab].get()
+    if (ed) ed.revealLine(1)
+    // the split pane sits alongside the active tab, so send it up too
+    if (quickEdit.split && splitEditor) splitEditor.revealLine(1)
+}
+
+//---------------------------- export project -------------------------
+
+const htmlPre = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -120,192 +102,65 @@ let htmlpre = `<!DOCTYPE html>
     <link rel="stylesheet" href="style.css">
   </head>
   <body>`
-let htmlpost = `
+
+const htmlPost = `
   </body>
  </html>`
 
-let htmlScrpit = `<script src="index.js"></script>`
-
+const htmlScript = `<script src="index.js"></script>`
 
 function exportProject() {
-    if (quickEdit.lang === 'html') {
-        var zip = new JSZip();
-        let htmlCode = localStorage.getItem('code') || ''
-        let cssCode = localStorage.getItem('css') || ''
-        let jsCode = localStorage.getItem('js') || ''
-        // <body class="..."> and any casing count as a full document too: the
-        // old literal '<body>' test sent those down the wrapping branch and
-        // produced a document nested inside another document
-        let hasHead = /<head[\s>]/i.test(htmlCode)
-        let hasBody = /<body[\s>]/i.test(htmlCode)
-        if (hasHead && hasBody) {
-            htmlCode = htmlCode.replace(/<\/head>/i, `<link rel="stylesheet" href="style.css">
+    if (quickEdit.lang !== 'html') return
+    flushStorage()
+
+    let htmlCode = contentOf('main')
+    const cssCode = contentOf('css')
+    const jsCode = contentOf('js')
+
+    // <body class="..."> and any casing count as a full document too: a
+    // literal '<body>' test sent those down the wrapping branch and produced
+    // a document nested inside another document
+    const hasHead = /<head[\s>]/i.test(htmlCode)
+    const hasBody = /<body[\s>]/i.test(htmlCode)
+    if (hasHead && hasBody) {
+        htmlCode = htmlCode.replace(/<\/head>/i, `<link rel="stylesheet" href="style.css">
   </head>`)
-            htmlCode = htmlCode.replace(/<\/body>/i, `<script src="index.js"></script>
+        htmlCode = htmlCode.replace(/<\/body>/i, `<script src="index.js"></script>
  </body>`)
-        } else {
-            htmlCode = htmlpre + htmlCode + htmlScrpit + htmlpost
-        }
-
-        let html = new Blob([htmlCode], { type: "text/plain;charset=utf-8" });
-        let css = new Blob([cssCode], { type: "text/plain;charset=utf-8" });
-        let js = new Blob([jsCode], { type: "text/plain;charset=utf-8" });
-        zip.file("QuickCode/index.html", html);
-        zip.file("QuickCode/style.css", css);
-        zip.file("QuickCode/index.js", js);
-
-        zip.generateAsync({ type: "blob" }).then(function (content) {
-            saveAs(content, "QuickCode.zip");
-        });
+    } else {
+        htmlCode = htmlPre + htmlCode + htmlScript + htmlPost
     }
-}
 
-const countLines = (key) => (localStorage.getItem(key) || '').split(/\r\n|\r|\n/).length
+    const zip = new JSZip()
+    const asBlob = (text) => new Blob([text], { type: 'text/plain;charset=utf-8' })
+    zip.file('QuickCode/index.html', asBlob(htmlCode))
+    zip.file('QuickCode/style.css', asBlob(cssCode))
+    zip.file('QuickCode/index.js', asBlob(jsCode))
 
-// setValue() throws away the target's undo stack, so only push when the text
-// has actually changed. The split pane and its tab editor hold separate copies
-// that are reconciled on blur, and this keeps a no-op blur from touching them.
-const syncValue = (target, text) => {
-    if (target.getValue() !== text) {
-        target.getModel().setValue(text)
-    }
-}
-
-let codeLine = countLines('code')
-let cssLine = countLines('css')
-let jsLine = countLines('js')
-
-let ep = { lineNumber: codeLine, column: 1 }
-editor.onDidBlurEditorWidget(() => {
-    ep = editor.getPosition()
-    let splitActive = quickEdit.split
-    let splitlang = quickEdit.splitLang
-    let editorCode = editor.getValue()
-    if (splitActive && splitlang === 'html') {
-        syncValue(splitEditor, editorCode)
-    }
-})
-
-let cssp = { lineNumber: cssLine, column: 1 }
-cssEditor.onDidBlurEditorWidget(() => {
-    cssp = cssEditor.getPosition()
-    let splitActive = quickEdit.split
-    let splitlang = quickEdit.splitLang
-    let cssCode = cssEditor.getValue()
-    if (splitActive && splitlang === 'css') {
-        syncValue(splitEditor, cssCode)
-    }
-})
-let jsp = { lineNumber: jsLine, column: 1 }
-jsEditor.onDidBlurEditorWidget(() => {
-    jsp = jsEditor.getPosition()
-    let splitActive = quickEdit.split
-    let splitlang = quickEdit.splitLang
-    let jsCode = jsEditor.getValue()
-    if (splitActive && splitlang === 'javascript') {
-        syncValue(splitEditor, jsCode)
-    }
-})
-
-splitEditor.onDidFocusEditorWidget(() => {
-    let activeTab = quickEdit.tab
-    setTimeout(() => {
-        if (activeTab == 'main') {
-            splitEditor.setPosition(ep)
-        }
-        else if (activeTab == 'css') {
-            splitEditor.setPosition(cssp)
-        }
-        if (activeTab == 'js') {
-            splitEditor.setPosition(jsp)
-        }
-    }, 10)
-})
-let sp = { lineNumber: 1, column: 1 }
-
-splitEditor.onDidBlurEditorWidget(() => {
-    sp = splitEditor.getPosition()
-    let splitActive = quickEdit.split
-    let splitlang = quickEdit.splitLang
-    let code = splitEditor.getValue()
-    if (splitActive && splitlang === 'html') {
-        syncValue(editor, code)
-    }
-    else if (splitActive && splitlang === 'css') {
-        syncValue(cssEditor, code)
-    }
-    if (splitActive && splitlang === 'javascript') {
-        syncValue(jsEditor, code)
-    }
-})
-
-let myEditor = [editor, cssEditor, jsEditor]
-
-myEditor.forEach((e, i) => {
-    setCursor(e, i)
-})
-
-function setCursor(e, i) {
-    e.onDidFocusEditorWidget(() => {
-        let splitLang = quickEdit.splitLang
-        let splitActive = quickEdit.split
-        setTimeout(() => {
-            if (splitActive) {
-                // carry the split pane's cursor into the editor holding the
-                // same language: css belongs to cssEditor, js to jsEditor
-                if (splitLang === 'html' && i === 0) {
-                    editor.setPosition(sp)
-                } else if (splitLang === 'css' && i === 1) {
-                    cssEditor.setPosition(sp)
-                } else if (splitLang === 'javascript' && i === 2) {
-                    jsEditor.setPosition(sp)
-                }
-            }
-        }, 10)
+    zip.generateAsync({ type: 'blob' }).then((content) => {
+        saveAs(content, 'QuickCode.zip')
     })
 }
 
-function moveTop() {
-    let tab = quickEdit.tab
-    if (tab === 'main') {
-        editor.revealLine(1);
-    } else if (tab === 'css') {
-        cssEditor.revealLine(1);
-    } else if (tab === 'js') {
-        jsEditor.revealLine(1);
-    }
-    // the split pane is visible alongside the active tab, so send it up too
-    if (quickEdit.split) {
-        splitEditor.revealLine(1);
-    }
-}
-
-// -------------------------Actions---------------------------
-
-let allEditors = [editor, cssEditor, jsEditor, splitEditor]
-
-allEditors.forEach((e) => addAction(e))
+//------------------------------- actions -----------------------------
 
 function addAction(e) {
     e.addAction({
-        id: 'my-unique-id', label: 'Toggle Word Wrap',
+        id: 'toggleWordWrap',
+        label: 'Toggle Word Wrap',
         keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KEY_Z],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.5,
         togglewrap: true,
         run: function () {
-            if (this.togglewrap) {
-                e.updateOptions({ wordWrap: "on" })
-                this.togglewrap = false
-            } else {
-                e.updateOptions({ wordWrap: "off" })
-                this.togglewrap = true
-            }
+            e.updateOptions({ wordWrap: this.togglewrap ? 'on' : 'off' })
+            this.togglewrap = !this.togglewrap
         }
     });
 
     e.addAction({
-        id: 'copyLines_Down', label: 'Copy Lines Down ',
+        id: 'copyLines_Down',
+        label: 'Copy Lines Down',
         keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_D],
         run: function () {
             e.trigger('copyLineDown', 'editor.action.copyLinesDownAction');
@@ -313,10 +168,22 @@ function addAction(e) {
     });
 
     e.addAction({
-        id: 'addSelectionTo_Next', label: 'Add Selection TO NEXT',
+        id: 'addSelectionTo_Next',
+        label: 'Add Selection To Next',
         keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_Q],
         run: function () {
             e.trigger('addSelectionToNext', 'editor.action.addSelectionToNextFindMatch');
+        }
+    });
+
+    e.addAction({
+        id: 'font_big',
+        label: 'Font Zoom In',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.US_EQUAL],
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1.1,
+        run: function () {
+            e.trigger('font_big', 'editor.action.fontZoomIn');
         }
     });
 
@@ -328,18 +195,7 @@ function addAction(e) {
         contextMenuOrder: 1.2,
         run: function () {
             e.trigger('font_small', 'editor.action.fontZoomOut');
-        },
-    });
-
-    e.addAction({
-        id: 'font_big',
-        label: 'Font Zoom In',
-        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.US_EQUAL],
-        contextMenuGroupId: 'navigation',
-        contextMenuOrder: 1.1,
-        run: function () {
-            e.trigger('font_big', 'editor.action.fontZoomIn');
-        },
+        }
     });
 
     e.addAction({
@@ -350,45 +206,74 @@ function addAction(e) {
         contextMenuOrder: 1.3,
         run: function () {
             e.trigger('font_reset', 'editor.action.fontZoomReset');
-        },
+        }
     });
 
     e.addAction({
         id: 'toggleFontLigatures',
-        label: 'Toggle Font ligatures',
+        label: 'Toggle Font Ligatures',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KEY_L],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.4,
         toggleFontLigatures: true,
-        keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KEY_L],
         run: function () {
-            if (this.toggleFontLigatures) {
-                e.updateOptions({ fontLigatures: true })
-                this.toggleFontLigatures = false
-            } else {
-                e.updateOptions({ fontLigatures: false })
-                this.toggleFontLigatures = true
-            }
+            e.updateOptions({ fontLigatures: this.toggleFontLigatures })
+            this.toggleFontLigatures = !this.toggleFontLigatures
         }
     });
 
     e.addAction({
         id: 'toggleFoldAll',
         label: 'Fold All / Unfold All',
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_F],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.6,
         toggleFoldAll: true,
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_F],
         run: function () {
             if (this.toggleFoldAll) {
                 e.trigger('fold all', 'editor.foldAll');
-                this.toggleFoldAll = false
             } else {
                 e.trigger('unfold all', 'editor.unfoldAll');
-                this.toggleFoldAll = true
             }
+            this.toggleFoldAll = !this.toggleFoldAll
         }
     });
-
 }
 
-// editor.updateOptions({"editor.cursorSmoothCaretAnimation": true })
+//------------------------------ split wiring -------------------------
+
+function wireSplit() {
+    const splitIcon = gets('.splitsvg')
+    const toggleSplitMenu = () => {
+        splitMenuClosed = !splitMenuClosed
+        gets('.container').style.display = splitMenuClosed ? 'none' : 'block'
+    }
+    splitIcon.addEventListener('click', toggleSplitMenu)
+
+    gets('#editor').addEventListener('click', () => {
+        if (!splitMenuClosed) {
+            splitMenuClosed = true
+            gets('.container').style.display = 'none'
+        }
+    })
+
+    // both the popup menu and the tabs above the split pane pick a language
+    getsAll('[data-split-lang]').forEach((el) => {
+        el.addEventListener('click', () => splitMenu(el.dataset.splitLang))
+    })
+    onClick(gets('.single'), singleEditor)
+
+    if (quickEdit.split) {
+        doSplit()
+        makeSplitTabActive(quickEdit.splitLang)
+    }
+}
+
+//-------------------------------- boot -------------------------------
+// Called from index.html once monaco's AMD loader has the editor ready, so
+// nothing here touches monaco before it exists.
+
+function bootQuickCode() {
+    initCore()
+    wireSplit()
+}
