@@ -15,7 +15,7 @@ gets("#CodeBlock").innerHTML = "";
 //---------------------First-run-defaults-----------------------------
 // Everything below assumes these keys exist and hold strings, so seed them
 // before the first read: on a brand new browser they are all null.
-const defaultSettings = { theme: 'vs', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' };
+const defaultSettings = { theme: 'vs-dark', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' };
 
 // themes stored before the dropdown values were corrected to match the file
 // names on disk, which 404 on a case sensitive host. Declared up here because
