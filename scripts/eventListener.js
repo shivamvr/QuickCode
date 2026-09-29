@@ -1,9 +1,8 @@
 
 
-let scrollTop = gets('#top')
-scrollTop.addEventListener('click', () => {
-    gets('#CodeBlock').scrollTop = 0
-})
+// #top is wired to moveTop() from the markup. There used to be a second
+// listener here setting #CodeBlock.scrollTop, which never did anything:
+// monaco scrolls its own inner element, not the container.
 
 
 alignNav(quickEdit.vnav)
@@ -24,22 +23,20 @@ var onresize = function () {
     }
 }
 
-let setSplit = false
 let setSplitMenu = true
 let singleicon = gets('.single')
 let spliticon = gets('.splitsvg')
-let split = gets('#split')
 let contianer = gets('.contianer')
 let editors = getsAll('.editor')
 
 function splitMenu(lang) {
     saveSettings({ splitLang: lang })
     if (lang === 'html') {
-        splitEditor.getModel().setValue(localStorage.getItem('code') || '');
+        syncValue(splitEditor, localStorage.getItem('code') || '');
     } else if (lang === 'css') {
-        splitEditor.getModel().setValue(localStorage.getItem('css') || '');
+        syncValue(splitEditor, localStorage.getItem('css') || '');
     } else if (lang === 'javascript') {
-        splitEditor.getModel().setValue(localStorage.getItem('js') || '');
+        syncValue(splitEditor, localStorage.getItem('js') || '');
     }
     monaco.editor.setModelLanguage(splitEditor.getModel(), lang)
     doSplit()
@@ -133,13 +130,18 @@ let htmlScrpit = `<script src="index.js"></script>`
 function exportProject() {
     if (quickEdit.lang === 'html') {
         var zip = new JSZip();
-        let htmlCode = localStorage.getItem('code')
-        let cssCode = localStorage.getItem('css')
-        let jsCode = localStorage.getItem('js')
-        if (htmlCode.includes('<body>') && htmlCode.includes('<head>')) {
-            htmlCode = htmlCode.replace('</head>', `<link rel="stylesheet" href="style.css">
+        let htmlCode = localStorage.getItem('code') || ''
+        let cssCode = localStorage.getItem('css') || ''
+        let jsCode = localStorage.getItem('js') || ''
+        // <body class="..."> and any casing count as a full document too: the
+        // old literal '<body>' test sent those down the wrapping branch and
+        // produced a document nested inside another document
+        let hasHead = /<head[\s>]/i.test(htmlCode)
+        let hasBody = /<body[\s>]/i.test(htmlCode)
+        if (hasHead && hasBody) {
+            htmlCode = htmlCode.replace(/<\/head>/i, `<link rel="stylesheet" href="style.css">
   </head>`)
-            htmlCode = htmlCode.replace('</body>', `<script src="index.js"></script>
+            htmlCode = htmlCode.replace(/<\/body>/i, `<script src="index.js"></script>
  </body>`)
         } else {
             htmlCode = htmlpre + htmlCode + htmlScrpit + htmlpost
@@ -160,6 +162,15 @@ function exportProject() {
 
 const countLines = (key) => (localStorage.getItem(key) || '').split(/\r\n|\r|\n/).length
 
+// setValue() throws away the target's undo stack, so only push when the text
+// has actually changed. The split pane and its tab editor hold separate copies
+// that are reconciled on blur, and this keeps a no-op blur from touching them.
+const syncValue = (target, text) => {
+    if (target.getValue() !== text) {
+        target.getModel().setValue(text)
+    }
+}
+
 let codeLine = countLines('code')
 let cssLine = countLines('css')
 let jsLine = countLines('js')
@@ -169,9 +180,9 @@ editor.onDidBlurEditorWidget(() => {
     ep = editor.getPosition()
     let splitActive = quickEdit.split
     let splitlang = quickEdit.splitLang
-    editorCode = editor.getValue()
+    let editorCode = editor.getValue()
     if (splitActive && splitlang === 'html') {
-        splitEditor.getModel().setValue(editorCode)
+        syncValue(splitEditor, editorCode)
     }
 })
 
@@ -182,7 +193,7 @@ cssEditor.onDidBlurEditorWidget(() => {
     let splitlang = quickEdit.splitLang
     let cssCode = cssEditor.getValue()
     if (splitActive && splitlang === 'css') {
-        splitEditor.getModel().setValue(cssCode)
+        syncValue(splitEditor, cssCode)
     }
 })
 let jsp = { lineNumber: jsLine, column: 1 }
@@ -192,7 +203,7 @@ jsEditor.onDidBlurEditorWidget(() => {
     let splitlang = quickEdit.splitLang
     let jsCode = jsEditor.getValue()
     if (splitActive && splitlang === 'javascript') {
-        splitEditor.getModel().setValue(jsCode)
+        syncValue(splitEditor, jsCode)
     }
 })
 
@@ -218,13 +229,13 @@ splitEditor.onDidBlurEditorWidget(() => {
     let splitlang = quickEdit.splitLang
     let code = splitEditor.getValue()
     if (splitActive && splitlang === 'html') {
-        editor.getModel().setValue(code)
+        syncValue(editor, code)
     }
     else if (splitActive && splitlang === 'css') {
-        cssEditor.getModel().setValue(code)
+        syncValue(cssEditor, code)
     }
     if (splitActive && splitlang === 'javascript') {
-        jsEditor.getModel().setValue(code)
+        syncValue(jsEditor, code)
     }
 })
 
@@ -263,8 +274,10 @@ function moveTop() {
     } else if (tab === 'js') {
         jsEditor.revealLine(1);
     }
-    const range = editor.getModel().getFullModelRange();
-    console.log('range:', range)
+    // the split pane is visible alongside the active tab, so send it up too
+    if (quickEdit.split) {
+        splitEditor.revealLine(1);
+    }
 }
 
 // -------------------------Actions---------------------------
@@ -311,42 +324,33 @@ function addAction(e) {
         id: 'font_small',
         label: 'Font Zoom Out',
         keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.US_MINUS],
-        contextMenuGroupId: 'fontsmall',
+        contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.2,
         run: function () {
             e.trigger('font_small', 'editor.action.fontZoomOut');
         },
-        precondition: null,
-        keybindingContext: null,
-        contextMenuGroupId: 'navigation',
     });
 
     e.addAction({
         id: 'font_big',
         label: 'Font Zoom In',
         keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.US_EQUAL],
-        contextMenuGroupId: 'fontbig',
-        contextMenuOrder: 1.2,
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1.1,
         run: function () {
             e.trigger('font_big', 'editor.action.fontZoomIn');
         },
-        precondition: null,
-        keybindingContext: null,
-        contextMenuGroupId: 'navigation',
     });
 
     e.addAction({
         id: 'font_reset',
         label: 'Font Reset',
         keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KEY_0],
-        contextMenuGroupId: 'fontreset',
+        contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.3,
         run: function () {
             e.trigger('font_reset', 'editor.action.fontZoomReset');
         },
-        precondition: null,
-        keybindingContext: null,
-        contextMenuGroupId: 'navigation',
     });
 
     e.addAction({
@@ -371,7 +375,7 @@ function addAction(e) {
         id: 'toggleFoldAll',
         label: 'Fold All / Unfold All',
         contextMenuGroupId: 'navigation',
-        contextMenuOrder: 1.5,
+        contextMenuOrder: 1.6,
         toggleFoldAll: true,
         keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_F],
         run: function () {

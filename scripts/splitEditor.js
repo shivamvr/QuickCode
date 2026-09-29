@@ -1,7 +1,4 @@
-var splitContent = $.trim($("#splitEditor").text());
-$("#splitEditor").html("");
-
-let savedsplit = localStorage.getItem("split");
+gets("#splitEditor").innerHTML = "";
 
 let splitLang = quickEdit.splitLang
 let splitLangCode = ''
@@ -19,27 +16,7 @@ if (splitLang === 'html') {
 }
 
 
-var splitEditor = monaco.editor.create(document.getElementById("splitEditor"), {
-  value: splitLangCode,
-  language: quickEdit.splitLang,
-  lineNumber: "on",
-  glyphmargin: false,
-  vertical: "auto",
-  horizontal: "auto",
-  verticalScrollbarSize: 8,
-  horizontalScrollbarSize: 8,
-  scrollBeyoundLastLine: false,
-  readOnly: false,
-  automaticLayout: true,
-  minimap: {
-    enabled: true,
-  },
-  lineHeight: 30,
-  scrollbar: {
-    verticalScrollbarSize: 20,
-    horizontalScrollbarSize: 17,
-  },
-});
+var splitEditor = monaco.editor.create(document.getElementById("splitEditor"), editorOptions(splitLangCode, quickEdit.splitLang));
 
 //---------------------Save-to-loacalstorage--------------------------
 

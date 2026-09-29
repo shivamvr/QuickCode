@@ -10,8 +10,7 @@ const getsAll = (selector) => {
 }
 //---------------------------------------
 
-var codeContent = $.trim($("#CodeBlock").text());
-$("#CodeBlock").html("");
+gets("#CodeBlock").innerHTML = "";
 
 //---------------------First-run-defaults-----------------------------
 // Everything below assumes these keys exist and hold strings, so seed them
@@ -77,16 +76,16 @@ displayRun()
 
 settheme(quickEdit.theme)
 
-var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
-  value: savedCode,
-  language: quickEdit.lang,
-  lineNumber: "on",
-  glyphmargin: false,
-  vertical: "auto",
-  horizontal: "auto",
-  verticalScrollbarSize: 8,
-  horizontalScrollbarSize: 8,
-  scrollBeyoundLastLine: false,
+// Shared setup for all four editors. The option names matter: lineNumber,
+// glyphmargin and scrollBeyoundLastLine were misspelled and silently ignored,
+// and the loose vertical/horizontal scrollbar sizes were never options at all
+// (the nested scrollbar block is the real one).
+const editorOptions = (value, language) => ({
+  value: value,
+  language: language,
+  lineNumbers: "on",
+  glyphMargin: false,
+  scrollBeyondLastLine: false,
   readOnly: false,
   automaticLayout: true,
   minimap: {
@@ -97,7 +96,9 @@ var editor = monaco.editor.create(document.getElementById("CodeBlock"), {
     verticalScrollbarSize: 20,
     horizontalScrollbarSize: 17,
   },
-});
+})
+
+var editor = monaco.editor.create(document.getElementById("CodeBlock"), editorOptions(savedCode, quickEdit.lang));
 
 //---------------------Save-to-loacalstorage--------------------------
 
@@ -141,13 +142,16 @@ const showOverlay = () => {
   gets('#overlay').style.display = 'block'
   let activeTab = quickEdit.tab
   if (activeTab == 'main') {
-    fileNameInput.value = 'file.' + ext
+    // keep the name of a file that was opened instead of overwriting it with
+    // the generic default every time the dialog is shown
+    fileNameInput.value = fileName || 'file.' + ext
   } else if (activeTab == 'css') {
     fileNameInput.value = 'file.css'
   } else if (activeTab == 'js') {
     fileNameInput.value = 'file.js'
   }
   fileNameInput.focus()
+  fileNameInput.select()
 }
 const hideOverlay = () => {
   gets('#overlay').style.display = 'none'
@@ -155,20 +159,19 @@ const hideOverlay = () => {
 
 function saveFile() {
   let activeTab = quickEdit.tab
-  let fname = fileNameInput.value
-  let text = editor.getValue();
-  let css = cssEditor.getValue();
-  let js = jsEditor.getValue();
+  let content
   if (activeTab == 'main') {
-    blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    saveAs(blob, fname);
+    content = editor.getValue()
   } else if (activeTab == 'css') {
-    blob = new Blob([css], { type: "text/plain;charset=utf-8" });
-    saveAs(blob, fname);
+    content = cssEditor.getValue()
   } else if (activeTab == 'js') {
-    blob = new Blob([js], { type: "text/plain;charset=utf-8" });
-    saveAs(blob, fname);
+    content = jsEditor.getValue()
+  } else {
+    return
   }
+  let fname = fileNameInput.value.trim() || 'file.' + ext
+  let blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  saveAs(blob, fname);
   hideOverlay()
 }
 
@@ -209,10 +212,10 @@ fileNameInput.addEventListener('keypress', (e) => {
 })
 
 document.addEventListener("keydown", (e) => {
-  let key = e.which
-  let ctrl = e.ctrlKey
-  let shift = e.shiftKey
-  if (key == '83' && ctrl && shift) {
+  // e.which is deprecated, and without preventDefault the browser's own
+  // save dialog can open on top of ours
+  if ((e.key === 's' || e.key === 'S') && e.ctrlKey && e.shiftKey) {
+    e.preventDefault()
     showOverlay()
   }
 })
@@ -243,28 +246,46 @@ inputFile.addEventListener("change", function (e) {
     var reader = new FileReader();
     // ----------------------------------
     reader.onload = function (ev) {
-      JSZip.loadAsync(ev.target.result).then(async function (zip) {
-        let file = {}
-        file.html = await zip.files['QuickCode/index.html'].async('string')
-        file.css = await zip.files['QuickCode/style.css'].async('string')
-        file.js = await zip.files['QuickCode/index.js'].async('string')
-        return file;
-      }).then((file)=>{
-       let newHtml = file.html
-       newHtml = newHtml.replace(`<link rel="stylesheet" href="style.css">`,'')
-       newHtml = newHtml.replace(`<script src="index.js"></script>`,'')
-       newHtml = newHtml.replace(`<style src="index.js"></style>`,'')
-       editor.getModel().setValue(newHtml);
-       cssEditor.getModel().setValue(file.css);
-       jsEditor.getModel().setValue(file.js);
-
+      JSZip.loadAsync(ev.target.result).then(function (zip) {
+        // read whichever of the three a QuickCode export normally holds, so a
+        // zip that is missing one still imports instead of failing outright
+        const pick = (name) => {
+          let entry = zip.file(name)
+          return entry ? entry.async('string') : Promise.resolve(null)
+        }
+        return Promise.all([
+          pick('QuickCode/index.html'),
+          pick('QuickCode/style.css'),
+          pick('QuickCode/index.js')
+        ])
+      }).then((parts) => {
+        let newHtml = parts[0]
+        let newCss = parts[1]
+        let newJs = parts[2]
+        if (newHtml === null && newCss === null && newJs === null) {
+          throw new Error('it contains no QuickCode/index.html, style.css or index.js')
+        }
+        if (newHtml !== null) {
+          newHtml = newHtml.replace(`<link rel="stylesheet" href="style.css">`, '')
+          newHtml = newHtml.replace(`<script src="index.js"></script>`, '')
+          editor.getModel().setValue(newHtml);
+        }
+        if (newCss !== null) {
+          cssEditor.getModel().setValue(newCss);
+        }
+        if (newJs !== null) {
+          jsEditor.getModel().setValue(newJs);
+        }
       }).catch(function (err) {
-        console.error("Failed to open", filename, " as ZIP file:", err);
+        // this used to fail with nothing but a console message
+        console.error("Failed to open", filename, "as a QuickCode project:", err);
+        alert('Could not open "' + filename + '" as a QuickCode project: ' + err.message)
       })
     };
     // ------------------------------------
     reader.onerror = function (err) {
       console.error("Failed to read file", err);
+      alert('Could not read "' + filename + '".')
     }
     reader.readAsArrayBuffer(zipFile);
   }
@@ -333,7 +354,10 @@ const setLang = (ln) => {
   if (!ext) {
     ext = 'txt'
   }
-  if (!fileName) {
+  if (fileName) {
+    // keep the opened file's base name, just follow the new language
+    fileNameInput.value = fileName.replace(/\.[^.]*$/, '') + '.' + ext
+  } else {
     fileNameInput.value = 'file.' + ext
   }
   let tabs = gets('.tabs')
@@ -386,7 +410,7 @@ function openWin() {
   if (quickEdit.lang === 'javascript') {
     savedCode = `<script>${savedCode}</script>`
   } else if (quickEdit.lang === 'plaintext') {
-    savedCode = `<pre style="margin: .5rem">${savedCode.replaceAll('<', '&lt').replaceAll('>', '&gt')}</pre>`
+    savedCode = `<pre style="margin: .5rem">${savedCode.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</pre>`
   }
   doc.write(savedCode);
   doc.close();

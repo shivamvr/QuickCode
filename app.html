@@ -51,11 +51,10 @@
       }
 
       window.onload = () => {
+        // innerHTML never runs a <script>, so copy an inline one out of the
+        // rendered markup into a script element of our own, which does run it
         let myScript = gets("#myscript");
-        let body = gets("body");
         let data = gets(`#root>script`);
-        let bodyScript = gets(`#root>body>script`);
-        console.log('bodyScript:', bodyScript)
         if (data) {
           myScript.innerHTML = data.innerHTML;
         }

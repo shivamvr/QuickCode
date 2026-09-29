@@ -1,31 +1,10 @@
 
-var jsContent = $.trim($("#jsEditor").text());
-$("#jsEditor").html("");
+gets("#jsEditor").innerHTML = "";
 
 let savedjs = localStorage.getItem("js");
 
 
-var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), {
-  value: savedjs,
-  language: 'javascript',
-  lineNumber: "on",
-  glyphmargin: false,
-  vertical: "auto",
-  horizontal: "auto",
-  verticalScrollbarSize: 8,
-  horizontalScrollbarSize: 8,
-  scrollBeyoundLastLine: false,
-  readOnly: false,
-  automaticLayout: true,
-  minimap: {
-    enabled: true,
-  },
-  lineHeight: 30,
-  scrollbar: {
-    verticalScrollbarSize: 20,
-    horizontalScrollbarSize: 17,
-  },
-});
+var jsEditor = monaco.editor.create(document.getElementById("jsEditor"), editorOptions(savedjs, 'javascript'));
 
 //---------------------Save-to-loacalstorage--------------------------
 window.jsEditor.getModel().onDidChangeContent(() => {
