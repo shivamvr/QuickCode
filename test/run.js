@@ -10,6 +10,7 @@
 
 const { spawn } = require('child_process')
 const fs = require('fs')
+const zlib = require('zlib')
 const os = require('os')
 const path = require('path')
 const { createServer } = require('./serve')
@@ -23,12 +24,31 @@ const CASE_TIMEOUT_MS = 120000
 // The persistence case reloads the page itself rather than relying on a second
 // browser process: killing Chrome can discard localStorage before it reaches
 // disk, and "survives a reload" is the behaviour that actually matters anyway.
+// A share link built here rather than in the browser, with node's own deflate.
+// That is the point of it: if the format were something only Chrome round-trips
+// with itself, this link would not open. The probe knows these same values -
+// keep the two in step.
+const SHARED = {
+  v: 1,
+  name: 'Fizz buzz',
+  code: '<h1>hej v\u00e4rlden \ud83d\ude00</h1>',
+  css: 'h1 { color: rebeccapurple }',
+  js: 'console.log("delad \u00e5\u00e4\u00f6")',
+  lang: 'html',
+  cssOn: true,
+  jsOn: false,
+}
+
+const SHARE_HASH = '#s=' + zlib.deflateRawSync(Buffer.from(JSON.stringify(SHARED), 'utf8'))
+  .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
 // The offline case goes last: it takes the server down mid-run, and the probe
 // puts it back only by finishing.
 const SCENARIOS = [
   { name: 'core', page: 'index.html', profile: 'core' },
   { name: 'persist', page: 'index.html', profile: 'persist' },
   { name: 'migrate', page: 'index.html', profile: 'migrate' },
+  { name: 'share', page: 'index.html', profile: 'share', hash: SHARE_HASH },
   { name: 'preview-safe', page: 'app.html', profile: 'preview' },
   { name: 'offline', page: 'index.html', profile: 'offline' },
 ]
@@ -67,7 +87,8 @@ function killTree(child) {
 function runCase(chrome, scenario, tmpDir, pending) {
   return new Promise((resolve) => {
     const profileDir = path.join(tmpDir, 'profile-' + scenario.profile)
-    const url = `http://localhost:${PORT}/${scenario.page}?case=${scenario.name}`
+    const url = `http://localhost:${PORT}/${scenario.page}?case=${scenario.name}` +
+      (scenario.hash || '')
 
     const child = spawn(chrome, [
       '--headless=new',

@@ -15,7 +15,7 @@ web workers).
 | 02 | [File System Access](02-file-system-access.md) | ~~Every save was a download, then a move by hand~~ **done** - Ctrl+S writes the file in place | 01 | M |
 | 03 | [PWA, offline, file handling](03-pwa-offline.md) | ~~Could not start without a network, and lived in a tab~~ **done** - installable, offline, opens files from the desktop | 02 | M |
 | 04 | [IndexedDB + multiple projects](04-indexeddb-projects.md) | ~~Only one project could exist; every experiment overwrote the last~~ **done** | 01 | L |
-| 05 | [Share links](05-share-link.md) | Highest value per line of code, and needs no backend | 04 | S |
+| 05 | [Share links](05-share-link.md) | ~~A snippet could only leave as a zip~~ **done** - the whole thing rides in the url fragment | 04 | S |
 | 06 | [Preview console and errors](06-preview-console.md) | Runtime errors and `console.log` currently vanish | 01 | M |
 | 07 | [Resizable split](07-resizable-split.md) | ~~The split is hard-coded 50/50~~ **done** | — | S |
 | 08 | [Format on save](08-format-on-save.md) | ~~Small change, large daily payoff~~ **done** | — | S |
@@ -37,9 +37,10 @@ touch code that is easy to break quietly. 07, 08 and 14 are independent and
 small enough to slot in whenever.
 
 **The two that change what QuickCode is:** ~~02~~ + ~~03~~ made it feel like a local
-tool rather than a web page; ~~04~~ + 05 + 12 make it somewhere work actually
-lives. **05 is now the one to do next** - it is small, needs no backend, and
-projects give it something worth sharing.
+tool rather than a web page; ~~04~~ + ~~05~~ + 12 make it somewhere work actually
+lives. **06 is now the one to do next**: with snippets arriving by link, a
+runtime error vanishing into a tab nobody is looking at is the most annoying
+thing left.
 
 Of the two things 02 left for later, **remembering file handles across a
 reload** is done (04 stores them per project and pane). **Directory handles** as

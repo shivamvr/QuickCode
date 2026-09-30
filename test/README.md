@@ -13,13 +13,14 @@ off 8399.
 ## What it does
 
 `run.js` starts a static server over the repo, then drives headless Chrome
-through five scenarios, each of which posts a pass/fail report back.
+through six scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
 | `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, and both file-open/save paths |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `migrate` | `index.html` | loads over a seeded pre-IndexedDB `localStorage`, then reloads: the migration must take everything, keep the old keys, and not run twice |
+| `share` | `index.html#s=…` | opens a share link that **node's zlib** built, not the browser |
 | `preview-safe` | `app.html` | a hostile snippet runs in the preview and cannot reach the saved work |
 | `offline` | `index.html` | waits for the service worker, tells the server to stop answering, reloads, and checks the whole app came out of the cache |
 
@@ -96,6 +97,10 @@ that looked correct and proved nothing:
   has to `cancelFlush()` and drop the in-memory record first, or the write lands
   mid-delete and puts the project straight back. The app does the same thing in
   `removeProject()`, for the same reason.
+- **A round trip against yourself proves nothing about a format.** The share
+  link case builds its link in node with `zlib.deflateRawSync` and hands it to
+  the browser, so encode and decode are different implementations. Encoding and
+  decoding with the same code would pass just as happily on a private format.
 - **Budget for the slowest machine, not this one.** Two intermittent failures
   turned out to be timing: a case that has to install a service worker first
   (about 2MB from two CDNs) against a 60s cap, and the preview snippet against a
@@ -128,6 +133,10 @@ node test/run.js                              # expect 3 FAILs + the offline cas
 #    drop the pane re-sync from applyProject(), the migration guard from
 #    migrate(), or the body of snapshot() in scripts/store.js
 node test/run.js                                       # expect 3, 1 and 1 FAILs
+# 6. share links
+#    make importShared() write over the open project, drop the version check in
+#    decodeShare(), or remove the history.replaceState that clears the fragment
+node test/run.js                                       # expect 2, 1 and 2 FAILs
 ```
 
-All five were confirmed to fail when introduced, and pass once reverted.
+All six were confirmed to fail when introduced, and pass once reverted.

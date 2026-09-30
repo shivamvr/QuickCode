@@ -88,6 +88,23 @@ download, exactly as before.
 The export is a **ready-to-run project folder**, not a dump — if your HTML has no
 `<head>`/`<body>`, QuickCode wraps it in a full document for you.
 
+### 🔗 Share a snippet as a link
+
+**🔗 copy share link** in the save dialog turns whatever is open into a URL.
+
+The whole snippet — all three files, the language and the two preview toggles — is
+compressed into the URL's fragment, which browsers never send to a server. There is no
+backend, nothing is uploaded, and the link keeps working offline.
+
+- It tells you **how big** the link is, and warns when it passes ~8 KB, where chat apps and
+  mail clients start truncating. Use export for anything larger.
+- **Anyone holding the link can read the code**, which the button says out loud. Do not
+  share one with credentials in it.
+- Opening a link makes a **new project** and leaves whatever you were working on exactly as
+  it was.
+- The format is plain deflate in base64url, not a private encoding — the test suite builds a
+  link in Node and opens it in the browser to keep it that way.
+
 ### 🎨 13 editor themes
 
 Switch instantly from the theme dropdown: `vs`, `vs-dark`, Ayu Dark, Cobalt,
@@ -187,6 +204,7 @@ QuickCode/
 │   ├── splitEditor.js      # split-pane editor instance
 │   ├── eventListener.js    # split view, project export, cursor sync, editor actions
 │   ├── store.js            # the project store: IndexedDB, migration, crash net
+│   ├── share.js            # share links: the codec for the URL fragment
 │   └── fileSaver.js        # FileSaver.js (vendored)
 ├── styles/
 │   ├── style.css           # layout, toolbar, editors

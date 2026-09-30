@@ -569,6 +569,127 @@
       })
   }
 
+  // --------------------------------------------------------------- sharing
+  // The values here must match SHARED in run.js: that case opens a link this
+  // browser did not build, which is the only way to prove the format is really
+  // deflate-raw and not something chrome only round-trips with itself.
+  var SHARED = {
+    name: 'Fizz buzz',
+    code: '<h1>hej världen 😀</h1>',
+    css: 'h1 { color: rebeccapurple }',
+    js: 'console.log("delad åäö")',
+  }
+
+  function encodeRaw(payload) {
+    var stream = new Blob([JSON.stringify(payload)]).stream()
+      .pipeThrough(new CompressionStream('deflate-raw'))
+    return new Response(stream).arrayBuffer().then(function (buf) {
+      return bytesToBase64Url(new Uint8Array(buf))
+    })
+  }
+
+  function shareChecks() {
+    var home = project
+    var awkward = makeProject({
+      name: 'awkward',
+      code: '<p>åäö 🚀 你好</p>\n\ttabbed\r\nand "quoted"',
+      css: '.a::after { content: "→" }',
+      js: 'const é = () => "🎉"',
+    })
+    awkward.settings.lang = 'html'
+    awkward.settings.css = true
+    awkward.settings.js = true
+
+    return encodeShare(awkward)
+      .then(decodeShare)
+      .then(function (back) {
+        check('a share link round-trips byte for byte, emoji and all', function () {
+          return ok(back.code === awkward.code && back.css === awkward.css &&
+            back.js === awkward.js && back.lang === 'html' && back.cssOn === true &&
+            back.jsOn === true && back.name === 'awkward',
+            'code matches=' + (back.code === awkward.code) +
+            ' css=' + (back.css === awkward.css) + ' js=' + (back.js === awkward.js) +
+            ' toggles=' + back.cssOn + '/' + back.jsOn)
+        })
+        return encodeShare(awkward)
+      })
+      .then(function (fragment) {
+        check('the link is a url fragment and nothing else', function () {
+          var url = shareUrl(fragment)
+          return ok(url.indexOf('#s=') > -1 && /^[A-Za-z0-9_-]+$/.test(fragment) &&
+            url.indexOf(location.origin) === 0,
+            fragment.length + ' chars, url ' + url.length + ' long, ' +
+            (url.length / 1024).toFixed(1) + ' KB')
+        })
+        // Put the link in the address bar first, so clearing it is actually
+        // exercised rather than passing because there was nothing there.
+        location.hash = '#s=' + fragment
+        // the boot path, called directly: it is only ever reached before the
+        // editors exist, so nothing here looks at the screen
+        return importShared(fragment)
+      })
+      .then(function () {
+        var imported = project
+        return getProject(home.id).then(function (untouched) {
+          check('opening a shared link leaves the project that was open alone', function () {
+            return ok(imported.id !== home.id && !!untouched &&
+              untouched.code === home.code && shareProblem === '',
+              'imported as a new record=' + (imported.id !== home.id) +
+              ', the old one still holds ' + JSON.stringify(String(untouched && untouched.code).slice(0, 30)))
+          })
+          check('the fragment is cleared so a reload does not import it twice', function () {
+            return ok(location.hash === '', JSON.stringify(location.hash))
+          })
+        })
+      })
+      .then(function () {
+        return importShared('this-is-not-a-link!!')
+      })
+      .then(function () {
+        check('a corrupt link is refused rather than throwing', function () {
+          return ok(shareProblem !== '' && window.__errors.length === 0,
+            'reason given: ' + JSON.stringify(shareProblem) +
+            '; uncaught: ' + (window.__errors.join(' | ') || 'none'))
+        })
+        shareProblem = ''
+        return encodeRaw({ v: 99, code: 'from the future' }).then(importShared)
+      })
+      .then(function () {
+        check('a link from another version is turned away with a reason', function () {
+          return ok(shareProblem.indexOf('version') > -1, JSON.stringify(shareProblem))
+        })
+        shareProblem = ''
+        return openRecord(home)
+      })
+      .then(function () {
+        // the button itself. A headless run has no clipboard permission, so
+        // this exercises the fallback path as well as the message.
+        var row = gets('#share')
+        var label = row.textContent
+        gets('#save').click()
+        var copiedTo = null
+        var realWrite = navigator.clipboard && navigator.clipboard.writeText
+        if (realWrite) {
+          navigator.clipboard.writeText = function (text) { copiedTo = text; return Promise.resolve() }
+        }
+        row.click()
+        return waitFor(function () { return row.textContent !== label }, 5000).then(function (spoke) {
+          var shown = row.textContent
+          var fallback = gets('#filename').value
+          var link = copiedTo || fallback
+          if (realWrite) navigator.clipboard.writeText = realWrite
+          hideOverlay()
+          check('the share button produces a link and says what it costs', function () {
+            return ok(spoke && /#s=[A-Za-z0-9_-]+$/.test(link) && shown.indexOf('KB') > -1 &&
+              shown.indexOf('anyone with it can read your code') > -1,
+              'it said ' + JSON.stringify(shown) + '; link ends ' +
+              JSON.stringify(String(link).slice(-12)))
+          })
+          row.textContent = label
+        })
+      })
+  }
+
   // -------------------------------------------------------------- projects
   function projectChecks() {
     var realConfirm = window.confirm
@@ -886,6 +1007,41 @@
         window.confirm = realConfirm
         TAB_IDS.forEach(function (id) { fileHandles[id] = null; markSaved(id) })
       })
+  }
+
+  // ------------------------------------------------------------ share (url)
+  // This page was opened with a #s= fragment that run.js built with node's
+  // zlib, so nothing in the browser has seen the payload before.
+  if (CASE === 'share') {
+    listProjects().then(function (all) {
+      check('a link built outside the browser opens', function () {
+        return ok(readStored('code') === '<h1>hej v\u00e4rlden \ud83d\ude00</h1>' &&
+          readStored('css') === 'h1 { color: rebeccapurple }' &&
+          readStored('js') === 'console.log("delad \u00e5\u00e4\u00f6")',
+          'code=' + JSON.stringify(readStored('code')) +
+          ' css=' + JSON.stringify(readStored('css')))
+      })
+      check('its language and preview toggles came with it', function () {
+        return ok(quickEdit.lang === 'html' && quickEdit.css === true && quickEdit.js === false,
+          'lang=' + quickEdit.lang + ' css=' + quickEdit.css + ' js=' + quickEdit.js)
+      })
+      check('it opened as a project of its own, beside the empty one', function () {
+        var shared = all.filter(function (p) { return p.id === project.id })[0]
+        var others = all.filter(function (p) { return p.id !== project.id })
+        return ok(all.length === 2 && !!shared && /shared/.test(shared.name) &&
+          others.length === 1 && others[0].code === '',
+          all.map(function (p) { return p.name + ':' + p.code.length }).join(', '))
+      })
+      check('the editor shows it, and the link is gone from the address bar', function () {
+        return ok(editor.getValue() === readStored('code') && location.hash === '' &&
+          window.__errors.length === 0,
+          'editor matches=' + (editor.getValue() === readStored('code')) +
+          ' hash=' + JSON.stringify(location.hash) +
+          '; errors: ' + (window.__errors.join(' | ') || 'none'))
+      })
+      report()
+    })
+    return
   }
 
   // ----------------------------------------------------- migration (reload)
@@ -1210,7 +1366,7 @@
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
     storeChecks().then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
-      .then(pwaChecks).then(projectChecks).then(report, function (err) {
+      .then(pwaChecks).then(projectChecks).then(shareChecks).then(report, function (err) {
       check('formatting checks completed', function () { return ok(false, String(err)) })
       report()
     })

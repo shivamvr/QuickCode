@@ -686,6 +686,8 @@ async function loadWorkspace() {
     storeAvailable = false
     project = makeProject({ name: 'This session only' })
   }
+  const fragment = sharedFragment()
+  if (fragment) await importShared(fragment)
   Object.assign(quickEdit, project.settings)
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   await restoreHandles()
@@ -751,6 +753,78 @@ function applyProject() {
   gets('#jsCheck').checked = Boolean(quickEdit.js)
   updateProjectLabel()
   updateTitle()
+}
+
+//------------------------------ sharing ------------------------------
+
+// Left for initCore to show, so a bad link cannot block the editor being built.
+let shareProblem = ''
+
+// A shared link opens as a project of its own. It must never land on top of
+// whatever was already open: that would be the data loss of item 01 with extra
+// steps. The record that was open stays exactly as it was, in the list.
+const importShared = async (fragment) => {
+  try {
+    const payload = await decodeShare(fragment)
+    const shared = makeProject({
+      name: payload.name ? payload.name + ' (shared)' : 'Shared snippet',
+      code: payload.code || '',
+      css: payload.css || '',
+      js: payload.js || '',
+      settings: Object.assign({}, PROJECT_SETTINGS, {
+        lang: payload.lang || 'html',
+        css: Boolean(payload.cssOn),
+        js: Boolean(payload.jsOn),
+      }),
+    })
+    if (storeAvailable) await saveProject(shared)
+    project = shared
+    setActiveId(shared.id)
+  } catch (err) {
+    console.error('Could not open that share link', err)
+    shareProblem = err.message
+  }
+  // The link has been taken. Clearing it means a reload opens the project that
+  // was imported rather than importing a second copy of it.
+  history.replaceState(null, '', location.pathname + location.search)
+}
+
+// say something in the dialog itself, and put it back a few seconds later
+const flash = (el, message) => {
+  if (!el) return
+  if (!el.dataset.label) el.dataset.label = el.textContent
+  el.textContent = message
+  clearTimeout(el.flashTimer)
+  el.flashTimer = setTimeout(() => { el.textContent = el.dataset.label }, 8000)
+}
+
+async function copyShareLink() {
+  const row = gets('#share')
+  if (!project) return
+  if (!shareSupported()) {
+    flash(row, 'this browser cannot build share links')
+    return
+  }
+  try {
+    await flushStorage()
+    const url = shareUrl(await encodeShare(project))
+    let copied = true
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch (err) {
+      // no clipboard, or permission refused: put it somewhere it can be copied
+      copied = false
+      gets('#filename').value = url
+      gets('#filename').select()
+    }
+    const size = (url.length / 1024).toFixed(1) + ' KB'
+    flash(row, (copied ? '\u2713 link copied' : 'copy the link from the box above') +
+      ' \u00b7 ' + size + ' \u00b7 anyone with it can read your code' +
+      (url.length > SHARE_WARN_BYTES ? ' \u00b7 too long for some chat apps, export instead' : ''))
+  } catch (err) {
+    console.error('Could not build a share link', err)
+    flash(row, 'could not build a link: ' + err.message)
+  }
 }
 
 //------------------------- the project picker ------------------------
@@ -997,6 +1071,14 @@ function initCore() {
   wireDropdowns()
   wireFileHandler()
   wireProjects()
+
+  if (shareProblem) {
+    // after this turn of the loop, so the editor is on screen behind it rather
+    // than the page being blocked half-built
+    const reason = shareProblem
+    shareProblem = ''
+    setTimeout(() => alert('That share link could not be opened: ' + reason), 0)
+  }
 }
 
 function wireToolbar() {
@@ -1050,6 +1132,7 @@ function wireToolbar() {
 
   onClick(gets('#openwin'), openWin)
   onClick(gets('#export'), exportProject)
+  onClick(gets('#share'), copyShareLink)
   onClick(gets('#top'), moveTop)
 
   // navbar
