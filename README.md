@@ -51,14 +51,23 @@ second pane, and edit both at once.
 - Your **cursor position is remembered per file** when you move between panes
 - Collapse back to a single editor at any time
 
-### 📂 Open & save files
+### 📂 Open & save real files
 
 | Action | What happens |
 |---|---|
 | **Open file** | Load a `.html`, `.css`, `.js`, `.json` or `.txt` file into the active tab — the editor language switches to match the extension |
-| **Save file** | Download the active tab as a file, with the name pre-filled from its type |
+| **Save** | <kbd>Ctrl</kbd> + <kbd>S</kbd> writes straight back to the file you opened — no copy in `Downloads`, nothing to move by hand |
+| **Save as** | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>, or the toolbar's save icon, opens the dialog: leave the name as it is to save the open file, change it to save a new one |
 | **Export project** | Package all three editors into `QuickCode.zip` as `index.html` + `style.css` + `index.js`, correctly wired together with `<link>` and `<script>` tags |
 | **Open project** | Drop a previously exported `.zip` back in and all three editors are restored |
+
+Each tab keeps its **own file**, so an HTML page, its stylesheet and its script can all be
+open and saved independently. The browser tab shows which file the active pane will save to,
+with a ● while it has unsaved changes.
+
+Editing files in place needs the File System Access API (Chrome, Edge and other Chromium
+browsers). In Firefox and Safari, opening and saving fall back to the file dialog and a
+download, exactly as before.
 
 The export is a **ready-to-run project folder**, not a dump — if your HTML has no
 `<head>`/`<body>`, QuickCode wraps it in a full document for you.
@@ -90,9 +99,15 @@ in the editor's **right-click context menu**.
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | ▸ Fold all / unfold all |
 | <kbd>Ctrl</kbd> + <kbd>D</kbd> | Copy line down |
 | <kbd>Ctrl</kbd> + <kbd>Q</kbd> | Add selection to next match |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Open the save-file dialog |
+| <kbd>Ctrl</kbd> + <kbd>S</kbd> | Save to the open file, or ask where to put it |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Save as |
 
 ### 💾 Nothing is lost
+
+Your files are never only on disk: every keystroke is also kept in the browser, so an
+unsaved buffer survives a crash or a closed tab. What a reload does *not* restore is the
+link to the file itself — a file opened before the reload has to be reopened before
+<kbd>Ctrl</kbd> + <kbd>S</kbd> can write to it again.
 
 Your code **and** your settings — active theme, language, current tab, split state, CSS/JS
 toggles, toolbar layout — all persist in `localStorage` and are restored exactly as you left

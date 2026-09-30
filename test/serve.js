@@ -46,7 +46,13 @@ const headInject = (caseName) => `
       window.__case = ${JSON.stringify(caseName)};
       window.__errors = [];
       window.__messages = [];
+      // "ResizeObserver loop completed with undelivered notifications" is a
+      // browser notice, not an app error: monaco observes its own container, so
+      // any layout change can raise it. It fires unpredictably, which would make
+      // every no-errors assertion flaky.
+      window.__ignoredErrors = /ResizeObserver loop/;
       window.addEventListener('error', function (e) {
+        if (window.__ignoredErrors.test(e.message)) return
         window.__errors.push(e.message + ' @' + String(e.filename || '?').split('/').pop() + ':' + e.lineno)
       });
       window.addEventListener('unhandledrejection', function (e) {

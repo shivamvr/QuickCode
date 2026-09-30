@@ -1,6 +1,6 @@
 # 02 — File System Access
 
-**Size:** M · **Depends on:** 01 · **Status:** not started
+**Size:** M · **Depends on:** 01 · **Status:** done (see Outcome)
 
 ## Why
 
@@ -123,3 +123,83 @@ load. This is the main reason item 04 (IndexedDB) pairs well with this one.
 Opening a file and pressing Ctrl+S modifies that file in place on a supporting
 browser, the download path still works where the API is absent, and cancelling a
 picker is a no-op.
+
+## Outcome
+
+**Done, September 2026.** A pane can be backed by a real file, and Ctrl+S writes
+back to it in place.
+
+What was built, against the plan above:
+
+- `fileHandles = { main, css, js }` and `unsaved = { main, css, js }` in
+  `scripts/index.js`, so each tab has its own file independently of the others.
+- **Open** goes through `showOpenFilePicker()` where it exists. The toolbar
+  control is still `<label for="file">`, so the handler calls `preventDefault()`
+  to stop the label activating the hidden input as well - without it one click
+  opens two dialogs. A picked `.zip` is still routed to `openProject()` and
+  deliberately leaves the pane with no handle: a project import has no single
+  file to write back to.
+- **Ctrl+S** is `quickSave()`: write to the handle if the pane has one, otherwise
+  fall through to the Save-as overlay. So a browser with no API, or a pane with
+  no file yet, behaves exactly as it did before.
+- **Ctrl+Shift+S** stays Save as. The overlay's name now feeds
+  `showSaveFilePicker({ suggestedName })` where available, and the handle it
+  returns is kept, so the next Ctrl+S goes straight to that file.
+- **The toolbar icon still opens the overlay**, and the overlay's own save button
+  is `saveFromOverlay()`: it writes back to the open file while the name is
+  unchanged, and becomes a Save as as soon as the name is edited. The icon was
+  briefly wired to save silently, which was wrong - `export project` lives
+  *inside* that overlay, so a mouse user would have lost the only way to reach
+  it. This way every path works without the keyboard and nothing moved in the
+  toolbar.
+- `ensureWritable()` does the `queryPermission` / `requestPermission` dance
+  before the first write, and a refusal returns without touching anything.
+- Cancelling any picker rejects with `AbortError`, which is swallowed as a no-op
+  everywhere.
+
+### Two decisions worth knowing about
+
+**The unsaved marker lives in the tab title.** `document.title` becomes
+`page.html - QuickCode`, with a leading `●` while the buffer has moved on from
+the file. That needed no new markup and no CSS, which matters here: the toolbar
+is deliberately left alone (see
+[14-emmet-and-theming.md](14-emmet-and-theming.md)), and a dirty dot on the tab
+strip would have meant new elements and new colours in it.
+
+**Handles are session-only.** Persisting them needs IndexedDB, which is item 04,
+and `requestPermission` needs a user gesture so a reopened file could not be
+re-granted at startup anyway. The buffer still survives a reload through
+`localStorage`; what does not survive is the link to the file, so after a reload
+the file has to be reopened before Ctrl+S can write to it. The title drops back
+to `QuickCode` when that happens, so it never claims a file it cannot write.
+
+### Not done
+
+**Directory handles.** `showDirectoryPicker()` reading a whole folder is the
+natural replacement for zip import/export, and the plan already called it a
+second pass. Item 04 is the better place for it, since a folder is really a
+project.
+
+### Verification
+
+Eight checks in the `core` case of `node test/run.js`, all passing (44 total):
+
+- a picked file lands in the pane, is attached to it, and the title names it
+- Ctrl+S writes back to the handle and nothing is downloaded
+- a refused write permission leaves the file untouched
+- the save dialog writes to the open file with the name unchanged, opens no
+  picker, downloads nothing, and still shows `export project`
+- changing the name in the dialog does a save as, and the pane follows the new
+  file
+- cancelling either picker changes nothing and logs nothing
+- with the API deleted, the hidden input still opens a file and still clears its
+  value so the same file can be picked twice
+- with the API deleted, saving downloads under the typed name
+
+A real picker cannot be driven from a test - it needs a user gesture and shows a
+native dialog - so the API is stubbed with a handle that records its writes; see
+[test/README.md](../test/README.md). That covers every branch the app owns, but
+it does not prove the browser's own write reaches the disk. **Not yet confirmed
+by hand:** open a file in Chrome, edit it, press Ctrl+S, grant the permission
+prompt once, and check the original file changed with nothing new in
+`Downloads`.

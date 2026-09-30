@@ -21,8 +21,11 @@ function ensureSplitEditor() {
 
 // the split pane writes to the key of whatever language it is currently showing
 function saveSplitEditor() {
-  const spec = TABS[SPLIT_TABS[quickEdit.splitLang]]
+  const id = SPLIT_TABS[quickEdit.splitLang]
+  const spec = TABS[id]
   if (spec && splitEditor) {
     writeSoon(spec.key, splitEditor.getValue())
+    // the split pane edits the same file as its tab, so it dirties it too
+    markUnsaved(id)
   }
 }

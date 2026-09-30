@@ -17,7 +17,7 @@ through three scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
-| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export |
+| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, and both file-open/save paths |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `preview-safe` | `app.html` | a hostile snippet runs in the preview and cannot reach the saved work |
 
@@ -66,6 +66,16 @@ that looked correct and proved nothing:
   assertion must exclude `.monaco-editor` subtrees.
 - **`</body>` appears inside a JavaScript string in `app.html`.** Injection has
   to target the *last* occurrence, or it silently corrupts `buildDoc()`.
+- **A file picker cannot be driven from a test.** `showOpenFilePicker` and
+  `showSaveFilePicker` are stubbed with a fake handle that records what was
+  written, which still covers everything the app owns: which path a click takes,
+  the write-permission check, the unsaved marker, and the fallback when the API
+  is absent. A real `<input type="file">` click would open a chooser and hang the
+  run, so the probe cancels that click after counting it.
+- **`ResizeObserver loop completed with undelivered notifications` is not an app
+  error.** Monaco observes its own container, so any layout change can raise it,
+  unpredictably. `serve.js` filters it out, or every no-errors assertion would be
+  flaky.
 
 ## Verifying the suite still bites
 
@@ -77,6 +87,10 @@ mv themes/Dracula.json themes/dracula.json && node test/run.js   # expect FAIL
 # 2. the monaco rename bug
 #    change monaco.KeyCode.KEY_Z to KeyZ in scripts/eventListener.js
 node test/run.js                                                  # expect FAIL
+# 3. the save-in-place path
+#    drop the e.preventDefault() from the open-label handler, or make quickSave
+#    treat every pane as having no handle, in scripts/index.js
+node test/run.js                                                  # expect 4 FAILs
 ```
 
-Both were confirmed to fail when introduced, and pass once reverted.
+All three were confirmed to fail when introduced, and pass once reverted.

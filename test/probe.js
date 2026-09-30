@@ -291,6 +291,209 @@
       .then(function () { settheme(original) })
   }
 
+  // --------------------------------------------------- files on disk (FSA)
+  // A real picker cannot be driven from a test, so the API is stubbed with a
+  // handle that records what was written. That still exercises everything the
+  // app owns: which path a click takes, the permission check, the unsaved
+  // marker, and the fallback when the API is absent.
+  function fakeHandle(name, text) {
+    var store = { text: text, writes: 0, permission: 'granted' }
+    return {
+      name: name,
+      kind: 'file',
+      __store: store,
+      getFile: function () { return Promise.resolve(new File([store.text], name, { type: 'text/plain' })) },
+      queryPermission: function () { return Promise.resolve(store.permission) },
+      requestPermission: function () { return Promise.resolve(store.permission) },
+      createWritable: function () {
+        if (store.permission !== 'granted') return Promise.reject(new DOMException('denied', 'NotAllowedError'))
+        return Promise.resolve({
+          write: function (t) { store.text = t; return Promise.resolve() },
+          close: function () { store.writes++; return Promise.resolve() },
+        })
+      },
+    }
+  }
+
+  function fileHandleChecks() {
+    var realOpen = window.showOpenFilePicker
+    var realSave = window.showSaveFilePicker
+    var realSaveAs = window.saveAs
+    var consoleAt = window.__console.length
+    var downloads = []
+    window.saveAs = function (blob, name) { downloads.push(name) }
+
+    // a real file chooser would hang the run, so count the click and stop it
+    var input = gets('#file')
+    var inputClicks = 0
+    input.addEventListener('click', function (e) { inputClicks++; e.preventDefault() })
+
+    var ctrlS = function () {
+      document.dispatchEvent(new KeyboardEvent('keydown',
+        { key: 's', ctrlKey: true, bubbles: true, cancelable: true }))
+    }
+
+    var handle = fakeHandle('page.html', '<h1>from disk</h1>')
+    var pickerCalls = 0
+    window.showOpenFilePicker = function () { pickerCalls++; return Promise.resolve([handle]) }
+
+    makeActive('main')
+    setLang('html')
+    fileHandles.main = null
+    markSaved('main')
+
+    gets('label[for="file"]').click()
+
+    return waitFor(function () { return editor.getValue() === '<h1>from disk</h1>' && !!fileHandles.main }, 3000)
+      .then(function (loaded) {
+        check('the open icon goes through the picker, not the hidden input', function () {
+          return ok(pickerCalls === 1 && inputClicks === 0,
+            'picker called ' + pickerCalls + 'x, input clicked ' + inputClicks + 'x')
+        })
+        check('a picked file lands in the pane and stays attached to it', function () {
+          return ok(loaded && fileHandles.main === handle && gets('#filename').value === 'page.html',
+            'text=' + JSON.stringify(editor.getValue()) +
+            ' handle=' + (fileHandles.main && fileHandles.main.name) +
+            ' name field=' + JSON.stringify(gets('#filename').value))
+        })
+        check('the title names the file a save would write to', function () {
+          return ok(document.title === 'page.html - QuickCode', document.title)
+        })
+
+        editor.getModel().setValue('<h1>edited in quickcode</h1>')
+        var dirtyTitle = document.title
+        ctrlS()
+        return waitFor(function () { return handle.__store.writes > 0 }, 3000).then(function (wrote) {
+          check('Ctrl+S writes back to the file instead of downloading a copy', function () {
+            return ok(wrote && handle.__store.text === '<h1>edited in quickcode</h1>' &&
+              dirtyTitle.indexOf('●') === 0 && document.title.indexOf('●') === -1 &&
+              downloads.length === 0,
+              'on disk=' + JSON.stringify(handle.__store.text) +
+              ' title while unsaved=' + JSON.stringify(dirtyTitle) +
+              ' after save=' + JSON.stringify(document.title) +
+              ' downloads=' + downloads.length)
+          })
+        })
+      })
+      .then(function () {
+        // the write grant is separate from the read grant, and can be refused
+        handle.__store.permission = 'denied'
+        editor.getModel().setValue('<h1>must not reach disk</h1>')
+        ctrlS()
+        return waitFor(function () { return false }, 500).then(function () {
+          check('a refused write permission leaves the file untouched', function () {
+            return ok(handle.__store.text === '<h1>edited in quickcode</h1>' &&
+              handle.__store.writes === 1 && document.title.indexOf('●') === 0,
+              'on disk=' + JSON.stringify(handle.__store.text) +
+              ' writes=' + handle.__store.writes + ' title=' + JSON.stringify(document.title))
+          })
+          handle.__store.permission = 'granted'
+        })
+      })
+      .then(function () {
+        // the mouse path: the toolbar icon opens the overlay, and its save
+        // button writes to the open file while the name is left alone
+        editor.getModel().setValue('<h1>saved from the overlay</h1>')
+        var asked = 0
+        window.showSaveFilePicker = function () { asked++; return Promise.resolve(fakeHandle('other.html', '')) }
+        gets('#save').click()
+        var overlayShown = gets('#overlay').style.display === 'block'
+        var namePrefilled = gets('#filename').value
+        gets('#savefile').click()
+        return waitFor(function () { return handle.__store.writes > 1 }, 3000).then(function (wrote) {
+          check('the save dialog writes to the open file, and still offers export', function () {
+            return ok(overlayShown && namePrefilled === 'page.html' && wrote &&
+              handle.__store.text === '<h1>saved from the overlay</h1>' && asked === 0 &&
+              downloads.length === 0 && gets('#overlay').style.display === 'none' &&
+              gets('#export').style.display === 'block',
+              'overlay opened=' + overlayShown + ' name=' + JSON.stringify(namePrefilled) +
+              ' on disk=' + JSON.stringify(handle.__store.text) +
+              ' save-as pickers opened=' + asked + ' downloads=' + downloads.length +
+              ' export visible=' + (gets('#export').style.display === 'block'))
+          })
+        })
+      })
+      .then(function () {
+        // a different name in the dialog means Save as, not overwrite
+        gets('#save').click()
+        gets('#filename').value = 'copy.html'
+        var chosen = fakeHandle('copy.html', '')
+        window.showSaveFilePicker = function () { return Promise.resolve(chosen) }
+        gets('#savefile').click()
+        return waitFor(function () { return chosen.__store.writes > 0 }, 3000).then(function (wrote) {
+          check('renaming in the save dialog does a save as', function () {
+            return ok(wrote && chosen.__store.text === '<h1>saved from the overlay</h1>' &&
+              fileHandles.main === chosen && handle.__store.writes === 2,
+              'new file=' + JSON.stringify(chosen.__store.text) +
+              ' pane now points at ' + (fileHandles.main && fileHandles.main.name) +
+              ', original written ' + handle.__store.writes + 'x')
+          })
+          // the rest of the run expects the first handle back
+          fileHandles.main = handle
+          gets('#filename').value = handle.name
+        })
+      })
+      .then(function () {
+        var before = editor.getValue()
+        var abort = function () { return Promise.reject(new DOMException('cancelled', 'AbortError')) }
+        window.showOpenFilePicker = abort
+        window.showSaveFilePicker = abort
+        return Promise.all([openWithPicker(), saveFile()]).then(function () {
+          check('cancelling either picker is a no-op', function () {
+            return ok(editor.getValue() === before && downloads.length === 0 &&
+              window.__console.length === consoleAt,
+              'buffer unchanged=' + (editor.getValue() === before) +
+              ' downloads=' + downloads.length +
+              ' logged: ' + (window.__console.slice(consoleAt).join(' | ') || 'nothing'))
+          })
+        })
+      })
+      .then(function () {
+        // Firefox and Safari: no picker at all, so the hidden input and the
+        // download have to still work end to end
+        delete window.showOpenFilePicker
+        delete window.showSaveFilePicker
+        fileHandles.main = null
+        markSaved('main')
+
+        gets('label[for="file"]').click()
+        var dt = new DataTransfer()
+        dt.items.add(new File(['<p>from the input</p>'], 'fallback.html', { type: 'text/html' }))
+        input.files = dt.files
+        input.dispatchEvent(new Event('change'))
+
+        return waitFor(function () { return editor.getValue() === '<p>from the input</p>' }, 3000)
+          .then(function (read) {
+            check('with no picker the hidden input still opens a file', function () {
+              return ok(read && inputClicks === 1 && input.value === '',
+                'loaded=' + read + ', input clicked ' + inputClicks +
+                'x, value cleared=' + (input.value === ''))
+            })
+            gets('#filename').value = 'fallback.html'
+            return saveFile()
+          })
+          .then(function () {
+            check('with no save picker it falls back to a download', function () {
+              return ok(downloads.length === 1 && downloads[0] === 'fallback.html' && !fileHandles.main,
+                'downloads: ' + (downloads.join(', ') || 'none') +
+                ', handle attached=' + !!fileHandles.main)
+            })
+          })
+      })
+      .then(function () {
+        check('no errors from any of the file paths', function () {
+          return ok(window.__errors.length === 0 && window.__console.length === consoleAt,
+            'errors: ' + (window.__errors.join(' | ') || 'none') +
+            '; logged: ' + (window.__console.slice(consoleAt).join(' | ') || 'nothing'))
+        })
+        if (realOpen) window.showOpenFilePicker = realOpen
+        if (realSave) window.showSaveFilePicker = realSave
+        window.saveAs = realSaveAs
+        fileHandles.main = null
+        markSaved('main')
+      })
+  }
+
   // --------------------------------------------------- persistence (reload)
   if (CASE === 'persist') {
     if (!sessionStorage.getItem('qc-phase')) {
@@ -395,7 +598,7 @@
     }, 100)
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
-    formattingChecks().then(themeFallbackChecks).then(report, function (err) {
+    formattingChecks().then(themeFallbackChecks).then(fileHandleChecks).then(report, function (err) {
       check('formatting checks completed', function () { return ok(false, String(err)) })
       report()
     })

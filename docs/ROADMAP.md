@@ -12,7 +12,7 @@ web workers).
 | # | Item | Why it's here | Depends on | Size |
 |---|------|---------------|-----------|------|
 | 01 | [Sandbox the preview](01-sandbox-preview.md) | ~~Data loss: preview code shared the editor's origin and could wipe every saved file~~ **done** | — | S |
-| 02 | [File System Access](02-file-system-access.md) | Open and save real files on disk; removes the download/re-zip round trip | 01 | M |
+| 02 | [File System Access](02-file-system-access.md) | ~~Every save was a download, then a move by hand~~ **done** - Ctrl+S writes the file in place | 01 | M |
 | 03 | [PWA, offline, file handling](03-pwa-offline.md) | Installable, works offline, opens `.html`/`.css`/`.js` from the OS | 02 | M |
 | 04 | [IndexedDB + multiple projects](04-indexeddb-projects.md) | Only one project can exist today; every experiment overwrites the last | 01 | L |
 | 05 | [Share links](05-share-link.md) | Highest value per line of code, and needs no backend | 04 | S |
@@ -36,8 +36,12 @@ splitting further once started.
 touch code that is easy to break quietly. 07, 08 and 14 are independent and
 small enough to slot in whenever.
 
-**The two that change what QuickCode is:** 02 + 03 make it feel like a local
+**The two that change what QuickCode is:** ~~02~~ + 03 make it feel like a local
 tool rather than a web page; 04 + 05 + 12 make it somewhere work actually lives.
+
+Two things 02 left for later, both because they need IndexedDB (item 04):
+**remembering file handles across a reload**, and **directory handles** as the
+replacement for zip import/export.
 
 **Leave until wanted:** 10, 11, 13.
 

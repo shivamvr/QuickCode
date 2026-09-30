@@ -136,6 +136,7 @@ const saveEditor = (id) => {
   const ed = spec && spec.get()
   if (ed) {
     writeSoon(spec.key, ed.getValue())
+    markUnsaved(id)
   }
 }
 
@@ -161,14 +162,90 @@ const fileExt = {
 let fileName = false
 let ext = 'html'
 
+//------------------------- files on disk -----------------------------
+// The File System Access API lets a pane be backed by a real file: opened
+// through a picker and written back in place, instead of downloading a copy
+// into Downloads and moving it over the original by hand.
+//
+// It is Chromium only, so the hidden <input type="file"> and the fileSaver
+// download remain the other branch. Both paths have to keep working.
+
+// null until the pane is backed by a real file
+const fileHandles = { main: null, css: null, js: null }
+
+// whether the buffer has moved on from that file. Only meaningful where a
+// handle exists: without one there is nothing on disk to be out of date.
+const unsaved = { main: false, css: false, js: false }
+
+const hasFilePicker = () => typeof window.showOpenFilePicker === 'function'
+const hasSavePicker = () => typeof window.showSaveFilePicker === 'function'
+
+// mime -> extensions, the shape showOpenFilePicker wants; mirrors the accept
+// list on the hidden input
+const OPEN_TYPES = [{
+  description: 'Code',
+  accept: {
+    'text/html': ['.html'],
+    'text/css': ['.css'],
+    'text/javascript': ['.js'],
+    'application/json': ['.json'],
+    'text/plain': ['.txt'],
+    'application/zip': ['.zip'],
+  },
+}]
+
+// Cancelling any picker rejects with AbortError. That is a no-op rather than a
+// failure, and has to leave the editor exactly as it was.
+const cancelled = (err) => Boolean(err) && err.name === 'AbortError'
+
 const extFor = (language) => Object.keys(fileExt).find((key) => fileExt[key] === language) || 'txt'
 
 const suggestedFileName = () => {
+  const handle = fileHandles[quickEdit.tab]
+  if (handle) return handle.name
   if (quickEdit.tab === 'main') {
     // keep the name of a file that was opened rather than overwriting it
     return fileName || 'file.' + ext
   }
   return 'file.' + TABS[quickEdit.tab].key
+}
+
+// The tab title is the one place with room for the file name and an unsaved
+// marker, so it can say which file Ctrl+S writes to with no new markup.
+const updateTitle = () => {
+  const handle = fileHandles[quickEdit.tab]
+  document.title = handle
+    ? (unsaved[quickEdit.tab] ? '\u25cf ' : '') + handle.name + ' - QuickCode'
+    : 'QuickCode'
+}
+
+const markUnsaved = (id) => {
+  if (!fileHandles[id] || unsaved[id]) return
+  unsaved[id] = true
+  updateTitle()
+}
+
+const markSaved = (id) => {
+  unsaved[id] = false
+  updateTitle()
+}
+
+// A handle carries read permission from the moment it is picked; writing needs
+// its own grant. requestPermission only works inside a user gesture, which is
+// why this is awaited on the way to the first write and never at startup.
+const ensureWritable = async (handle) => {
+  if (typeof handle.queryPermission !== 'function') return true
+  const opts = { mode: 'readwrite' }
+  if ((await handle.queryPermission(opts)) === 'granted') return true
+  return (await handle.requestPermission(opts)) === 'granted'
+}
+
+// createWritable() truncates the file straight away, so a crash mid-write can
+// leave it empty. Acceptable for an editor buffer; not for a project store.
+const writeToDisk = async (handle, text) => {
+  const writable = await handle.createWritable()
+  await writable.write(text)
+  await writable.close()
 }
 
 const showOverlay = () => {
@@ -183,14 +260,72 @@ const hideOverlay = () => {
   gets('#overlay').style.display = 'none'
 }
 
-function saveFile() {
-  const spec = TABS[quickEdit.tab]
-  if (!spec) return
+// Ctrl+S, and the save dialog while its name is left unchanged. Writes straight
+// back when the pane has a file, which is the whole point of keeping the handle;
+// with no handle it falls through to Save as, so a browser without the API
+// behaves exactly as it always did.
+async function quickSave() {
+  const id = quickEdit.tab
+  const handle = fileHandles[id]
+  if (!handle) {
+    showOverlay()
+    return
+  }
+  flushStorage()
+  try {
+    if (!(await ensureWritable(handle))) return
+    await writeToDisk(handle, contentOf(id))
+    markSaved(id)
+  } catch (err) {
+    if (cancelled(err)) return
+    console.error('Failed to save', handle.name, err)
+    alert('Could not save "' + handle.name + '": ' + err.message)
+  }
+}
+
+// The overlay's save button. Writes back to the open file while the name is
+// unchanged and does a Save as once it is edited, which keeps one-click saving
+// on the mouse path: the overlay is also where 'export project' lives, so the
+// toolbar icon has to go on opening it rather than saving silently.
+function saveFromOverlay() {
+  const handle = fileHandles[quickEdit.tab]
+  const typed = gets('#filename').value.trim()
+  if (handle && (typed === '' || typed === handle.name)) {
+    hideOverlay()
+    return quickSave()
+  }
+  return saveFile()
+}
+
+// Save as: the name from the overlay, then a real location where the browser
+// can offer one and a download where it cannot.
+async function saveFile() {
+  const id = quickEdit.tab
+  if (!TABS[id]) return
   flushStorage()
   const fname = gets('#filename').value.trim() || suggestedFileName()
-  const blob = new Blob([contentOf(quickEdit.tab)], { type: 'text/plain;charset=utf-8' })
-  saveAs(blob, fname)
+  const text = contentOf(id)
   hideOverlay()
+
+  if (!hasSavePicker()) {
+    saveAs(new Blob([text], { type: 'text/plain;charset=utf-8' }), fname)
+    return
+  }
+
+  let handle
+  try {
+    handle = await window.showSaveFilePicker({ suggestedName: fname })
+    await writeToDisk(handle, text)
+  } catch (err) {
+    if (cancelled(err)) return
+    console.error('Failed to save', fname, err)
+    alert('Could not save "' + fname + '": ' + err.message)
+    return
+  }
+  // from here on Ctrl+S goes to this file
+  fileHandles[id] = handle
+  if (id === 'main') fileName = handle.name
+  markSaved(id)
 }
 
 //------------------------ open file & project ------------------------
@@ -256,17 +391,55 @@ const setPaneText = (id, text) => {
   }
 }
 
+// the shared tail of both open paths
+const openText = (id, name, text) => {
+  setPaneText(id, text)
+  fileName = name
+  gets('#filename').value = name
+  if (id === 'main') {
+    setLang(fileExt[getExtension(name)])
+  }
+}
+
+// The fallback path, for browsers with no picker. The pane is captured up front
+// because the read is asynchronous and the tab can change while it runs.
 function openFile(file) {
+  const id = quickEdit.tab
   const reader = new FileReader()
   reader.onload = () => {
-    setPaneText(quickEdit.tab, String(reader.result))
+    openText(id, file.name, String(reader.result))
   }
-  fileName = file.name
-  gets('#filename').value = fileName
-  if (quickEdit.tab === 'main') {
-    setLang(fileExt[getExtension(fileName)])
+  reader.onerror = () => {
+    // the name and language used to be applied before the read, so a failed
+    // read left the editor claiming to hold a file it never received
+    console.error('Failed to read file', reader.error)
+    alert('Could not read "' + file.name + '".')
   }
   reader.readAsText(file)
+}
+
+// The picker path. A zip is still a project import, which has no single file to
+// write back to, so it deliberately leaves the pane without a handle.
+async function openWithPicker() {
+  const id = quickEdit.tab
+  try {
+    const picked = await window.showOpenFilePicker({ types: OPEN_TYPES })
+    const handle = picked[0]
+    const file = await handle.getFile()
+    if (getExtension(file.name) === 'zip') {
+      openProject(file)
+      return
+    }
+    // the text lands first: writing it marks the pane unsaved, so the handle
+    // has to be attached before markSaved settles it
+    openText(id, file.name, await file.text())
+    fileHandles[id] = handle
+    markSaved(id)
+  } catch (err) {
+    if (cancelled(err)) return
+    console.error('Failed to open a file', err)
+    alert('Could not open that file: ' + err.message)
+  }
 }
 
 //------------------------- language & theme --------------------------
@@ -451,6 +624,8 @@ function makeActive(id) {
   // css on its own cannot be previewed
   gets('#openwin').style.visibility = id === 'css' ? 'hidden' : 'visible'
   saveSettings({ tab: id })
+  // each pane has its own file, so the title changes with the tab
+  updateTitle()
 }
 
 function updateEditor(id) {
@@ -525,20 +700,36 @@ function initCore() {
 function wireToolbar() {
   // save dialog
   onClick(gets('#save'), showOverlay)
-  onClick(gets('#savefile'), saveFile)
+  onClick(gets('#savefile'), saveFromOverlay)
   gets('#overlay').addEventListener('click', hideOverlay)
   gets('.box').addEventListener('click', (e) => e.stopPropagation())
   gets('#filename').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') saveFile()
+    if (e.key === 'Enter') saveFromOverlay()
   })
   document.addEventListener('keydown', (e) => {
     // e.which is deprecated, and without preventDefault the browser's own
     // save dialog can open on top of ours
-    if ((e.key === 's' || e.key === 'S') && e.ctrlKey && e.shiftKey) {
-      e.preventDefault()
-      showOverlay()
+    if (e.key !== 's' && e.key !== 'S') return
+    if (!e.ctrlKey && !e.metaKey) return
+    e.preventDefault()
+    if (e.shiftKey) {
+      showOverlay()          // Save as, always
+    } else {
+      quickSave()            // straight to the file when the pane has one
     }
   })
+
+  // Open. Where the picker exists it replaces the hidden input, and
+  // preventDefault stops the label activating that input as well - otherwise
+  // one click opens two dialogs.
+  const openLabel = gets('label[for="file"]')
+  if (openLabel) {
+    openLabel.addEventListener('click', (e) => {
+      if (!hasFilePicker()) return
+      e.preventDefault()
+      openWithPicker()
+    })
+  }
 
   // open a file or a project zip
   gets('#file').addEventListener('change', function () {
