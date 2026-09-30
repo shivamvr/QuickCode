@@ -25,7 +25,19 @@
 
   var ok = function (pass, detail) { return { pass: pass, detail: detail } }
 
+  // A case that hangs tells the runner nothing but "timed out". This turns it
+  // into evidence: whatever was checked before it stopped, and where.
+  var watchdog = setTimeout(function () {
+    check('the case finished on its own', function () {
+      return ok(false, 'still going after 45s; phase=' + (sessionStorage.getItem('qc-phase') || 'first') +
+        '; page errors: ' + (window.__errors.join(' | ') || 'none') +
+        '; logged: ' + (window.__console.join(' | ') || 'nothing'))
+    })
+    report()
+  }, 45000)
+
   function report() {
+    clearTimeout(watchdog)
     var x = new XMLHttpRequest()
     x.open('POST', '/__test/report', false)
     x.setRequestHeader('Content-Type', 'application/json')
@@ -89,21 +101,21 @@
 
     check('content writes are batched', function () {
       ensureMainEditor()
-      localStorage.setItem('code', 'BASE')
-      var writes = 0
-      var real = localStorage.setItem.bind(localStorage)
-      localStorage.setItem = function (k, v) { writes++; return real(k, v) }
+      // count database writes, not localStorage ones: a burst of typing must
+      // not turn into a burst of puts
+      var puts = 0
+      var realPut = IDBObjectStore.prototype.put
+      IDBObjectStore.prototype.put = function () { puts++; return realPut.apply(this, arguments) }
+      var syncWrites = 0
+      var realSet = localStorage.setItem.bind(localStorage)
+      localStorage.setItem = function (k, v) { syncWrites++; return realSet(k, v) }
       for (var i = 0; i < 40; i++) {
         editor.executeEdits('t', [{ range: new monaco.Range(1, 1, 1, 1), text: 'x' }])
       }
-      localStorage.setItem = real
-      return ok(writes === 0, '40 edits caused ' + writes + ' synchronous writes')
-    })
-
-    check('flushing makes the text readable', function () {
-      var live = editor.getValue()
-      flushStorage()
-      return ok(localStorage.getItem('code') === live, 'storage matches editor after flush')
+      IDBObjectStore.prototype.put = realPut
+      localStorage.setItem = realSet
+      return ok(puts === 0 && syncWrites === 0,
+        '40 edits caused ' + puts + ' database writes and ' + syncWrites + ' synchronous ones')
     })
 
     check('every offered theme resolves', function () {
@@ -205,6 +217,61 @@
     })
   }
 
+  // --------------------------------------------------------- the store
+  function storeChecks() {
+    var live = editor.getValue()
+    return flushStorage()
+      .then(function () { return getProject(project.id) })
+      .then(function (saved) {
+        check('flushing writes the text to the database', function () {
+          return ok(saved && saved.code === live, 'record matches the editor after flush')
+        })
+      })
+      .then(function () {
+        // A real FileSystemFileHandle, because the fake above proves nothing
+        // about structured clone. This is what lets a reopened project still
+        // know which file each pane came from.
+        if (!navigator.storage || !navigator.storage.getDirectory) {
+          check('a file handle survives being stored and read back', function () {
+            return ok(false, 'no origin private file system here to make a real handle from')
+          })
+          return null
+        }
+        return navigator.storage.getDirectory()
+          .then(function (dir) { return dir.getFileHandle('roundtrip.txt', { create: true }) })
+          .then(function (real) { return saveHandle('probe-project', 'main', real) })
+          .then(function () { return loadHandles('probe-project', ['main']) })
+          .then(function (found) {
+            check('a file handle survives being stored and read back', function () {
+              return ok(!!found.main && found.main.name === 'roundtrip.txt' &&
+                typeof found.main.createWritable === 'function',
+                found.main ? 'read back ' + found.main.name + ', still a ' + found.main.kind +
+                  ' handle' : 'nothing came back')
+            })
+            return forgetHandles('probe-project', ['main'])
+          })
+      })
+      .then(function () {
+        // the crash net: an IndexedDB write cannot be relied on to finish as
+        // the page goes away, so the last state is dropped into localStorage
+        // synchronously and adopted on the way back in
+        cancelFlush()
+        project.code = '<h1>typed but never written</h1>'
+        snapshot(project)
+        var onDisk = localStorage.getItem('quickcodeUnsaved')
+        return adoptSnapshot()
+          .then(function () { return getProject(project.id) })
+          .then(function (saved) {
+            check('work that never reached the database is recovered from the snapshot', function () {
+              return ok(!!onDisk && saved.code === '<h1>typed but never written</h1>' &&
+                localStorage.getItem('quickcodeUnsaved') === null,
+                'snapshot taken=' + !!onDisk + ', record now ' + JSON.stringify(saved.code) +
+                ', snapshot cleared=' + (localStorage.getItem('quickcodeUnsaved') === null))
+            })
+          })
+      })
+  }
+
   // ------------------------------------------------------------ formatting
   function formattingChecks() {
     check('the format action is registered', function () {
@@ -298,24 +365,30 @@
   // handle that records what was written. That still exercises everything the
   // app owns: which path a click takes, the permission check, the unsaved
   // marker, and the fallback when the API is absent.
-  function fakeHandle(name, text) {
-    var store = { text: text, writes: 0, permission: 'granted' }
-    return {
-      name: name,
-      kind: 'file',
-      __store: store,
-      getFile: function () { return Promise.resolve(new File([store.text], name, { type: 'text/plain' })) },
-      queryPermission: function () { return Promise.resolve(store.permission) },
-      requestPermission: function () { return Promise.resolve(store.permission) },
-      createWritable: function () {
-        if (store.permission !== 'granted') return Promise.reject(new DOMException('denied', 'NotAllowedError'))
-        return Promise.resolve({
-          write: function (t) { store.text = t; return Promise.resolve() },
-          close: function () { store.writes++; return Promise.resolve() },
-        })
-      },
-    }
+  // The methods live on the prototype rather than on the object, so the only
+  // own properties are data. That matters: a handle is put through structured
+  // clone on its way into the handles store, and an object carrying functions
+  // cannot be cloned - a real FileSystemFileHandle can.
+  function FakeHandle(name, text) {
+    this.name = name
+    this.kind = 'file'
+    this.__store = { text: text, writes: 0, permission: 'granted' }
   }
+  FakeHandle.prototype.getFile = function () {
+    return Promise.resolve(new File([this.__store.text], this.name, { type: 'text/plain' }))
+  }
+  FakeHandle.prototype.queryPermission = function () { return Promise.resolve(this.__store.permission) }
+  FakeHandle.prototype.requestPermission = function () { return Promise.resolve(this.__store.permission) }
+  FakeHandle.prototype.createWritable = function () {
+    var store = this.__store
+    if (store.permission !== 'granted') return Promise.reject(new DOMException('denied', 'NotAllowedError'))
+    return Promise.resolve({
+      write: function (t) { store.text = t; return Promise.resolve() },
+      close: function () { store.writes++; return Promise.resolve() },
+    })
+  }
+
+  function fakeHandle(name, text) { return new FakeHandle(name, text) }
 
   function fileHandleChecks() {
     var realOpen = window.showOpenFilePicker
@@ -493,6 +566,95 @@
         window.saveAs = realSaveAs
         fileHandles.main = null
         markSaved('main')
+      })
+  }
+
+  // -------------------------------------------------------------- projects
+  function projectChecks() {
+    var realConfirm = window.confirm
+    var home = project.id
+    var alpha = makeProject({ name: 'alpha', code: '<h1>alpha</h1>', css: 'a { color: red }', js: '// alpha' })
+    var beta = makeProject({ name: 'beta', code: '<h1>beta</h1>', css: 'b { color: blue }', js: '// beta' })
+    beta.settings.tab = 'js'
+    beta.settings.split = true
+    beta.settings.splitLang = 'css'
+
+    return saveProject(alpha)
+      .then(function () { return saveProject(beta) })
+      .then(function () { return switchProject(alpha.id) })
+      .then(function () {
+        check('switching projects loads its files into every pane', function () {
+          return ok(project.id === alpha.id && contentOf('main') === '<h1>alpha</h1>' &&
+            contentOf('css') === 'a { color: red }' && contentOf('js') === '// alpha' &&
+            gets('#project').innerText === 'alpha',
+            'open=' + project.name + ' main=' + JSON.stringify(contentOf('main')) +
+            ' css=' + JSON.stringify(contentOf('css')) + ' js=' + JSON.stringify(contentOf('js')))
+        })
+        ensureMainEditor()
+        editor.getModel().setValue('<h1>alpha edited</h1>')
+        return switchProject(beta.id)
+      })
+      .then(function () {
+        check('nothing bleeds from one project into the next', function () {
+          return ok(contentOf('main') === '<h1>beta</h1>' && contentOf('css') === 'b { color: blue }' &&
+            contentOf('js') === '// beta',
+            'main=' + JSON.stringify(contentOf('main')) + ' css=' + JSON.stringify(contentOf('css')))
+        })
+        check('a project brings its own tab and split state with it', function () {
+          return ok(quickEdit.tab === 'js' && gets('#js').classList.contains('active-tab') &&
+            quickEdit.split === true && gets('#splitContainer').style.display === 'block',
+            'tab=' + quickEdit.tab + ' split shown=' + (gets('#splitContainer').style.display === 'block'))
+        })
+        return switchProject(alpha.id)
+      })
+      .then(function () {
+        check('an edit made before switching away is still there on the way back', function () {
+          return ok(contentOf('main') === '<h1>alpha edited</h1>' && quickEdit.split === false,
+            'main=' + JSON.stringify(contentOf('main')) + ' split=' + quickEdit.split)
+        })
+        return refreshProjects()
+      })
+      .then(function () {
+        check('the picker lists every project and marks the open one', function () {
+          var rows = getsAll('#projectList [data-project]')
+          var names = Array.prototype.map.call(rows, function (r) { return r.textContent })
+          var marked = Array.prototype.filter.call(rows, function (r) { return r.classList.contains('active-project') })
+          return ok(rows.length >= 3 && names.indexOf('alpha') > -1 && names.indexOf('beta') > -1 &&
+            marked.length === 1 && marked[0].textContent === 'alpha',
+            names.join(', ') + ' | marked: ' + (marked[0] && marked[0].textContent))
+        })
+        return duplicateProject()
+      })
+      .then(function () {
+        var copyId = project.id
+        ensureMainEditor()
+        editor.getModel().setValue('<h1>only in the copy</h1>')
+        return switchProject(alpha.id).then(function () {
+          check('a duplicate is a separate project, not a second view of one', function () {
+            return ok(copyId !== alpha.id && contentOf('main') === '<h1>alpha edited</h1>',
+              'copy id differs=' + (copyId !== alpha.id) +
+              ', the original still holds ' + JSON.stringify(contentOf('main')))
+          })
+          return switchProject(copyId)
+        })
+      })
+      .then(function () {
+        window.confirm = function () { return true }
+        var doomed = project.id
+        return removeProject()
+          .then(listProjects)
+          .then(function (all) {
+            check('deleting the open project removes it and opens another', function () {
+              var ids = all.map(function (p) { return p.id })
+              return ok(ids.indexOf(doomed) === -1 && !!project && project.id !== doomed && all.length > 0,
+                'gone from the store=' + (ids.indexOf(doomed) === -1) +
+                ', now open: ' + project.name + ', ' + all.length + ' left')
+            })
+          })
+      })
+      .then(function () {
+        window.confirm = realConfirm
+        return switchProject(home)
       })
   }
 
@@ -726,6 +888,82 @@
       })
   }
 
+  // ----------------------------------------------------- migration (reload)
+  // Loads once over a pre-IndexedDB localStorage, then reloads: the migration
+  // has to be idempotent, or the second load duplicates everything.
+  if (CASE === 'migrate') {
+    listProjects().then(function (all) {
+      var first = all[0] || {}
+      if (!sessionStorage.getItem('qc-phase')) {
+        check('a pre-IndexedDB install becomes exactly one project', function () {
+          return ok(all.length === 1,
+            all.length + ' projects: ' + all.map(function (p) { return p.name }).join(', '))
+        })
+        check('its three files came across untouched', function () {
+          return ok(first.code === '<h1>from the old store</h1>' &&
+            first.css === 'h1 { color: rebeccapurple }' &&
+            first.js === 'console.log("old")',
+            'code=' + JSON.stringify(first.code) + ' css=' + JSON.stringify(first.css) +
+            ' js=' + JSON.stringify(first.js))
+        })
+        check('the old localStorage keys are left in place as a safety net', function () {
+          return ok(localStorage.getItem('code') === '<h1>from the old store</h1>',
+            'the old code key is ' + (localStorage.getItem('code') === null ? 'gone' : 'still there'))
+        })
+        check('the per-project settings came across as well', function () {
+          return ok(quickEdit.tab === 'css' && quickEdit.css === true && quickEdit.js === true,
+            'tab=' + quickEdit.tab + ' css toggle=' + quickEdit.css + ' js toggle=' + quickEdit.js)
+        })
+        // the runner takes the first report as final, so phase one hands its
+        // results to phase two rather than sending them
+        sessionStorage.setItem('qc-phase', 'check')
+        sessionStorage.setItem('qc-case', 'migrate')
+        sessionStorage.setItem('qc-id', first.id || '')
+        sessionStorage.setItem('qc-results', JSON.stringify(results))
+        location.reload()
+        return
+      }
+
+      results = JSON.parse(sessionStorage.getItem('qc-results') || '[]').concat(results)
+      check('loading again does not migrate a second time', function () {
+        return ok(all.length === 1 && first.id === sessionStorage.getItem('qc-id'),
+          all.length + ' projects after the second load, same record=' +
+          (first.id === sessionStorage.getItem('qc-id')))
+      })
+      check('the migrated content is still what it was', function () {
+        return ok(readStored('code') === '<h1>from the old store</h1>' &&
+          readStored('css') === 'h1 { color: rebeccapurple }',
+          'code=' + JSON.stringify(readStored('code')))
+      })
+
+      // The other half of being idempotent, and the one that matters after
+      // someone has been using it: the old keys are still on disk, so emptying
+      // the store must not bring the deleted work back from the dead.
+      //
+      // The queued write is cancelled and the open record dropped first,
+      // because otherwise a flush lands mid-delete and puts it straight back -
+      // which is what a fresh load looks like anyway.
+      cancelFlush()
+      project = null
+      Promise.all(all.map(function (p) { return deleteProject(p.id) }))
+        .then(openWorkspace)
+        .then(function (fresh) {
+          check('deleting every project does not resurrect the old content', function () {
+            return ok(fresh.code === '' && localStorage.getItem('code') !== null,
+              'the new project came back holding ' + JSON.stringify(fresh.code) +
+              ', old key still on disk=' + (localStorage.getItem('code') !== null))
+          })
+        }, function (err) {
+          check('deleting every project does not resurrect the old content', function () {
+            return ok(false, 'it threw: ' + err.message)
+          })
+        })
+        .then(report)
+      return
+    })
+    return
+  }
+
   // ------------------------------------------------------- offline (reload)
   // The server stops answering for everything but the suite's own endpoints,
   // then the page reloads: the whole app now has to come out of the cache.
@@ -817,9 +1055,18 @@
       splitMenu('css')
       makeActive('css')
       setVerticalNav(true)
-      flushStorage()
-      sessionStorage.setItem('qc-phase', 'check')
-      location.reload()            // an in-flight theme fetch must not reset the stored theme
+      // a real file handle, to prove the pane's file comes back with the project
+      navigator.storage.getDirectory()
+        .then(function (dir) { return dir.getFileHandle('persisted.txt', { create: true }) })
+        .then(function (handle) { return attachHandle('main', handle) })
+        .catch(function () { /* no opfs here; the check after the reload says so */ })
+        // the write is asynchronous now, so wait for it rather than relying on
+        // the crash net to catch what did not land
+        .then(flushStorage)
+        .then(function () {
+          sessionStorage.setItem('qc-phase', 'check')
+          location.reload()        // an in-flight theme fetch must not reset the stored theme
+        })
       return                       // the reloaded page does the reporting
     }
 
@@ -851,6 +1098,16 @@
       return ok(gets('#cssCheck').checked && gets('#jsCheck').checked,
         'css=' + gets('#cssCheck').checked + ' js=' + gets('#jsCheck').checked)
     })
+    check('the file a pane was editing comes back with the project', function () {
+      var handle = fileHandles.main
+      if (!handle) return ok(false, 'the main pane came back with no file attached')
+      makeActive('main')
+      return ok(handle.name === 'persisted.txt' && document.title === 'persisted.txt - QuickCode' &&
+        !unsaved.main,
+        'handle=' + handle.name + ', title=' + JSON.stringify(document.title) +
+        ', marked unsaved=' + unsaved.main)
+    })
+
     check('no errors on the restoring load', function () {
       return ok(window.__errors.length === 0, window.__errors.join(' | ') || 'none')
     })
@@ -877,13 +1134,8 @@
       return ok(blocked && !writable, window.__messages.join(', ') || 'none')
     })
     check('saved work survived the preview', function () {
-      var intact = localStorage.getItem('code') &&
-        localStorage.getItem('css') === 'body{color:teal}' &&
-        localStorage.getItem('js') === '// a library the user wrote' &&
-        localStorage.getItem('quickEdit') !== null
-      return ok(!!intact,
-        'css=' + JSON.stringify(localStorage.getItem('css')) +
-        ' quickEdit=' + (localStorage.getItem('quickEdit') !== null))
+      // filled in by the asynchronous read below, before this runs
+      return ok(window.__survived === true, window.__survivedDetail)
     })
     check('the frame is sandboxed without same-origin', function () {
       var sb = frame.getAttribute('sandbox') || ''
@@ -898,19 +1150,67 @@
 
   // The sandboxed frame reports asynchronously, so wait for it to speak rather
   // than guessing a delay; give up after 5s so a genuine silence still fails.
+  // The hostile snippet lives in a project record now, so the probe seeds it:
+  // seed.js has to stay synchronous and IndexedDB is not.
+  function seedPreviewProject() {
+    var hostile = makeProject({
+      name: 'preview',
+      code: '<h1>my important work</h1><script>' +
+        'parent.postMessage("SNIPPET_RAN","*");' +
+        'try { localStorage.clear(); parent.postMessage("STORAGE_WRITABLE","*") }' +
+        'catch (e) { parent.postMessage("STORAGE_BLOCKED:" + e.name, "*") }' +
+        '<\/script>',
+      css: 'body{color:teal}',
+      js: '// a library the user wrote',
+    })
+    window.__seededId = hostile.id
+    return saveProject(hostile)
+      .then(function () { setActiveId(hostile.id) })
+      .then(function () { return load() })     // app.html's own reader
+      .then(render)
+  }
+
+  function previewSurvived() {
+    return getProject(window.__seededId).then(function (saved) {
+      window.__survived = !!saved && saved.css === 'body{color:teal}' &&
+        saved.js === '// a library the user wrote' &&
+        String(saved.code).indexOf('my important work') > -1 &&
+        localStorage.getItem('quickEdit') !== null
+      window.__survivedDetail = 'record ' + (saved ? 'intact, css=' + JSON.stringify(saved.css) : 'GONE') +
+        ', settings kept=' + (localStorage.getItem('quickEdit') !== null)
+    }, function (err) {
+      window.__survived = false
+      window.__survivedDetail = 'could not read the project back: ' + err.message
+    })
+  }
+
   if (CASE === 'preview-safe') {
-    var waited = 0
-    var poll = setInterval(function () {
-      waited += 100
-      if (window.__messages.length > 0 || waited >= 5000) {
-        clearInterval(poll)
-        runPreviewChecks()
-        report()
-      }
-    }, 100)
+    seedPreviewProject().catch(function (err) {
+      // a rejection here would otherwise hang the case until it times out,
+      // reporting nothing about why
+      check('the preview project could be seeded', function () { return ok(false, String(err)) })
+      report()
+      throw err
+    }).then(function () {
+      // Generous: the sandboxed document has to be created, parsed and run
+      // after the record is written, and this is the fifth browser the suite
+      // has started. A tight budget here reads as "the snippet never ran".
+      var waited = 0
+      var poll = setInterval(function () {
+        waited += 100
+        if (window.__messages.length > 0 || waited >= 15000) {
+          clearInterval(poll)
+          previewSurvived().then(function () {
+            runPreviewChecks()
+            report()
+          })
+        }
+      }, 100)
+    })
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
-    formattingChecks().then(themeFallbackChecks).then(fileHandleChecks).then(pwaChecks).then(report, function (err) {
+    storeChecks().then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
+      .then(pwaChecks).then(projectChecks).then(report, function (err) {
       check('formatting checks completed', function () { return ok(false, String(err)) })
       report()
     })

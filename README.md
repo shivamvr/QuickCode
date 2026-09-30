@@ -51,6 +51,21 @@ second pane, and edit both at once.
 - Your **cursor position is remembered per file** when you move between panes
 - Collapse back to a single editor at any time
 
+### 🗂 Projects
+
+Work lives in **named projects**, in IndexedDB rather than in three shared browser keys, so
+starting something new no longer writes over the last thing.
+
+- Pick one from the **project dropdown** in the toolbar, or make one with **+ new project**
+- **Rename**, **duplicate** and **delete** are in the same menu
+- Each project keeps its own three files, its own language, tab, split and preview toggles,
+  and its own files on disk - so switching lands you exactly where you left that project
+- A duplicate is a real copy: it deliberately does not inherit the originals' files on disk,
+  so saving it cannot write over them
+
+An install from before projects existed is migrated on first load, and its old storage keys
+are deliberately left untouched as a safety net.
+
 ### 📂 Open & save real files
 
 | Action | What happens |
@@ -58,6 +73,7 @@ second pane, and edit both at once.
 | **Open file** | Load a `.html`, `.css`, `.js`, `.json` or `.txt` file into the active tab — the editor language switches to match the extension |
 | **Save** | <kbd>Ctrl</kbd> + <kbd>S</kbd> writes straight back to the file you opened — no copy in `Downloads`, nothing to move by hand |
 | **Save as** | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>, or the toolbar's save icon, opens the dialog: leave the name as it is to save the open file, change it to save a new one |
+| **Reopen** | The file each pane was editing is remembered with the project, so it is still there after a reload - the browser asks once for permission to write to it again |
 | **Export project** | Package all three editors into `QuickCode.zip` as `index.html` + `style.css` + `index.js`, correctly wired together with `<link>` and `<script>` tags |
 | **Open project** | Drop a previously exported `.zip` back in and all three editors are restored |
 
@@ -121,13 +137,14 @@ and it then has its own window, its own icon and a Start-menu entry.
 ### 💾 Nothing is lost
 
 Your files are never only on disk: every keystroke is also kept in the browser, so an
-unsaved buffer survives a crash or a closed tab. What a reload does *not* restore is the
-link to the file itself — a file opened before the reload has to be reopened before
-<kbd>Ctrl</kbd> + <kbd>S</kbd> can write to it again.
+unsaved buffer survives a crash or a closed tab. Writes are batched while you type and a
+synchronous snapshot is taken as the page goes away, so even the last few hundred
+milliseconds of typing come back.
 
 Your code **and** your settings — active theme, language, current tab, split state, CSS/JS
-toggles, toolbar layout — all persist in `localStorage` and are restored exactly as you left
-them on your next visit.
+toggles, toolbar layout — are all restored exactly as you left them on your next visit. The
+files live in IndexedDB, one record per project; the settings stay in `localStorage`, which
+is where the preview window reads them from.
 
 ---
 
@@ -169,6 +186,7 @@ QuickCode/
 │   ├── jsEditor.js         # JS editor instance
 │   ├── splitEditor.js      # split-pane editor instance
 │   ├── eventListener.js    # split view, project export, cursor sync, editor actions
+│   ├── store.js            # the project store: IndexedDB, migration, crash net
 │   └── fileSaver.js        # FileSaver.js (vendored)
 ├── styles/
 │   ├── style.css           # layout, toolbar, editors

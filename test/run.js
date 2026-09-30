@@ -16,7 +16,9 @@ const { createServer } = require('./serve')
 
 const ROOT = path.join(__dirname, '..')
 const PORT = Number(process.env.PORT || 8399)
-const CASE_TIMEOUT_MS = 60000
+// generous because the offline case has to install a service worker first,
+// which precaches about 2MB from two CDNs before the case can even start
+const CASE_TIMEOUT_MS = 120000
 
 // The persistence case reloads the page itself rather than relying on a second
 // browser process: killing Chrome can discard localStorage before it reaches
@@ -26,6 +28,7 @@ const CASE_TIMEOUT_MS = 60000
 const SCENARIOS = [
   { name: 'core', page: 'index.html', profile: 'core' },
   { name: 'persist', page: 'index.html', profile: 'persist' },
+  { name: 'migrate', page: 'index.html', profile: 'migrate' },
   { name: 'preview-safe', page: 'app.html', profile: 'preview' },
   { name: 'offline', page: 'index.html', profile: 'offline' },
 ]

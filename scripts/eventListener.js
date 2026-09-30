@@ -25,6 +25,12 @@ let splitRatio = 0.5
 
 const clampRatio = (r) => Math.min(MAX_RATIO, Math.max(MIN_RATIO, Number(r) || 0.5))
 
+// switching projects brings its own ratio with it
+function setSplitRatio(ratio) {
+    splitRatio = clampRatio(ratio)
+    if (quickEdit.split) applySplitRatio()
+}
+
 // Widths stay inline rather than moving into a class, because the narrow
 // layout in tabs.css overrides them with `width: 100% !important` to stack the
 // panes, and that must keep winning.
@@ -335,7 +341,10 @@ function wireSplit() {
 // Called from index.html once monaco's AMD loader has the editor ready, so
 // nothing here touches monaco before it exists.
 
-function bootQuickCode() {
+// The project has to be loaded before any editor exists, because the editors
+// are created from its content - which is why this is async now.
+async function bootQuickCode() {
+    await loadWorkspace()
     initCore()
     wireSplit()
 }

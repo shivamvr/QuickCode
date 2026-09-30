@@ -13,12 +13,13 @@ off 8399.
 ## What it does
 
 `run.js` starts a static server over the repo, then drives headless Chrome
-through four scenarios, each of which posts a pass/fail report back.
+through five scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
 | `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, and both file-open/save paths |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
+| `migrate` | `index.html` | loads over a seeded pre-IndexedDB `localStorage`, then reloads: the migration must take everything, keep the old keys, and not run twice |
 | `preview-safe` | `app.html` | a hostile snippet runs in the preview and cannot reach the saved work |
 | `offline` | `index.html` | waits for the service worker, tells the server to stop answering, reloads, and checks the whole app came out of the cache |
 
@@ -86,6 +87,24 @@ that looked correct and proved nothing:
 - **What the cache must hold cannot be hardcoded.** The expected list is derived
   from the live DOM, which is what caught monaco's lazily-injected language
   modules - they are in no source file, and are needed offline.
+- **A stand-in for a `FileSystemFileHandle` has to be cloneable.** Handles go
+  into IndexedDB through structured clone, and an object carrying its own
+  methods cannot be cloned. The fake keeps its methods on a prototype so its own
+  properties are all data; one check uses a real handle from the origin private
+  file system, because the fake proves nothing about clone.
+- **A queued flush will undo a delete.** Anything emptying the store from a test
+  has to `cancelFlush()` and drop the in-memory record first, or the write lands
+  mid-delete and puts the project straight back. The app does the same thing in
+  `removeProject()`, for the same reason.
+- **Budget for the slowest machine, not this one.** Two intermittent failures
+  turned out to be timing: a case that has to install a service worker first
+  (about 2MB from two CDNs) against a 60s cap, and the preview snippet against a
+  5s poll in the fifth browser the suite had started. Both are now generous, and
+  `probe.js` runs a 45s watchdog so a hang reports what it had checked and where
+  it stopped, instead of leaving the runner to say only "timed out".
+- **Two reports from one scenario is one too many.** The runner takes the first
+  report as final, so a case that reloads hands its results to the next phase
+  through `sessionStorage` rather than sending them twice.
 
 ## Verifying the suite still bites
 
@@ -105,6 +124,10 @@ node test/run.js                                                  # expect 4 FAI
 #    delete one theme from SHELL in sw.js, return the data: worker url in
 #    index.html, or make networkFirst return a 5xx instead of falling back
 node test/run.js                              # expect 3 FAILs + the offline case
+# 5. the project store
+#    drop the pane re-sync from applyProject(), the migration guard from
+#    migrate(), or the body of snapshot() in scripts/store.js
+node test/run.js                                       # expect 3, 1 and 1 FAILs
 ```
 
-All four were confirmed to fail when introduced, and pass once reverted.
+All five were confirmed to fail when introduced, and pass once reverted.

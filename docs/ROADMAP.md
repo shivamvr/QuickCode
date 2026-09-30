@@ -14,7 +14,7 @@ web workers).
 | 01 | [Sandbox the preview](01-sandbox-preview.md) | ~~Data loss: preview code shared the editor's origin and could wipe every saved file~~ **done** | — | S |
 | 02 | [File System Access](02-file-system-access.md) | ~~Every save was a download, then a move by hand~~ **done** - Ctrl+S writes the file in place | 01 | M |
 | 03 | [PWA, offline, file handling](03-pwa-offline.md) | ~~Could not start without a network, and lived in a tab~~ **done** - installable, offline, opens files from the desktop | 02 | M |
-| 04 | [IndexedDB + multiple projects](04-indexeddb-projects.md) | Only one project can exist today; every experiment overwrites the last | 01 | L |
+| 04 | [IndexedDB + multiple projects](04-indexeddb-projects.md) | ~~Only one project could exist; every experiment overwrote the last~~ **done** | 01 | L |
 | 05 | [Share links](05-share-link.md) | Highest value per line of code, and needs no backend | 04 | S |
 | 06 | [Preview console and errors](06-preview-console.md) | Runtime errors and `console.log` currently vanish | 01 | M |
 | 07 | [Resizable split](07-resizable-split.md) | ~~The split is hard-coded 50/50~~ **done** | — | S |
@@ -37,13 +37,14 @@ touch code that is easy to break quietly. 07, 08 and 14 are independent and
 small enough to slot in whenever.
 
 **The two that change what QuickCode is:** ~~02~~ + ~~03~~ made it feel like a local
-tool rather than a web page; 04 + 05 + 12 make it somewhere work actually lives.
-**04 is now the one to do next.**
+tool rather than a web page; ~~04~~ + 05 + 12 make it somewhere work actually
+lives. **05 is now the one to do next** - it is small, needs no backend, and
+projects give it something worth sharing.
 
-Two things 02 left for later, both because they need IndexedDB (item 04):
-**remembering file handles across a reload**, and **directory handles** as the
-replacement for zip import/export. 03 made the first of those more visible, not
-less: an installed app that reopens on the same file is the obvious next step.
+Of the two things 02 left for later, **remembering file handles across a
+reload** is done (04 stores them per project and pane). **Directory handles** as
+the replacement for zip import/export are still open, and now have somewhere to
+live.
 
 There is now a **service worker**, so anything that changes a file the shell
 loads should bump `CACHE` in `sw.js`. Adding a script or stylesheet to
@@ -65,9 +66,13 @@ minute. See [test/README.md](../test/README.md).
 - Editors are created lazily through `ensure*Editor()`; never assume
   `cssEditor`, `jsEditor` or `splitEditor` exists.
 - Content is read through `readStored(key)` and written through
-  `writeSoon(key, value)`, which batches. Call `flushStorage()` before anything
-  outside the page reads it.
-- Settings go through `saveSettings(patch)` and are written straight through.
+  `writeSoon(key, value)`, which batches. Those now work against the open
+  project record in memory, and `flushStorage()` writes it to IndexedDB;
+  `scripts/store.js` is the only file that talks to the database.
+- Settings go through `saveSettings(patch)`. The theme and the toolbar layout
+  are global; everything else belongs to the project.
+- `bootQuickCode()` is **async**: it loads the project before any editor exists.
+  Anything added before that `await` must not touch an editor.
 - The `main`/`css`/`js` mapping lives in `TABS`; add to the table rather than
   writing another three-branch `if`.
 

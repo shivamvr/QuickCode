@@ -83,6 +83,7 @@ nav .item {
   margin-bottom: 5px;
 }
 
+.selectC,
 .selectB,
 .selectA {
   display: none;

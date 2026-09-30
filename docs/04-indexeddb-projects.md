@@ -1,6 +1,6 @@
 # 04 — IndexedDB and multiple projects
 
-**Size:** L · **Depends on:** 01 · **Status:** not started
+**Size:** L · **Depends on:** 01 · **Status:** done (see Outcome)
 
 ## Why
 
@@ -120,3 +120,97 @@ across.
 Two projects can coexist, be switched between without content bleeding, survive
 a reload, and an existing single-project install migrates into the new store with
 nothing lost.
+
+## Outcome
+
+**Done, September 2026.** Work lives in named projects in IndexedDB. Two can
+coexist, switching between them carries nothing across, and an install from
+before this migrates with its content intact.
+
+### What was built
+
+- **`scripts/store.js`** - the only thing that talks to the database. Three
+  stores: `projects` (keyPath `id`, indexed on `updatedAt`), `handles` (a
+  `FileSystemFileHandle` per project and pane), and `meta` (one row, saying the
+  old content has been taken).
+- **`scripts/index.js`** - `readStored` / `writeSoon` / `flushStorage` kept
+  their names and their callers; the open record is now the in-memory cache they
+  work against. Plus the project lifecycle: `loadWorkspace`, `switchProject`,
+  `applyProject`, and new/rename/duplicate/delete.
+- **The picker** is a third `.select` dropdown, built from the classes the
+  language and theme dropdowns already use, so it inherits the toolbar's look
+  exactly and adds no colours of its own. Names come from `prompt()` and
+  deletion asks with `confirm()` - no new dialog, no new CSS beyond one
+  `font-weight` for the open project.
+
+### The shape that made it possible
+
+The plan's suggestion was right: `readStored()` is called synchronously while
+the first editor is being created, so the switch could not be a like-for-like
+swap. `bootQuickCode()` is now async and loads the project **before** any editor
+exists, and the record it loads *is* the cache - a keystroke lands on it
+immediately and only the write out to the database is batched. Every existing
+caller stayed exactly as it was.
+
+Settings split the way the plan described: the theme and the toolbar layout stay
+global, everything else (language, tab, split, preview toggles) belongs to the
+project. `quickEdit` is still the one flat object everything reads;
+`saveSettings()` routes each key to the right home.
+
+### Three things worth knowing
+
+**The preview window had to change too, and the plan did not mention it.**
+`app.html` read the three files straight out of `localStorage` and rebuilt
+itself on the `storage` event. It now reads the active project out of the same
+database. The `storage` event is still the signal - a short revision counter is
+written to `localStorage` **after** each database write lands, so the preview is
+never showing something that was not saved.
+
+**A crash net, because this is the item most likely to lose data.** Writes are
+batched 300ms, and an IndexedDB write started as the page goes away cannot be
+relied on to finish - where `localStorage.setItem` always did. So `pagehide`
+also drops a synchronous snapshot into `localStorage`, boot adopts it, and a
+successful flush clears it. The invariant is simple: a snapshot exists only
+while something may be unwritten.
+
+**The migration guard moved into the database.** It was a `localStorage` flag at
+first, which the test caught out: clear localStorage and the flag goes while the
+projects stay, so emptying the store re-imported the old content over the top.
+The flag now lives in the `meta` store, next to the data it guards.
+
+### Verification
+
+`node test/run.js` - **80 checks**, all passing, including a new **`migrate`
+scenario** that loads over a seeded pre-IndexedDB `localStorage`, reloads, and
+checks the migration did not run twice.
+
+What is covered:
+
+- two projects switched between repeatedly with no bleed in any of the three
+  panes, each keeping its own tab and split state
+- a duplicate is a separate record; deleting the open project opens another
+- 40 keystrokes cause **zero** database writes and zero synchronous ones, and a
+  flush puts the text in the record
+- the crash-net snapshot is taken, adopted, and cleared
+- a **real** `FileSystemFileHandle` survives the handles store, and the file a
+  pane was editing comes back after a reload with the title naming it
+- the migration takes the old keys' content and settings, leaves the old keys in
+  place, does not run twice, and does not resurrect deleted work
+- the preview window reads the project, and the sandboxed snippet still cannot
+  reach it
+
+Mutation-checked: not re-syncing the panes on switch, dropping the migration
+guard, and removing the snapshot each turned the suite red.
+
+### Left for later
+
+- **Directory handles.** `showDirectoryPicker()` reading a folder as a project
+  is the natural replacement for zip import/export, and now has somewhere to
+  live. It is a self-contained follow-on rather than part of this.
+- **`navigator.storage.persist()`.** Worth calling once someone has real
+  projects, so eviction under storage pressure is less likely. Not called yet -
+  it prompts in some browsers, and the right moment for that is a decision of
+  its own.
+- **The legacy `code` / `css` / `js` keys.** Nothing writes them any more and
+  nothing reads them, but they are deliberately left on disk for a release, as
+  the safety net the plan asked for. Delete them in the release after.

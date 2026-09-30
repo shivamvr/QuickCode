@@ -30,10 +30,26 @@
       title="Preview"
       sandbox="allow-scripts allow-modals allow-forms allow-popups allow-downloads"
     ></iframe>
+    <script src="scripts/store.js"></script>
     <script>
+      // The three files live in IndexedDB now, one record per project, so this
+      // page reads the active project rather than three localStorage keys. The
+      // settings are still in localStorage: they are tiny and wanted
+      // synchronously.
+      let content = { code: "", css: "", js: "" };
+
       // this page can be opened before the editor has stored anything, so
-      // never assume a key is present
-      const read = (key) => localStorage.getItem(key) || "";
+      // never assume a field is there
+      const read = (key) => content[key] || "";
+
+      const load = () =>
+        getProject(activeId())
+          .then((found) => {
+            if (found) content = found;
+          })
+          .catch((err) => {
+            console.error("Could not read the project", err);
+          });
       const readSettings = () => {
         try {
           return JSON.parse(localStorage.getItem("quickEdit")) || {};
@@ -121,13 +137,15 @@
         frame.srcdoc = buildDoc();
       };
 
-      render();
+      load().then(render);
 
-      // the editor batches its writes, and a burst should still only rebuild once
+      // The editor batches its writes and pings localStorage once each batch
+      // lands, so a burst still only rebuilds this once - and never shows
+      // something that has not been saved.
       let pending = null;
       window.addEventListener("storage", () => {
         clearTimeout(pending);
-        pending = setTimeout(render, 200);
+        pending = setTimeout(() => load().then(render), 200);
       });
     </script>
   </body>

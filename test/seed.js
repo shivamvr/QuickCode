@@ -23,16 +23,18 @@
   }
 
   if (CASE === 'preview-safe') {
-    // the snippet reports in before trying to destroy anything, so a test that
-    // passes because nothing ran is distinguishable from a real pass
-    localStorage.setItem('code',
-      '<h1>my important work</h1><script>' +
-      'parent.postMessage("SNIPPET_RAN","*");' +
-      'try { localStorage.clear(); parent.postMessage("STORAGE_WRITABLE","*") }' +
-      'catch (e) { parent.postMessage("STORAGE_BLOCKED:" + e.name, "*") }' +
-      '<\/script>')
-    localStorage.setItem('css', 'body{color:teal}')
-    localStorage.setItem('js', '// a library the user wrote')
+    // The content is written by the probe, not here: it lives in IndexedDB now
+    // and this file has to stay synchronous. Only the settings are still a
+    // localStorage read for the preview window.
     settings({ css: true, js: true })
+  }
+
+  if (CASE === 'migrate') {
+    // exactly what an install from before the project store looks like on disk
+    localStorage.clear()
+    localStorage.setItem('code', '<h1>from the old store</h1>')
+    localStorage.setItem('css', 'h1 { color: rebeccapurple }')
+    localStorage.setItem('js', 'console.log("old")')
+    settings({ lang: 'html', tab: 'css', css: true, js: true })
   }
 })()

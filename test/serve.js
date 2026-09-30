@@ -77,11 +77,14 @@ function instrument(html, file, caseName) {
   if (file === 'index.html') {
     // the probe must not run until monaco has booted the app
     const boot = 'require(["vs/editor/editor.main"], bootQuickCode);'
+    // bootQuickCode is async: it loads the project before building any editor,
+    // so the probe has to wait for it rather than for the loader
     const booted =
       'require(["vs/editor/editor.main"], function () {\n' +
-      '  bootQuickCode();\n' +
-      '  var s = document.createElement("script"); s.src = "/__test/probe.js";\n' +
-      '  document.body.appendChild(s);\n' +
+      '  bootQuickCode().then(function () {\n' +
+      '    var s = document.createElement("script"); s.src = "/__test/probe.js";\n' +
+      '    document.body.appendChild(s);\n' +
+      '  });\n' +
       '});'
     if (!out.includes(boot)) {
       throw new Error('index.html boot call not found - update test/serve.js')

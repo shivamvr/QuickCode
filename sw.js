@@ -19,7 +19,7 @@
 // deleted on activate.
 //=====================================================================
 
-const CACHE = 'quickcode-v1'
+const CACHE = 'quickcode-v2'
 
 // Everything the editor needs to start, from this origin. The theme JSON files
 // are fetched at runtime by settheme(), so every one of them has to be here or
@@ -36,6 +36,7 @@ const SHELL = [
   './scripts/index.js',
   './scripts/jsEditor.js',
   './scripts/splitEditor.js',
+  './scripts/store.js',
   './styles/style.css',
   './styles/tabs.css',
   './styles/verticalNav.css',

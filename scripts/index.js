@@ -8,8 +8,15 @@ const gets = (selector) => document.querySelector(selector)
 const getsAll = (selector) => document.querySelectorAll(selector)
 
 //----------------------------- settings ------------------------------
+// Settings come in two halves. The app's own - the theme and the toolbar
+// layout - are global. The rest belong to the project: carrying them across
+// would drop you into someone else's tab, language and split after a switch.
+// quickEdit is the flat merged view that everything reads.
 
-const defaultSettings = { theme: 'vs-dark', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html', splitRatio: 0.5 }
+const defaultSettings = { theme: 'vs-dark', vnav: false, lang: 'html', tab: 'main', js: false, css: false, split: false, splitLang: 'html', splitRatio: 0.5 }
+
+// the per-project half, defined next to the record in store.js
+const PROJECT_SETTING_KEYS = Object.keys(PROJECT_SETTINGS)
 
 // themes stored before the dropdown values were corrected to match the file
 // names on disk, which 404 on a case sensitive host
@@ -30,46 +37,75 @@ const readSettings = () => {
 // write goes through saveSettings, so the two can never drift apart.
 let quickEdit = readSettings()
 
-//-------------------------- batched storage --------------------------
-// localStorage.setItem is synchronous and hits the disk, so writing on every
-// keystroke made typing stutter in a large file. Queue writes and flush at
-// most every 300ms, plus whenever the text is about to be read back or the
-// page may go away.
+//--------------------------- the open project ------------------------
+// The record itself is the live copy: a keystroke lands on it immediately, so
+// every existing reader stays synchronous, and only the write out to IndexedDB
+// is batched. That is the same shape the old localStorage batching had.
+
+let project = null
+let storeAvailable = true
 
 const STORAGE_FLUSH_MS = 300
-const pendingWrites = new Map()
 let writeTimer = null
+
+const scheduleFlush = () => {
+  if (writeTimer === null) {
+    writeTimer = setTimeout(flushStorage, STORAGE_FLUSH_MS)
+  }
+}
+
+const cancelFlush = () => {
+  if (writeTimer !== null) {
+    clearTimeout(writeTimer)
+    writeTimer = null
+  }
+}
+
+const readStored = (key) => (project && project[key]) || ''
+
+const writeSoon = (key, value) => {
+  if (!project) return
+  project[key] = value
+  scheduleFlush()
+}
+
+// app.html rebuilds the preview whenever localStorage changes. Content does not
+// go through localStorage any more, so it needs a nudge of its own; it arrives
+// after the write lands, so the preview never shows something that was not
+// saved.
+const pingPreview = () => {
+  try {
+    localStorage.setItem('quickcodeRev', String(Date.now()))
+  } catch (err) {
+    // the preview simply refreshes a little later, on the next settings write
+  }
+}
 
 const flushStorage = () => {
   if (writeTimer !== null) {
     clearTimeout(writeTimer)
     writeTimer = null
   }
-  pendingWrites.forEach((value, key) => localStorage.setItem(key, value))
-  pendingWrites.clear()
+  if (!project || !storeAvailable) return Promise.resolve()
+  return saveProject(project).then(() => {
+    // the crash net is only needed while something may be unwritten
+    localStorage.removeItem(SNAPSHOT_KEY)
+    pingPreview()
+  }, (err) => {
+    console.error('Could not save the project', err)
+  })
 }
 
-const writeSoon = (key, value) => {
-  pendingWrites.set(key, value)
-  if (writeTimer === null) {
-    writeTimer = setTimeout(flushStorage, STORAGE_FLUSH_MS)
-  }
-}
-
-// a queued write has not reached localStorage yet, so reads come through here
-const readStored = (key) => {
-  if (pendingWrites.has(key)) {
-    return pendingWrites.get(key)
-  }
-  return localStorage.getItem(key) || ''
-}
-
-// Settings are written straight through rather than queued: they only change
-// on a click, they are tiny, and the preview window reads them back on the
-// storage event, so a delayed write would show it stale settings.
+// Settings are written to localStorage straight through rather than queued:
+// they only change on a click, they are tiny, and the preview window reads them
+// back on the storage event, so a delayed write would show it stale settings.
 const saveSettings = (patch) => {
   Object.assign(quickEdit, patch)
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  if (project && Object.keys(patch).some((key) => PROJECT_SETTING_KEYS.indexOf(key) > -1)) {
+    PROJECT_SETTING_KEYS.forEach((key) => { project.settings[key] = quickEdit[key] })
+    scheduleFlush()
+  }
   return quickEdit
 }
 
@@ -170,7 +206,8 @@ let ext = 'html'
 // It is Chromium only, so the hidden <input type="file"> and the fileSaver
 // download remain the other branch. Both paths have to keep working.
 
-// null until the pane is backed by a real file
+// null until the pane is backed by a real file. Per project, and remembered
+// across reloads in the handles store.
 const fileHandles = { main: null, css: null, js: null }
 
 // whether the buffer has moved on from that file. Only meaningful where a
@@ -228,6 +265,17 @@ const markUnsaved = (id) => {
 const markSaved = (id) => {
   unsaved[id] = false
   updateTitle()
+}
+
+// A handle is worth keeping: reopening the project should still know which file
+// each pane came from. Permission to write is not restored with it - that has
+// to be asked for inside a user gesture, which the next Ctrl+S provides.
+const attachHandle = (id, handle) => {
+  fileHandles[id] = handle
+  markSaved(id)
+  if (!storeAvailable || !project) return Promise.resolve()
+  return saveHandle(project.id, id, handle)
+    .catch((err) => console.error('Could not remember the file', err))
 }
 
 // A handle carries read permission from the moment it is picked; writing needs
@@ -323,9 +371,8 @@ async function saveFile() {
     return
   }
   // from here on Ctrl+S goes to this file
-  fileHandles[id] = handle
   if (id === 'main') fileName = handle.name
-  markSaved(id)
+  attachHandle(id, handle)
 }
 
 //------------------------ open file & project ------------------------
@@ -425,8 +472,7 @@ const openHandle = async (handle, id) => {
   // the text lands first: writing it marks the pane unsaved, so the handle has
   // to be attached before markSaved settles it
   openText(id, file.name, await file.text())
-  fileHandles[id] = handle
-  markSaved(id)
+  attachHandle(id, handle)
 }
 
 // The picker path. A zip is still a project import, which has no single file to
@@ -623,6 +669,210 @@ function openWin() {
   window.open('./app.html', '_blank')
 }
 
+//------------------------------ projects ------------------------------
+// One project is one record: its three files, its own settings, and the file
+// handles of its panes. Exactly one is open at a time, and switching flushes
+// the current one first so nothing in flight is lost.
+
+// Called from bootQuickCode before any editor exists, because the editors are
+// built out of the project's content.
+async function loadWorkspace() {
+  try {
+    project = await openWorkspace()
+  } catch (err) {
+    // a private window, or storage the browser has blocked. The editor still
+    // works for this session; nothing is kept.
+    console.error('Could not open the project store', err)
+    storeAvailable = false
+    project = makeProject({ name: 'This session only' })
+  }
+  Object.assign(quickEdit, project.settings)
+  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  await restoreHandles()
+}
+
+const restoreHandles = async () => {
+  let found = {}
+  if (storeAvailable && project) {
+    try {
+      found = await loadHandles(project.id, TAB_IDS)
+    } catch (err) {
+      found = {}
+    }
+  }
+  TAB_IDS.forEach((id) => {
+    fileHandles[id] = found[id] || null
+    unsaved[id] = false
+  })
+  updateTitle()
+}
+
+// make a record the open one, and put it on the screen
+const openRecord = async (record) => {
+  project = record
+  setActiveId(record.id)
+  // the last project's file name must not follow us into this one's save dialog
+  fileName = false
+  Object.assign(quickEdit, record.settings)
+  localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
+  await restoreHandles()
+  applyProject()
+  pingPreview()
+}
+
+async function switchProject(id) {
+  if (!project || id === project.id) return
+  await flushStorage()
+  const next = await getProject(id)
+  if (next) await openRecord(next)
+}
+
+// the open record, pushed into the editors and the toolbar
+function applyProject() {
+  TAB_IDS.forEach((id) => {
+    const ed = TABS[id].get()
+    if (ed) syncValue(ed, readStored(TABS[id].key))
+  })
+
+  const lang = quickEdit.lang
+  gets('#lang').innerText = lang
+  gets('#lang').setAttribute('data-type', lang)
+  setLang(lang)
+  if (lang === 'html') makeActive(quickEdit.tab)
+
+  if (quickEdit.split) {
+    splitMenu(quickEdit.splitLang)
+  } else {
+    singleEditor()
+  }
+  setSplitRatio(quickEdit.splitRatio)
+
+  gets('#cssCheck').checked = Boolean(quickEdit.css)
+  gets('#jsCheck').checked = Boolean(quickEdit.js)
+  updateProjectLabel()
+  updateTitle()
+}
+
+//------------------------- the project picker ------------------------
+
+const updateProjectLabel = () => {
+  const btn = gets('#project')
+  if (btn && project) btn.innerText = project.name
+}
+
+async function newProject() {
+  const name = prompt('Name for the new project?', 'Untitled')
+  if (name === null) return
+  await flushStorage()
+  const created = makeProject({ name: name.trim() || 'Untitled' })
+  await saveProject(created)
+  await openRecord(created)
+  await refreshProjects()
+}
+
+async function renameProject() {
+  if (!project) return
+  const name = prompt('Rename this project to?', project.name)
+  if (name === null) return
+  project.name = name.trim() || project.name
+  await flushStorage()
+  updateProjectLabel()
+  await refreshProjects()
+}
+
+// The copy deliberately does not inherit the file handles: it would otherwise
+// save straight over the files of the project it was copied from.
+async function duplicateProject() {
+  if (!project) return
+  await flushStorage()
+  const copy = makeProject({
+    name: project.name + ' copy',
+    code: readStored('code'),
+    css: readStored('css'),
+    js: readStored('js'),
+    settings: Object.assign({}, project.settings),
+  })
+  await saveProject(copy)
+  await openRecord(copy)
+  await refreshProjects()
+}
+
+async function removeProject() {
+  if (!project) return
+  if (!confirm('Delete "' + project.name + '"?\n\nIts three files go with it, and this cannot be undone.')) return
+  // a queued write would put the record straight back
+  cancelFlush()
+  const goneId = project.id
+  await deleteProject(goneId)
+  await forgetHandles(goneId, TAB_IDS)
+  const rest = (await listProjects()).filter((p) => p.id !== goneId)
+  // there is always a project open: an empty one is a better landing place
+  // than a blank screen with nothing to type into
+  const next = rest[0] || makeProject({})
+  if (!rest.length) await saveProject(next)
+  await openRecord(next)
+  await refreshProjects()
+}
+
+const PROJECT_ACTIONS = [
+  { id: 'new', label: '+ new project', run: newProject },
+  { id: 'rename', label: 'rename', run: renameProject },
+  { id: 'duplicate', label: 'duplicate', run: duplicateProject },
+  { id: 'delete', label: 'delete', run: removeProject },
+]
+
+async function refreshProjects() {
+  const list = gets('#projectList')
+  if (!list) return
+  let all = []
+  try {
+    all = await listProjects()
+  } catch (err) {
+    all = project ? [project] : []
+  }
+  list.innerHTML = ''
+  all.forEach((p) => {
+    const row = document.createElement('div')
+    row.className = 'option' + (project && p.id === project.id ? ' active-project' : '')
+    row.setAttribute('data-project', p.id)
+    // textContent, never innerHTML: the name is whatever was typed into a prompt
+    row.textContent = p.name
+    list.appendChild(row)
+  })
+  const separator = document.createElement('div')
+  separator.className = 'gradient'
+  list.appendChild(separator)
+  PROJECT_ACTIONS.forEach((action) => {
+    const row = document.createElement('div')
+    row.className = 'option'
+    row.setAttribute('data-action', action.id)
+    row.textContent = action.label
+    list.appendChild(row)
+  })
+}
+
+function wireProjects() {
+  const list = gets('#projectList')
+  if (!list) return
+  updateProjectLabel()
+  refreshProjects()
+
+  // delegated, because the rows are rebuilt every time a project appears or
+  // goes away
+  list.addEventListener('click', (e) => {
+    const row = e.target.closest('[data-project], [data-action]')
+    if (!row) return
+    list.classList.remove('toggle')
+    const id = row.getAttribute('data-project')
+    if (id) {
+      switchProject(id).catch((err) => console.error('Could not open that project', err))
+      return
+    }
+    const action = PROJECT_ACTIONS.filter((a) => a.id === row.getAttribute('data-action'))[0]
+    if (action) action.run().catch((err) => console.error('That did not work', err))
+  })
+}
+
 //------------------------------- navbar ------------------------------
 
 const NARROW_WIDTH = 670
@@ -708,18 +958,19 @@ function initCore() {
   // abbreviations at all (m10 -> margin: 10px, df -> display: flex)
   emmetMonaco.emmetCSS(monaco)
 
-  // seed the content keys so app.html and the line counters never see null
-  TAB_IDS.forEach((id) => {
-    if (localStorage.getItem(TABS[id].key) === null) {
-      localStorage.setItem(TABS[id].key, '')
-    }
-  })
+  // the preview window reads the settings from here
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
 
-  // never lose queued text
-  window.addEventListener('pagehide', flushStorage)
+  // Never lose queued text. The snapshot is what actually saves it: an
+  // IndexedDB write started here cannot be relied on to finish before the page
+  // goes away, while localStorage.setItem is synchronous and always lands.
+  const persistNow = () => {
+    flushStorage()
+    snapshot(project)
+  }
+  window.addEventListener('pagehide', persistNow)
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) flushStorage()
+    if (document.hidden) persistNow()
   })
 
   ext = extFor(quickEdit.lang)
@@ -745,6 +996,7 @@ function initCore() {
   wireToolbar()
   wireDropdowns()
   wireFileHandler()
+  wireProjects()
 }
 
 function wireToolbar() {
@@ -841,8 +1093,10 @@ function wireDropdowns() {
   // Apply the choice straight from the option that was clicked. This used to
   // count clicks on the whole .select container and act only on even ones, so
   // a stray click inside it swallowed the next selection.
+  // the project list builds its options as projects come and go, and wires
+  // them itself
   const apply = { selectA: setLang, selectB: settheme }
-  getsAll('.option').forEach((opt) => {
+  getsAll('.selectA .option, .selectB .option').forEach((opt) => {
     opt.addEventListener('click', () => {
       const select = opt.closest('.select')
       const btn = select.children[0]

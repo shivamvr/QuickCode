@@ -325,6 +325,10 @@ label {
 .select .selectDropdown .option:hover {
   background: #f8f8f8;
 }
+/* which project is open, without introducing a colour */
+.select .selectDropdown .active-project {
+  font-weight: 600;
+}
 .select .selectDropdown.toggle {
   visibility: visible;
   -webkit-transform: scale(1, 1);

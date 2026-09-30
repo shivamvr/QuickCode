@@ -166,12 +166,12 @@ is deliberately left alone (see
 [14-emmet-and-theming.md](14-emmet-and-theming.md)), and a dirty dot on the tab
 strip would have meant new elements and new colours in it.
 
-**Handles are session-only.** Persisting them needs IndexedDB, which is item 04,
-and `requestPermission` needs a user gesture so a reopened file could not be
-re-granted at startup anyway. The buffer still survives a reload through
-`localStorage`; what does not survive is the link to the file, so after a reload
-the file has to be reopened before Ctrl+S can write to it. The title drops back
-to `QuickCode` when that happens, so it never claims a file it cannot write.
+**Handles were session-only.** ~~Persisting them needs IndexedDB, which is item
+04~~ - **item 04 did it.** A handle is stored per project and pane in the
+`handles` store and restored at boot, so a reopened project still knows which
+file each pane came from. The permission to write is deliberately not restored
+with it: `requestPermission` only works inside a user gesture, and the next
+Ctrl+S is one.
 
 ### Not done
 
