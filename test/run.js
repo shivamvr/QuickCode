@@ -164,8 +164,12 @@ async function main() {
 
   for (const scenario of SCENARIOS) {
     server.setOffline(false)        // whatever the previous case did to it
+    const started = Date.now()
     const report = await runCase(chrome, scenario, tmpDir, pending)
-    console.log(scenario.name)
+    // printed because it is the early warning for the case timeout: a case
+    // creeping towards CASE_TIMEOUT_MS is what an intermittent failure looks
+    // like before it starts failing
+    console.log(scenario.name + '  (' + ((Date.now() - started) / 1000).toFixed(1) + 's)')
     for (const r of report.results || []) {
       const mark = r.pass ? '  PASS  ' : '  FAIL  '
       console.log(mark + r.name)

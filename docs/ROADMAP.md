@@ -16,7 +16,7 @@ web workers).
 | 03 | [PWA, offline, file handling](03-pwa-offline.md) | ~~Could not start without a network, and lived in a tab~~ **done** - installable, offline, opens files from the desktop | 02 | M |
 | 04 | [IndexedDB + multiple projects](04-indexeddb-projects.md) | ~~Only one project could exist; every experiment overwrote the last~~ **done** | 01 | L |
 | 05 | [Share links](05-share-link.md) | ~~A snippet could only leave as a zip~~ **done** - the whole thing rides in the url fragment | 04 | S |
-| 06 | [Preview console and errors](06-preview-console.md) | Runtime errors and `console.log` currently vanish | 01 | M |
+| 06 | [Preview console and errors](06-preview-console.md) | ~~Runtime errors and `console.log` vanished into a tab nobody was looking at~~ **done** | 01 | M |
 | 07 | [Resizable split](07-resizable-split.md) | ~~The split is hard-coded 50/50~~ **done** | — | S |
 | 08 | [Format on save](08-format-on-save.md) | ~~Small change, large daily payoff~~ **done** | — | S |
 | 09 | [Upgrade monaco](09-monaco-upgrade.md) | Pinned to 0.25.1 from mid-2021 | 15 | M |
@@ -38,9 +38,11 @@ small enough to slot in whenever.
 
 **The two that change what QuickCode is:** ~~02~~ + ~~03~~ made it feel like a local
 tool rather than a web page; ~~04~~ + ~~05~~ + 12 make it somewhere work actually
-lives. **06 is now the one to do next**: with snippets arriving by link, a
-runtime error vanishing into a tab nobody is looking at is the most annoying
-thing left.
+lives.
+
+**What is left:** 09 (upgrade monaco) unblocks 10 and 13; 12 (version history)
+is the last of the "somewhere work lives" group and the only recovery path from
+a mistake. 11 stands alone.
 
 Of the two things 02 left for later, **remembering file handles across a
 reload** is done (04 stores them per project and pane). **Directory handles** as
@@ -74,6 +76,9 @@ minute. See [test/README.md](../test/README.md).
   are global; everything else belongs to the project.
 - `bootQuickCode()` is **async**: it loads the project before any editor exists.
   Anything added before that `await` must not touch an editor.
+- The preview document is built in `scripts/preview.js`, by both the inline pane
+  and `app.html`. **Nothing injected above the user's code may contain a
+  newline**, or the line numbers the console reports stop matching the editor.
 - The `main`/`css`/`js` mapping lives in `TABS`; add to the table rather than
   writing another three-branch `if`.
 

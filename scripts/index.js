@@ -67,6 +67,7 @@ const writeSoon = (key, value) => {
   if (!project) return
   project[key] = value
   scheduleFlush()
+  schedulePreview()
 }
 
 // app.html rebuilds the preview whenever localStorage changes. Content does not
@@ -947,6 +948,130 @@ function wireProjects() {
   })
 }
 
+//---------------------------- preview pane ---------------------------
+// The preview is the fourth tab of the split view, so it inherits the drag
+// handle, the remembered ratio and the show/hide that the editor panes already
+// had. Under it sits the console: without it a snippet that throws does nothing
+// visible, because the error lands in a tab nobody is looking at.
+
+const PREVIEW_LANG = 'preview'
+const PREVIEW_DEBOUNCE_MS = 400
+const CONSOLE_LIMIT = 300
+
+let previewSources = {}
+let previewTimer = null
+// turned off by stop, so a snippet that hangs the frame can be stopped rather
+// than being started again on the next keystroke
+let previewLive = true
+
+const previewShowing = () => quickEdit.split && quickEdit.splitLang === PREVIEW_LANG
+
+function renderPreview() {
+  const frame = gets('#previewFrame')
+  if (!frame || !previewShowing()) return
+  clearTimeout(previewTimer)
+  previewTimer = null
+  const built = buildPreviewDoc({
+    code: readStored('code'), css: readStored('css'), js: readStored('js'),
+  }, quickEdit)
+  previewSources = built.sources
+  frame.srcdoc = built.html
+}
+
+function schedulePreview() {
+  if (!previewShowing() || !previewLive) return
+  clearTimeout(previewTimer)
+  previewTimer = setTimeout(renderPreview, PREVIEW_DEBOUNCE_MS)
+}
+
+// Navigating the frame is what actually kills a script that is still running,
+// which a stop button has to be able to do.
+function stopPreview() {
+  previewLive = false
+  clearTimeout(previewTimer)
+  previewTimer = null
+  const frame = gets('#previewFrame')
+  if (frame) frame.srcdoc = ''
+  logToConsole({ kind: 'info', args: ['stopped'] })
+}
+
+function runPreview() {
+  previewLive = true
+  renderPreview()
+}
+
+//------------------------------ the console --------------------------
+
+const consoleRows = () => gets('#consoleOut')
+
+const clearConsole = () => {
+  const out = consoleRows()
+  if (!out) return
+  out.innerHTML = ''
+  const empty = document.createElement('div')
+  empty.className = 'logEmpty'
+  empty.textContent = 'nothing yet'
+  out.appendChild(empty)
+}
+
+function logToConsole(message) {
+  const out = consoleRows()
+  if (!out) return
+  const placeholder = out.querySelector('.logEmpty')
+  if (placeholder) placeholder.remove()
+
+  const row = document.createElement('div')
+  row.className = 'logRow log-' + (message.kind || 'log')
+  // textContent, never innerHTML: this is output from code we did not write
+  row.textContent = (message.args || []).join('  ')
+
+  const where = previewLocation(previewSources, message.file, message.line)
+  if (where) {
+    const tag = document.createElement('span')
+    tag.className = 'logWhere'
+    // the main pane is whatever language it is currently set to
+    tag.textContent = (where.pane === 'main' ? quickEdit.lang : where.pane) + ':' + where.line
+    row.appendChild(tag)
+  }
+
+  out.appendChild(row)
+  while (out.children.length > CONSOLE_LIMIT) {
+    out.removeChild(out.firstChild)
+  }
+  out.scrollTop = out.scrollHeight
+}
+
+function wirePreview() {
+  clearConsole()
+  onClick(gets('#previewRun'), runPreview)
+  onClick(gets('#previewStop'), stopPreview)
+  onClick(gets('#consoleClear'), clearConsole)
+
+  window.addEventListener('message', (e) => {
+    const frame = gets('#previewFrame')
+    // A sandboxed frame has an opaque origin, so e.origin is the string "null"
+    // and proves nothing. Identity has to come from the source window - any
+    // page anywhere can post a message to this one.
+    if (!frame || e.source !== frame.contentWindow) return
+    const data = e.data
+    if (!data || data.__qc !== true) return
+    logToConsole(data)
+  })
+}
+
+// showing the preview means building it; leaving it means the editor is back
+function showPreviewPane(showing) {
+  const pane = gets('#previewPane')
+  const editorPane = gets('#splitEditor')
+  if (!pane) return
+  pane.style.display = showing ? 'flex' : 'none'
+  if (editorPane) editorPane.style.display = showing ? 'none' : 'block'
+  if (showing) {
+    previewLive = true
+    renderPreview()
+  }
+}
+
 //------------------------------- navbar ------------------------------
 
 const NARROW_WIDTH = 670
@@ -1071,6 +1196,7 @@ function initCore() {
   wireDropdowns()
   wireFileHandler()
   wireProjects()
+  wirePreview()
 
   if (shareProblem) {
     // after this turn of the loop, so the editor is on screen behind it rather

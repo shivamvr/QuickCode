@@ -70,6 +70,80 @@ body {
   height: 100%;
 }
 
+/* ---------------------preview-pane---------------------- */
+/* the tab strip above it is 30px, and this sits under it */
+#previewPane {
+  width: 100%;
+  height: calc(100% - 30px);
+  display: none;
+  flex-direction: column;
+}
+#previewFrame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+#consolePanel {
+  height: 38%;
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #eee;
+  background: #f8f8f8;
+}
+#consoleBar {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #5b6c7f;
+  border-bottom: 1px solid #eee;
+  user-select: none;
+}
+#consoleTitle {
+  flex: 1 1 auto;
+}
+#consoleBar span + span {
+  margin-left: 12px;
+  cursor: pointer;
+}
+#consoleBar span + span:hover {
+  color: #37a1af;
+}
+#consoleOut {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  font-family: Consolas, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.logRow {
+  padding: 2px 10px;
+  border-bottom: 1px solid #efefef;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #444;
+}
+/* the two that have to stand out; everything else stays in the app's own greys */
+.logRow.log-error {
+  color: #b3261e;
+  background: #fdf1f0;
+}
+.logRow.log-warn {
+  color: #8a6100;
+  background: #fdf8ec;
+}
+.logWhere {
+  color: #8a94a6;
+  margin-left: 10px;
+}
+.logEmpty {
+  padding: 8px 10px;
+  color: #8a94a6;
+}
+
 #hidenav,
 #shownav {
   position: absolute;

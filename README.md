@@ -33,13 +33,23 @@ highlighting, IntelliSense, bracket matching, code folding and minimap.
   the preview**, so you can toggle a stylesheet or a script off without deleting it
 - **Emmet abbreviations** in the HTML editor — type `div.card>ul>li*3` and press <kbd>Tab</kbd>
 
-### 🖥️ Live preview
+### 🖥️ Live preview, with a console
 
-Click the **Run** icon to open your code in a new tab.
+Pick **preview** in the split menu and it runs beside the editor; the **Run** icon still opens
+it in its own tab.
 
 - HTML mode renders your markup with the CSS and JS you've enabled
-- The preview **reloads itself as you type** — no manual refresh
+- It **refreshes as you type**, rebuilding in place rather than reloading
 - JavaScript mode runs your script directly; plaintext mode renders it as escaped text
+- **stop** empties the frame, which is how you get out of an accidental `while (true)`, and
+  **run** starts it again
+
+Under the preview is a **console**. `console.log`, `warn` and `error` from your snippet appear
+there with every argument, and so do uncaught errors and rejected promises — tagged with the
+line in **your editor**, `js:3` rather than a line of the document QuickCode generated.
+
+Your code still runs sandboxed on an opaque origin, so it cannot reach your saved work; the
+console is a one-way report, not a way in.
 
 ### ⬄ Split view
 

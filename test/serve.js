@@ -81,9 +81,13 @@ function instrument(html, file, caseName) {
     // so the probe has to wait for it rather than for the loader
     const booted =
       'require(["vs/editor/editor.main"], function () {\n' +
-      '  bootQuickCode().then(function () {\n' +
+      '  var probe = function () {\n' +
       '    var s = document.createElement("script"); s.src = "/__test/probe.js";\n' +
       '    document.body.appendChild(s);\n' +
+      '  };\n' +
+      '  bootQuickCode().then(probe, function (err) {\n' +
+      '    window.__errors.push("boot failed: " + ((err && err.message) || err));\n' +
+      '    probe();\n' +
       '  });\n' +
       '});'
     if (!out.includes(boot)) {

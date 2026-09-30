@@ -8,8 +8,17 @@ let splitMenuClosed = true
 //------------------------------ split view ---------------------------
 
 function splitMenu(lang) {
+    // the preview is the one split tab that is not an editor
+    if (lang === PREVIEW_LANG) {
+        saveSettings({ splitLang: lang })
+        doSplit()
+        makeSplitTabActive(lang)
+        showPreviewPane(true)
+        return
+    }
     if (!SPLIT_TABS[lang]) return
     saveSettings({ splitLang: lang })
+    showPreviewPane(false)
     ensureSplitEditor()
     monaco.editor.setModelLanguage(splitEditor.getModel(), lang)
     doSplit()
@@ -41,7 +50,7 @@ function applySplitRatio() {
 
 function doSplit() {
     saveSettings({ split: true })
-    ensureSplitEditor()
+    if (quickEdit.splitLang !== PREVIEW_LANG) ensureSplitEditor()
     gets('.splitsvg').style.display = 'none'
     gets('.single').style.display = 'block'
     applySplitRatio()
@@ -330,11 +339,18 @@ function wireSplit() {
 
     splitRatio = clampRatio(quickEdit.splitRatio)
     wireSplitHandle()
+    restoreSplit()
+}
 
-    if (quickEdit.split) {
-        doSplit()
-        makeSplitTabActive(quickEdit.splitLang)
-    }
+// Put the split back the way it was left. Separate from the wiring above so it
+// can be called again, and because the preview needs showing as well as the
+// tab needs marking - forgetting that left the tab looking active over a hidden
+// pane.
+function restoreSplit() {
+    if (!quickEdit.split) return
+    doSplit()
+    makeSplitTabActive(quickEdit.splitLang)
+    showPreviewPane(quickEdit.splitLang === PREVIEW_LANG)
 }
 
 //-------------------------------- boot -------------------------------

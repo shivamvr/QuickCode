@@ -1,6 +1,6 @@
 # 06 — Preview console and errors
 
-**Size:** M · **Depends on:** 01 · **Status:** not started
+**Size:** M · **Depends on:** 01 · **Status:** done (see Outcome)
 
 ## Why
 
@@ -109,3 +109,90 @@ than auto-running a `while(true)` on every keystroke.
 A thrown error and a `console.log` both appear in an in-page panel with an
 editor-relative line number, edits refresh the preview without a full reload, and
 messages from other windows are ignored.
+
+## Outcome
+
+**Done, September 2026.** The preview runs beside the editor with a console
+under it, and an error names the line in the editor rather than a line of the
+document QuickCode generated.
+
+### What was built
+
+- **`scripts/preview.js`** - one builder for both previews, so the pane and the
+  popped-out tab cannot drift apart. It returns `{ html, sources }`, where
+  `sources` says where each pane's own text begins in the generated document.
+- **The preview is the fourth tab of the split view.** That was the cheapest
+  good answer: it inherits the drag handle, the remembered ratio, the show/hide
+  and the per-project split state that the editor panes already had, and it adds
+  no new layout concept. `app.html` stays exactly as it was for the popped-out
+  tab.
+- **`scripts/index.js`** - the controller: debounced rebuild, run and stop, the
+  console panel, and the message handler.
+
+### Line numbers, which the plan said to get right or not do at all
+
+Measured rather than assumed. A quick experiment in headless Chrome settled the
+two facts the design rests on:
+
+- **`//# sourceURL` changes the reported `filename`, not the reported line.** So
+  it is worth adding - it says *which pane* an error came from - but it does not
+  renumber anything.
+- **`lineno` is relative to the whole generated document.** Every line injected
+  above the user's code moves it.
+
+So the builder follows one rule: **nothing injected above the user's code
+carries a newline**. The prelude is a single line. Everything that does have
+newlines - their css, the js pane - is appended *after* their markup, and where
+it starts is measured as the document is built rather than guessed. A whole
+document from the editor comes through completely unmoved, so its lines are its
+own.
+
+The test that guards this compares the built document against the source: the
+line a marker sits on in the user's text must equal the line it sits on in the
+output, and each recorded start must really be where that pane's code begins.
+An earlier version of the check only exercised the mapping, and a newline
+injected above the user's code sailed straight past it.
+
+### Two bugs found on the way
+
+**Escaping the html pane broke inline scripts.** The css and js panes are
+escaped because they are inlined *into* a style or script tag, where a closing
+tag would break out. The html pane is markup and must go in as written - it got
+the same treatment for a moment, and every script inside a snippet stopped
+closing. The preview-safety case caught it immediately.
+
+**`app.html` could paint a stale preview over a fresh one.** Two reads overlap
+every time that page opens - the first starts before anything has been written -
+and IndexedDB reads can finish out of order, so the older answer could land
+last. Reads are now numbered and a stale one is discarded. This showed up as a
+one-in-four test flake; fixing it took that case from 5-15 seconds down to a
+steady 0.6.
+
+### Message safety
+
+`e.origin` is the string `"null"` for a sandboxed frame and proves nothing, so
+identity comes from `e.source !== frame.contentWindow`, with the `__qc` marker
+as a second gate. Console rows are written with `textContent`, never
+`innerHTML`: this is output from code we did not write. The panel is capped at
+300 rows.
+
+### Verification
+
+`node test/run.js` - **105 checks**, all passing. The new ones cover console
+output with every argument, a thrown error and an unhandled rejection, the
+editor-relative line for both an inline script in the html pane and the js pane,
+errors marked as errors, a spoofed message from the page itself and from another
+frame being ignored, editing refreshing in place, stop emptying the frame and
+staying stopped, run starting it again, and a restored session coming back with
+the preview showing.
+
+Mutation-checked: a newline injected above the user's code, and dropping the
+`e.source` check, each turned the suite red.
+
+### Not done
+
+- **The popped-out tab has no console of its own.** It is a separate window with
+  its own devtools, and the messages the prelude sends there go nowhere. Worth
+  doing only if anyone actually uses that window as their main preview.
+- **An infinite loop still hangs the frame** until stop is pressed. A real fix
+  means running the snippet in a worker, which is a different item.

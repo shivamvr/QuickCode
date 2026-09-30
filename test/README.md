@@ -17,7 +17,7 @@ through six scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
-| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, and both file-open/save paths |
+| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, and the preview console |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `migrate` | `index.html` | loads over a seeded pre-IndexedDB `localStorage`, then reloads: the migration must take everything, keep the old keys, and not run twice |
 | `share` | `index.html#s=…` | opens a share link that **node's zlib** built, not the browser |
@@ -97,6 +97,16 @@ that looked correct and proved nothing:
   has to `cancelFlush()` and drop the in-memory record first, or the write lands
   mid-delete and puts the project straight back. The app does the same thing in
   `removeProject()`, for the same reason.
+- **Test the invariant, not the description of it.** The preview's line numbers
+  depend on nothing injected above the user's code carrying a newline. A check
+  that exercised only the mapping passed happily while a newline was being
+  injected; the check that compares the built document against the source caught
+  it at once.
+- **Two overlapping async reads can finish in either order.** A one-in-four
+  flake in the preview case turned out to be `app.html` painting a stale read
+  over a fresh one - a real bug, not a test problem. Timings are printed per
+  case now, and the giveaway was that case sitting at 15s where it should take
+  under one.
 - **A round trip against yourself proves nothing about a format.** The share
   link case builds its link in node with `zlib.deflateRawSync` and hands it to
   the browser, so encode and decode are different implementations. Encoding and
@@ -137,6 +147,10 @@ node test/run.js                                       # expect 3, 1 and 1 FAILs
 #    make importShared() write over the open project, drop the version check in
 #    decodeShare(), or remove the history.replaceState that clears the fragment
 node test/run.js                                       # expect 2, 1 and 2 FAILs
+# 7. the preview console
+#    inject a newline above the user's code in scripts/preview.js, or drop the
+#    e.source check from the message handler in scripts/index.js
+node test/run.js                                          # expect 1 FAIL each
 ```
 
-All six were confirmed to fail when introduced, and pass once reverted.
+All seven were confirmed to fail when introduced, and pass once reverted.

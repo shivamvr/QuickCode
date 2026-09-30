@@ -78,6 +78,8 @@
                         <div class="splititem" data-split-lang="css"> <img src="icon/css.svg"> css</div>
                         <div class="gradient"></div>
                         <div class="splititem" data-split-lang="javascript"> <img src="icon/js.svg"> js</div>
+                        <div class="gradient"></div>
+                        <div class="splititem" data-split-lang="preview"> <img src="icon/code1.svg"> preview</div>
                      </div>
                   </div>
                </div>
@@ -144,8 +146,22 @@
                <div class="splitTab splithtml" data-split-lang="html"><img src="icon/html.svg" alt=""><span>html</span></div>
                <div class="splitTab splitcss" data-split-lang="css"><img src="icon/css.svg" alt=""><span>css</span></div>
                <div class="splitTab splitjs" data-split-lang="javascript"><img src="icon/js.svg" alt=""><span>js</span></div>
+               <div class="splitTab splitpreview" data-split-lang="preview"><img src="icon/code1.svg" alt=""><span>preview</span></div>
             </div>
             <pre id="splitEditor" class="scrollbar"></pre>
+            <!-- the preview, and what the snippet had to say for itself -->
+            <div id="previewPane">
+               <iframe id="previewFrame" title="Preview" sandbox="allow-scripts allow-modals allow-forms allow-popups"></iframe>
+               <div id="consolePanel">
+                  <div id="consoleBar">
+                     <span id="consoleTitle">console</span>
+                     <span id="previewRun">run</span>
+                     <span id="previewStop">stop</span>
+                     <span id="consoleClear">clear</span>
+                  </div>
+                  <div id="consoleOut" class="scrollbar"></div>
+               </div>
+            </div>
          </div>
       </div>
    <!------------------------File-Save-popup--------------------------->
@@ -167,6 +183,7 @@
    <!-----------------------Scripts------------------------------------>
       <script src="scripts/store.js"></script>
       <script src="scripts/share.js"></script>
+      <script src="scripts/preview.js"></script>
       <script src="scripts/index.js"></script>
       <script src="scripts/cssEditor.js"></script>
       <script src="scripts/jsEditor.js"></script>

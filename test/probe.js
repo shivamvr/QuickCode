@@ -569,6 +569,217 @@
       })
   }
 
+  // ------------------------------------------------------- preview console
+  function consoleRowsText() {
+    return Array.prototype.map.call(getsAll('#consoleOut .logRow'), function (r) {
+      return r.textContent
+    })
+  }
+
+  function rowSaying(text) {
+    return Array.prototype.filter.call(getsAll('#consoleOut .logRow'), function (r) {
+      return r.textContent.indexOf(text) > -1
+    })[0]
+  }
+
+  function whereOf(row) {
+    var tag = row && row.querySelector('.logWhere')
+    return tag ? tag.textContent : null
+  }
+
+  function previewChecks() {
+    setLang('html')
+    makeActive('main')
+    gets('#cssCheck').checked = true
+    gets('#jsCheck').checked = true
+    saveSettings({ css: true, js: true })
+
+    // the inline script is on line 3 of the html pane, and the js pane throws
+    // on its line 3 - both have to come back as those numbers, not as lines of
+    // the document that was generated
+    setPaneText('main', '<h1>preview</h1>\n<p>hello</p>\n<script>throw new Error("from html")<\/script>')
+    setPaneText('css', 'h1 { color: teal }')
+    setPaneText('js', 'console.log("one", 2, { three: true })\nPromise.reject(new Error("nope"))\nthrow new Error("from js")')
+
+    clearConsole()
+    splitMenu('preview')
+
+    return waitFor(function () { return consoleRowsText().length >= 4 }, 10000)
+      .then(function (spoke) {
+        check('the preview is a tab of the split view, with a console under it', function () {
+          return ok(quickEdit.splitLang === 'preview' && quickEdit.split === true &&
+            gets('#previewPane').style.display === 'flex' &&
+            gets('#splitEditor').style.display === 'none' &&
+            gets('#previewFrame').srcdoc.length > 0,
+            'splitLang=' + quickEdit.splitLang + ' pane=' + gets('#previewPane').style.display +
+            ' editor=' + gets('#splitEditor').style.display)
+        })
+        check('console output reaches the editor, every argument of it', function () {
+          var row = rowSaying('one')
+          return ok(!!row && row.textContent.indexOf('2') > -1 &&
+            row.textContent.indexOf('"three":true') > -1,
+            row ? JSON.stringify(row.textContent) : 'nothing logged: ' + consoleRowsText().join(' | '))
+        })
+        check('a thrown error is reported against the line in the editor', function () {
+          var fromJs = rowSaying('from js')
+          var fromHtml = rowSaying('from html')
+          return ok(!!fromJs && whereOf(fromJs) === 'js:3' &&
+            !!fromHtml && whereOf(fromHtml) === 'html:3',
+            'js error at ' + whereOf(fromJs) + ' (want js:3), html error at ' +
+            whereOf(fromHtml) + ' (want html:3)')
+        })
+        check('an unhandled promise rejection is reported too', function () {
+          var row = rowSaying('Unhandled promise rejection')
+          return ok(!!row && row.textContent.indexOf('nope') > -1,
+            row ? JSON.stringify(row.textContent) : consoleRowsText().join(' | '))
+        })
+        check('errors are marked as errors, not as ordinary output', function () {
+          var row = rowSaying('from js')
+          var log = rowSaying('one')
+          return ok(row && row.classList.contains('log-error') &&
+            log && log.classList.contains('log-log'),
+            'error row classes=' + (row && row.className) + ', log row classes=' + (log && log.className))
+        })
+        return spoke
+      })
+      .then(function () {
+        // anything can post a message to this page; only the frame is believed
+        var before = consoleRowsText().length
+        window.postMessage({ __qc: true, kind: 'error', args: ['SPOOFED from the page'] }, '*')
+        const stranger = document.createElement('iframe')
+        stranger.sandbox = 'allow-scripts'
+        stranger.style.display = 'none'
+        stranger.srcdoc = '<scr' + 'ipt>parent.postMessage({__qc:true,kind:"error",' +
+          'args:["SPOOFED from another frame"]},"*")<' + '/scr' + 'ipt>'
+        document.body.appendChild(stranger)
+        return waitFor(function () { return false }, 800).then(function () {
+          check('a message from anywhere but the preview frame is ignored', function () {
+            var texts = consoleRowsText().join(' | ')
+            return ok(texts.indexOf('SPOOFED') === -1 && consoleRowsText().length === before,
+              consoleRowsText().length + ' rows, was ' + before + '; contains SPOOFED=' +
+              (texts.indexOf('SPOOFED') > -1))
+          })
+          stranger.remove()
+        })
+      })
+      .then(function () {
+        // editing rebuilds the frame's document; nothing reloads
+        var frame = gets('#previewFrame')
+        var was = frame.srcdoc
+        setPaneText('css', 'h1 { color: rebeccapurple }')
+        return waitFor(function () { return gets('#previewFrame').srcdoc !== was }, 5000)
+          .then(function (rebuilt) {
+            check('editing refreshes the preview in place', function () {
+              return ok(rebuilt && gets('#previewFrame') === frame &&
+                frame.srcdoc.indexOf('rebeccapurple') > -1,
+                'same frame element=' + (gets('#previewFrame') === frame) +
+                ', new css in the document=' + (frame.srcdoc.indexOf('rebeccapurple') > -1))
+            })
+          })
+      })
+      .then(function () {
+        // stop has to be able to kill a script that is still running, which
+        // means navigating the frame rather than just not rebuilding it
+        stopPreview()
+        var stopped = gets('#previewFrame').srcdoc === ''
+        setPaneText('css', 'h1 { color: black }')
+        return waitFor(function () { return false }, 700).then(function () {
+          check('stop empties the frame and stays stopped while you type', function () {
+            return ok(stopped && gets('#previewFrame').srcdoc === '',
+              'emptied=' + stopped + ', still empty after an edit=' +
+              (gets('#previewFrame').srcdoc === ''))
+          })
+          runPreview()
+          return waitFor(function () { return gets('#previewFrame').srcdoc.length > 0 }, 5000)
+        })
+      })
+      .then(function (running) {
+        check('run starts it again', function () {
+          return ok(running && gets('#previewFrame').srcdoc.indexOf('black') > -1,
+            'rebuilt=' + running)
+        })
+      })
+      .then(function () {
+        // The offsets on their own, against the document that was actually
+        // built rather than against the map that describes it: the whole scheme
+        // rests on nothing QuickCode injects above the user's code carrying a
+        // newline, and only the document itself can show that.
+        var lineIn = function (text, needle) {
+          var at = text.indexOf(needle)
+          return at < 0 ? -1 : text.slice(0, at).split('\n').length
+        }
+
+        var wholeSrc = '<html>\n<head></head>\n<body>\n<script>x()<\/script>\n</body>\n</html>'
+        var whole = buildPreviewDoc({ code: wholeSrc, css: 'a{}\nb{}', js: 'y()' },
+          { lang: 'html', css: true, js: true })
+        var fragmentSrc = '<h1>one</h1>\n<p>two</p>\n<script>z()<\/script>'
+        var fragment = buildPreviewDoc({ code: fragmentSrc, css: 'a{}\nb{}', js: 'w()' },
+          { lang: 'html', css: true, js: true })
+        var jsMode = buildPreviewDoc({ code: 'var a = 1\nthrow new Error("x")' },
+          { lang: 'javascript' })
+
+        check('nothing injected above the user\u2019s code moves their lines', function () {
+          var wholeSame = lineIn(wholeSrc, 'x()') === lineIn(whole.html, 'x()')
+          var fragmentShift = lineIn(fragment.html, 'z()') - lineIn(fragmentSrc, 'z()')
+          // a fragment is wrapped, so its lines may move - but only by the
+          // amount the map says they did
+          var claimed = fragment.sources['quickcode-html'].startLine - 1
+          return ok(wholeSame && fragmentShift === claimed,
+            'a whole document is untouched=' + wholeSame +
+            '; a fragment moved by ' + fragmentShift + ' and the map says ' + claimed)
+        })
+
+        check('each pane\u2019s recorded start really is where its code begins', function () {
+          var jsAt = lineIn(whole.html, 'y()')
+          var jsClaimed = whole.sources['quickcode-js'].startLine
+          var mainAt = lineIn(jsMode.html, 'var a = 1')
+          var mainClaimed = jsMode.sources['quickcode-js'].startLine
+          return ok(jsAt === jsClaimed && mainAt === mainClaimed,
+            'js pane starts on ' + jsAt + ', recorded as ' + jsClaimed +
+            '; javascript mode starts on ' + mainAt + ', recorded as ' + mainClaimed)
+        })
+
+        check('a reported line becomes the right line in the editor', function () {
+          // the throw is on line 2 of the main pane in javascript mode
+          var a = previewLocation(jsMode.sources, 'quickcode-js', jsMode.sources['quickcode-js'].startLine + 1)
+          // line 4 of a whole document is still line 4
+          var b = previewLocation(whole.sources, 'about:srcdoc', 4)
+          var c = previewLocation(whole.sources, 'quickcode-js', whole.sources['quickcode-js'].startLine)
+          return ok(a && a.pane === 'main' && a.line === 2 &&
+            b && b.pane === 'main' && b.line === 4 &&
+            c && c.pane === 'js' && c.line === 1,
+            'javascript mode -> ' + JSON.stringify(a) + ', whole document -> ' + JSON.stringify(b) +
+            ', its js pane -> ' + JSON.stringify(c))
+        })
+
+        check('nothing is invented when there is nothing to say', function () {
+          return ok(previewLocation({}, 'somewhere-else', 12) === null &&
+            previewLocation(whole.sources, 'about:srcdoc', 0) === null,
+            'an unknown source and a missing line both give null')
+        })
+      })
+      .then(function () {
+        // what a reload does: the settings say preview, and the pane has to
+        // come back showing, not just the tab looking active
+        singleEditor()
+        saveSettings({ split: true, splitLang: 'preview' })
+        restoreSplit()
+        return waitFor(function () { return gets('#previewFrame').srcdoc.length > 0 }, 5000)
+      })
+      .then(function (rebuilt) {
+        check('a restored session comes back with the preview showing', function () {
+          return ok(rebuilt && gets('#previewPane').style.display === 'flex' &&
+            gets('.splitTab.splitpreview').classList.contains('active-tab') &&
+            gets('#splitEditor').style.display === 'none',
+            'pane=' + gets('#previewPane').style.display +
+            ', tab marked=' + gets('.splitTab.splitpreview').classList.contains('active-tab') +
+            ', document rebuilt=' + rebuilt)
+        })
+        singleEditor()
+        clearConsole()
+      })
+  }
+
   // --------------------------------------------------------------- sharing
   // The values here must match SHARED in run.js: that case opens a link this
   // browser did not build, which is the only way to prove the format is really
@@ -1322,8 +1533,7 @@
     window.__seededId = hostile.id
     return saveProject(hostile)
       .then(function () { setActiveId(hostile.id) })
-      .then(function () { return load() })     // app.html's own reader
-      .then(render)
+      .then(refresh)      // app.html's own reader, and the one that wins
   }
 
   function previewSurvived() {
@@ -1351,10 +1561,16 @@
       // Generous: the sandboxed document has to be created, parsed and run
       // after the record is written, and this is the fifth browser the suite
       // has started. A tight budget here reads as "the snippet never ran".
+      // Wait for the snippet's last word, not just any message: the preview
+      // prelude posts its own (console output and errors), and stopping at the
+      // first one would report before the snippet had finished speaking.
+      var said = function (prefix) {
+        return window.__messages.some(function (m) { return String(m).indexOf(prefix) === 0 })
+      }
       var waited = 0
       var poll = setInterval(function () {
         waited += 100
-        if (window.__messages.length > 0 || waited >= 15000) {
+        if (said('STORAGE_') || waited >= 15000) {
           clearInterval(poll)
           previewSurvived().then(function () {
             runPreviewChecks()
@@ -1366,7 +1582,8 @@
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
     storeChecks().then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
-      .then(pwaChecks).then(projectChecks).then(shareChecks).then(report, function (err) {
+      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks)
+      .then(report, function (err) {
       check('formatting checks completed', function () { return ok(false, String(err)) })
       report()
     })
