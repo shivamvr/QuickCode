@@ -102,6 +102,22 @@ in the editor's **right-click context menu**.
 | <kbd>Ctrl</kbd> + <kbd>S</kbd> | Save to the open file, or ask where to put it |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Save as |
 
+### 📥 Install it, and use it with no network
+
+QuickCode is a progressive web app. In Chrome or Edge, the address bar offers **Install**,
+and it then has its own window, its own icon and a Start-menu entry.
+
+- **Works offline.** The editor, every theme, the icons and the whole Monaco bundle -
+  including the language services behind IntelliSense - are cached on the first visit. After
+  that it opens on a plane.
+- **Opens files from the desktop.** Once installed, QuickCode registers as a handler for
+  `.html`, `.css` and `.js`. Double-click one and it opens in the pane that matches its type,
+  already attached, so <kbd>Ctrl</kbd> + <kbd>S</kbd> writes back to that file. If the pane it
+  would land in holds work that is in no file, it asks first.
+- **Stays current.** Its own files are fetched from the network first and only fall back to
+  the cache when that fails, so an update is never a version behind. The pinned CDN bundles
+  are served from the cache and refreshed in the background.
+
 ### 💾 Nothing is lost
 
 Your files are never only on disk: every keystroke is also kept in the browser, so an
@@ -135,6 +151,9 @@ Open `http://localhost:5501` and you're in.
 
 > A server is needed rather than opening the file directly, because themes are loaded with
 > `fetch` and the preview window communicates over `localStorage`.
+>
+> Installing and offline support need `localhost` or HTTPS, which Live Server and GitHub
+> Pages both are.
 
 ---
 
@@ -150,14 +169,17 @@ QuickCode/
 │   ├── jsEditor.js         # JS editor instance
 │   ├── splitEditor.js      # split-pane editor instance
 │   ├── eventListener.js    # split view, project export, cursor sync, editor actions
-│   ├── fileSaver.js        # FileSaver.js (vendored)
-│   └── jszip-utils.js      # JSZip utils (vendored)
+│   └── fileSaver.js        # FileSaver.js (vendored)
 ├── styles/
 │   ├── style.css           # layout, toolbar, editors
 │   ├── tabs.css            # tab bar and split menu
 │   └── verticalNav.css     # vertical toolbar layout (toggled on demand)
 ├── themes/                 # 13 Monaco theme definitions
-└── icon/                   # UI icons
+├── icon/                   # UI icons, and the installed app's icons
+├── manifest.webmanifest    # name, icons, and the file types it can open
+├── sw.js                   # service worker: the offline cache
+├── docs/                   # the roadmap, one plan per item
+└── test/                   # the headless browser suite: node test/run.js
 ```
 
 ## Built with

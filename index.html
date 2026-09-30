@@ -12,18 +12,28 @@
       <script src="https://unpkg.com/emmet-monaco-es/dist/emmet-monaco.min.js"></script>
       <!------------------------------------------------------------->
       <link rel="shortcut icon" href="icon/favicon.png" type="image/x-icon">
+      <!---------------------installable-app------------------------->
+      <link rel="manifest" href="manifest.webmanifest">
+      <meta name="theme-color" content="#1e1e1e">
+      <link rel="apple-touch-icon" href="icon/icon-192.png">
       <!------------------------monaco-editor------------------------->
       <script>
          var MONACO_BASE = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/";
          var require = { paths: { vs: MONACO_BASE + "vs" } };
          // Without this monaco cannot start its language workers cross-origin
          // and runs validation and IntelliSense on the main thread, competing
-         // with typing. The tiny data: worker just re-points the base url.
+         // with typing. The tiny worker just re-points the base url.
+         //
+         // It has to be a blob: url rather than a data: one. A blob inherits
+         // this page's origin, so the worker is controlled by the service
+         // worker and its importScripts can be served from the cache; a data:
+         // url has an opaque origin that no service worker controls, which
+         // would leave the language workers dead with no network.
          window.MonacoEnvironment = {
             getWorkerUrl: function () {
                var boot = "self.MonacoEnvironment={baseUrl:'" + MONACO_BASE + "'};" +
                           "importScripts('" + MONACO_BASE + "vs/base/worker/workerMain.js');";
-               return "data:text/javascript;charset=utf-8," + encodeURIComponent(boot);
+               return URL.createObjectURL(new Blob([boot], { type: "text/javascript" }));
             }
          };
       </script>
@@ -159,6 +169,17 @@
          // the editor.main bundle is large; letting the loader fetch it keeps
          // it off the critical path instead of three blocking script tags
          require(["vs/editor/editor.main"], bootQuickCode);
+
+         // Registered from here rather than from a module so the scope is this
+         // directory, which is what lets it cache app.html as well. Waiting for
+         // load keeps the install's fetches off the critical path.
+         if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+               navigator.serviceWorker.register("./sw.js").catch(function (err) {
+                  console.error("Service worker registration failed", err);
+               });
+            });
+         }
       </script>
    </body>
 </html>

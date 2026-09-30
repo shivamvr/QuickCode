@@ -1,6 +1,6 @@
 # 03 — PWA, offline, and file handling
 
-**Size:** M · **Depends on:** 02 · **Status:** not started
+**Size:** M · **Depends on:** 02 · **Status:** done (see Outcome)
 
 ## Why
 
@@ -116,3 +116,105 @@ straight back to the double-clicked file. That is the payoff.
 The app opens and is fully usable with the network disabled, it installs without
 manifest warnings, and double-clicking a `.js` file on an installed system opens
 it in QuickCode with a working Ctrl+S.
+
+## Outcome
+
+**Done, September 2026.** QuickCode installs, runs with no network, and opens
+files handed to it by the operating system.
+
+### What was built
+
+- **`manifest.webmanifest`** - standalone display, `#1e1e1e` theme and
+  background, three icons, and `file_handlers` for `.html`, `.htm`, `.css`,
+  `.js`, `.mjs`, `.json` and `.txt`. `launch_handler: focus-existing` so opening
+  a second file reuses the window rather than spawning another.
+- **`sw.js`**, precaching 41 same-origin files (the shell, all 13 themes, every
+  icon) and 20 version-pinned vendor files.
+- **`index.html`** links the manifest and registers the worker on `load`.
+- **`scripts/index.js`** gained `openLaunchedFiles()`, the `launchQueue`
+  consumer.
+
+### The caching strategy, and why it is split
+
+- **Same origin: network first, cache fallback.** Cache-first on the app's own
+  files is the trap the plan warned about - "why am I still seeing old code".
+  Falling back only on a network error or a 5xx means an update is never a
+  version behind, and a dead network still opens the editor. A **404 is passed
+  straight through**, because `settheme()` uses exactly that to tell a deleted
+  theme from a network problem; serving a cached copy instead would undo the
+  fix from the theme trim.
+- **The CDNs: cache first, refreshed in the background.** Those URLs are version
+  pinned (monaco 0.25.1, jszip 3.10.0), so stale is not a risk, and they are the
+  entire download weight.
+
+### Three things that were not obvious
+
+**The monaco worker had to stop being a `data:` URL.** `getWorkerUrl` returned a
+`data:` URL, which has an opaque origin - and an opaque origin is controlled by
+no service worker, so the `importScripts` inside it could never come from the
+cache. With no network the language workers would simply have died. It is now a
+`blob:` URL, which inherits the page's origin and is controlled like anything
+else.
+
+**Monaco's lazily-loaded language modules have to be listed.** The AMD loader
+fetches `htmlMode.js`, `cssMode.js`, `tsMode.js`, `jsonMode.js` and the
+`basic-languages` grammars at the moment a language is first used, and the
+worker fetches `htmlWorker.js`, `cssWorker.js`, `jsonWorker.js` and
+`tsWorker.js` from inside itself. None of them appear in `index.html`, and all
+of them are needed offline. The test suite derives the list it expects from the
+live DOM, which is how the gap was found.
+
+**The icons had to be made.** The plan guessed the existing favicon was too
+small and it was: 64x64, where an install wants 192 and ideally a 512 maskable.
+It is flat geometric art - a code window with a title bar and a `</>` - so it was
+redrawn from shapes at 192 and 512 plus a maskable 512 on the theme colour,
+rather than upscaled into something blurry. The suite reads each PNG's header
+and checks its real size against what the manifest claims.
+
+### File handling
+
+A launched file is routed to **the pane its type belongs to** - a `.css` opens
+in the css pane, not over the top of the html - and the language is switched to
+html first so that pane is reachable. The handle comes through as a real
+`FileSystemFileHandle`, so Ctrl+S writes back to the double-clicked file with no
+further prompting. That is the payoff the plan described.
+
+One addition to the plan: **a launch asks before replacing work that is in no
+file.** The user did not choose the destination here, QuickCode did, so silently
+overwriting an unsaved buffer would be the same class of data loss item 01 was
+about. The explicit Open button is deliberately left silent - there the user is
+looking at the editor and named the file themselves.
+
+### Verification
+
+`node test/run.js` - 63 checks, all passing, including a new **`offline`
+scenario**: the page loads, waits for the worker to take control, tells the test
+server to stop answering for everything except the suite's own endpoints, and
+reloads. The editor then boots, styles itself, renders its icons and reads a
+theme entirely from the cache, and an uncached URL is confirmed to fail rather
+than be invented.
+
+Checks worth knowing about:
+
+- every URL the live DOM loaded is in the cache - so adding a script to
+  `index.html` without adding it to `sw.js` fails here
+- monaco's worker URL is a `blob:` one, and the CSS language service actually
+  produces markers
+- the manifest is installable, and each icon is really the size it claims
+- a 503 on a cached file falls back to the cache, while a missing theme still
+  returns 404
+
+Mutation-checked: dropping one theme from `SHELL`, returning the `data:` worker
+URL, and removing the cache fallback each turned the suite red - the last one
+taking the whole offline scenario with it.
+
+### Left for later
+
+- **Prettier is not precached.** It is fetched through `import()` from unpkg the
+  first time a format is asked for, and the service worker caches it then, so it
+  works offline only if it has been used online once. Precaching ~1MB that many
+  sessions never touch is the wrong trade.
+- **The automated offline run blackholes this origin, not the CDNs.** The vendor
+  files are asserted to be in the cache, but the run cannot prove they were
+  served from it. DevTools with Network -> Offline is still the honest check
+  before a release.

@@ -8,7 +8,9 @@
 //     checking isolation must also prove the code ran
 
 (function () {
-  var CASE = window.__case
+  // sessionStorage is the fallback for the offline case: its second load can be
+  // served from the cache under a url with no ?case= on it
+  var CASE = window.__case || sessionStorage.getItem('qc-case')
   var results = []
 
   function check(name, fn) {
@@ -494,6 +496,316 @@
       })
   }
 
+  // --------------------------------------------------------- pwa and offline
+  function appCaches() {
+    return caches.keys().then(function (names) {
+      return names.filter(function (n) { return n.indexOf('quickcode-') === 0 })
+    })
+  }
+
+  // Every url this document actually loaded. Taking it from the DOM rather than
+  // from a list means adding a script to index.html without adding it to sw.js
+  // fails here, and it picks up the files monaco's loader injects for itself.
+  function loadedUrls() {
+    var urls = []
+    var add = function (u) {
+      if (!u || u.indexOf('/__test/') > -1) return
+      if (u.indexOf('http') !== 0) return          // blob: and data: are never fetched
+      if (urls.indexOf(u) === -1) urls.push(u)
+    }
+    document.querySelectorAll('script[src]').forEach(function (el) { add(el.src) })
+    document.querySelectorAll('link[href]').forEach(function (el) { add(el.href) })
+    document.querySelectorAll('img[src]').forEach(function (el) { add(el.src) })
+    getsAll('.selectB .option').forEach(function (o) {
+      var v = o.getAttribute('data-type')
+      if (v !== 'vs' && v !== 'vs-dark') add(new URL('./themes/' + v + '.json', location.href).href)
+    })
+    add(new URL('./app.html', location.href).href)
+    return urls
+  }
+
+  function pngSize(buf) {
+    var v = new DataView(buf)
+    if (v.getUint32(0) !== 0x89504e47) return null
+    return v.getUint32(16) + 'x' + v.getUint32(20)
+  }
+
+  function pwaChecks() {
+    return navigator.serviceWorker.ready
+      .then(function () { return waitFor(function () { return !!navigator.serviceWorker.controller }, 10000) })
+      .then(function (controlled) {
+        check('the service worker registers and takes control of the first load', function () {
+          return ok(controlled, 'controller=' + (navigator.serviceWorker.controller
+            ? navigator.serviceWorker.controller.scriptURL : 'none'))
+        })
+        return appCaches()
+      })
+      .then(function (names) {
+        check('exactly one versioned cache exists', function () {
+          return ok(names.length === 1, names.join(', ') || 'none')
+        })
+        if (!names.length) return null
+        return caches.open(names[0])
+      })
+      .then(function (cache) {
+        if (!cache) return null
+        var wanted = loadedUrls()
+        return Promise.all(wanted.map(function (u) {
+          return cache.match(u).then(function (hit) { return hit ? null : u })
+        })).then(function (misses) {
+          var missing = misses.filter(Boolean)
+          check('every file the page loads is in the offline cache', function () {
+            return ok(missing.length === 0, missing.length
+              ? 'not cached: ' + missing.map(function (u) { return u.replace(location.origin, '') }).join(', ')
+              : wanted.length + ' urls, all cached')
+          })
+          return cache
+        })
+      })
+      .then(function (cache) {
+        if (!cache) return null
+        // the language workers import this at runtime; with no network it can
+        // only come from here
+        return cache.keys().then(function (keys) {
+          var urls = keys.map(function (k) { return k.url })
+          check('monaco’s worker bundle is cached as well', function () {
+            var worker = urls.filter(function (u) { return u.indexOf('workerMain.js') > -1 })
+            return ok(worker.length === 1, worker.join(', ') || 'workerMain.js is not cached')
+          })
+          return cache
+        })
+      })
+      .then(function (cache) {
+        // the worker has to be a blob: url, not a data: one, or no service
+        // worker controls it and importScripts cannot come from the cache
+        check('the monaco worker runs from a blob url the service worker can see', function () {
+          var url = window.MonacoEnvironment.getWorkerUrl()
+          var isBlob = url.indexOf('blob:') === 0
+          if (isBlob) URL.revokeObjectURL(url)
+          return ok(isBlob, url.slice(0, 60))
+        })
+        return cache
+      })
+      .then(function (cache) {
+        // markers only exist if a language service is actually running
+        makeActive('css')
+        ensureCssEditor()
+        cssEditor.getModel().setValue('a { color: }')
+        return waitFor(function () {
+          return monaco.editor.getModelMarkers({ resource: cssEditor.getModel().uri }).length > 0
+        }, 8000).then(function (gotMarkers) {
+          check('the css language service is alive', function () {
+            return ok(gotMarkers, gotMarkers
+              ? JSON.stringify(monaco.editor.getModelMarkers({ resource: cssEditor.getModel().uri })[0].message)
+              : 'no markers for invalid css after 8s')
+          })
+          cssEditor.getModel().setValue('')
+          makeActive('main')
+          return cache
+        })
+      })
+      .then(function () {
+        return fetch('./manifest.webmanifest').then(function (res) {
+          return res.ok ? res.json().then(function (m) { return { res: res, m: m } }) : null
+        })
+      })
+      .then(function (got) {
+        if (!got) {
+          check('the manifest is served and parses', function () { return ok(false, 'manifest did not load') })
+          return null
+        }
+        var m = got.m
+        check('the manifest has what an install needs', function () {
+          var big = (m.icons || []).filter(function (i) { return parseInt(i.sizes, 10) >= 192 })
+          var maskable = (m.icons || []).filter(function (i) { return (i.purpose || '').indexOf('maskable') > -1 })
+          return ok(!!m.name && !!m.start_url && m.display === 'standalone' &&
+            !!m.background_color && big.length > 0 && maskable.length > 0 &&
+            (m.file_handlers || []).length > 0 &&
+            got.res.headers.get('content-type').indexOf('manifest+json') > -1,
+            'name=' + m.name + ' display=' + m.display + ' icons>=192: ' + big.length +
+            ' maskable: ' + maskable.length + ' file_handlers: ' + (m.file_handlers || []).length +
+            ' served as ' + got.res.headers.get('content-type'))
+        })
+        // the plan's warning: the old favicon was 64px, far too small to install
+        return Promise.all((m.icons || []).map(function (icon) {
+          return fetch(icon.src).then(function (r) {
+            return r.ok ? r.arrayBuffer().then(function (b) {
+              return { src: icon.src, declared: icon.sizes, real: pngSize(b) }
+            }) : { src: icon.src, declared: icon.sizes, real: 'HTTP ' + r.status }
+          })
+        }))
+      })
+      .then(function (icons) {
+        if (!icons) return
+        check('every icon exists and is the size it claims', function () {
+          var wrong = icons.filter(function (i) { return i.real !== i.declared })
+          return ok(wrong.length === 0 && icons.length > 0, icons.map(function (i) {
+            return i.src.split('/').pop() + ' ' + i.real + (i.real === i.declared ? '' : ' (claims ' + i.declared + ')')
+          }).join(', '))
+        })
+      })
+      .then(function () {
+        // a dead server falls back to the cache, but a 404 is a real answer and
+        // has to reach the app - settheme() depends on telling them apart
+        return Promise.all([
+          fetch('./scripts/index.js?__fail=1').then(function (r) {
+            return r.ok ? r.text().then(function (t) { return 'ok:' + t.length }) : 'HTTP ' + r.status
+          }, function (e) { return 'rejected:' + e.message }),
+          fetch('./themes/NoSuchThemeExists.json').then(function (r) { return 'HTTP ' + r.status },
+            function (e) { return 'rejected:' + e.message }),
+        ])
+      })
+      .then(function (r) {
+        check('a failing server falls back to the cache, a 404 does not', function () {
+          return ok(r[0].indexOf('ok:') === 0 && r[1] === 'HTTP 404',
+            'a 503 on a cached file gave ' + r[0] + ', a missing theme gave ' + r[1])
+        })
+      })
+      .then(launchChecks)
+  }
+
+  // A launch from the operating system cannot be staged from inside a page, so
+  // the consumer is called with handles directly. Everything it decides - which
+  // pane the file belongs in, and whether replacing what is there needs asking -
+  // is on this side of launchQueue.
+  function launchChecks() {
+    var realConfirm = window.confirm
+    var asked = []
+    window.confirm = function (msg) { asked.push(msg); return false }
+
+    setLang('html')
+    makeActive('main')
+    TAB_IDS.forEach(function (id) { fileHandles[id] = null; markSaved(id) })
+    setPaneText('main', '')
+    setPaneText('css', '')
+    setPaneText('js', '')
+
+    var sheet = fakeHandle('site.css', 'body { margin: 0 }')
+    var script = fakeHandle('app.js', 'console.log("launched")')
+
+    return openLaunchedFiles([sheet, script])
+      .then(function () {
+        check('a launched file opens in the pane its type belongs to', function () {
+          return ok(fileHandles.css === sheet && fileHandles.js === script && !fileHandles.main &&
+            contentOf('css') === 'body { margin: 0 }' && contentOf('js') === 'console.log("launched")' &&
+            asked.length === 0,
+            'css pane=' + (fileHandles.css && fileHandles.css.name) +
+            ' js pane=' + (fileHandles.js && fileHandles.js.name) +
+            ' main pane=' + fileHandles.main + ' prompts=' + asked.length)
+        })
+        check('a launch leaves the pane showing, named, and ready for Ctrl+S', function () {
+          return ok(quickEdit.tab === 'js' && gets('#js').classList.contains('active-tab') &&
+            document.title === 'app.js - QuickCode' && quickEdit.lang === 'html',
+            'active tab=' + quickEdit.tab + ' title=' + JSON.stringify(document.title) +
+            ' language=' + quickEdit.lang)
+        })
+
+        // work that is in no file must not be replaced without asking
+        makeActive('main')
+        setPaneText('main', '<h1>unsaved work</h1>')
+        return openLaunchedFiles([fakeHandle('page.html', '<h1>from the desktop</h1>')])
+      })
+      .then(function () {
+        check('a launch will not silently replace work that is in no file', function () {
+          return ok(asked.length === 1 && contentOf('main') === '<h1>unsaved work</h1>' && !fileHandles.main,
+            'asked ' + asked.length + 'x, main pane still ' + JSON.stringify(contentOf('main')))
+        })
+
+        // ...and does replace it once that is allowed
+        window.confirm = function () { return true }
+        return openLaunchedFiles([fakeHandle('page.html', '<h1>from the desktop</h1>')])
+      })
+      .then(function () {
+        check('a launch opens the file once replacing is allowed', function () {
+          return ok(contentOf('main') === '<h1>from the desktop</h1>' &&
+            !!fileHandles.main && document.title === 'page.html - QuickCode',
+            'main=' + JSON.stringify(contentOf('main')) + ' title=' + JSON.stringify(document.title))
+        })
+        window.confirm = realConfirm
+        TAB_IDS.forEach(function (id) { fileHandles[id] = null; markSaved(id) })
+      })
+  }
+
+  // ------------------------------------------------------- offline (reload)
+  // The server stops answering for everything but the suite's own endpoints,
+  // then the page reloads: the whole app now has to come out of the cache.
+  if (CASE === 'offline') {
+    if (!sessionStorage.getItem('qc-phase')) {
+      navigator.serviceWorker.ready
+        .then(function () { return waitFor(function () { return !!navigator.serviceWorker.controller }, 15000) })
+        .then(function (controlled) {
+          if (!controlled) {
+            check('the service worker took control before the network went away', function () {
+              return ok(false, 'no controller after 15s')
+            })
+            report()
+            return
+          }
+          sessionStorage.setItem('qc-phase', 'check')
+          sessionStorage.setItem('qc-case', 'offline')
+          var x = new XMLHttpRequest()
+          x.open('GET', '/__test/offline', false)
+          x.send()
+          location.reload()
+        })
+      return
+    }
+
+    check('the editor starts with its own server unreachable', function () {
+      var started = typeof editor !== 'undefined' && !!editor && typeof monaco !== 'undefined'
+      return ok(started && window.__errors.length === 0,
+        'editor built=' + started + '; errors: ' + (window.__errors.join(' | ') || 'none'))
+    })
+
+    check('the stylesheets came from the cache', function () {
+      // verticalNav.css is not in this list on purpose: it ships disabled, and
+      // chrome does not load a disabled <link> until something enables it
+      var want = ['style.css', 'tabs.css']
+      var loaded = want.filter(function (name) {
+        return Array.prototype.some.call(document.styleSheets, function (sh) {
+          try {
+            return String(sh.href || '').indexOf('/styles/' + name) > -1 && sh.cssRules.length > 0
+          } catch (e) {
+            return false
+          }
+        })
+      })
+      return ok(loaded.length === want.length, loaded.join(' + ') || 'none of them')
+    })
+
+    check('the toolbar icons rendered', function () {
+      var imgs = Array.prototype.filter.call(getsAll('nav img'), function (i) { return i.complete && i.naturalWidth > 0 })
+      return ok(imgs.length >= 4, imgs.length + ' of ' + getsAll('nav img').length + ' nav icons loaded')
+    })
+
+    // Everything below goes through fetch(). A synchronous XMLHttpRequest is
+    // NOT handed to the service worker, so it would reach the dead server and
+    // fail however complete the cache is.
+    Promise.all([
+      fetch('./themes/Dracula.json').then(function (r) {
+        return r.ok ? r.json().then(function (t) { return !!t.colors }) : 'HTTP ' + r.status
+      }, function (e) { return 'rejected' }),
+      fetch('./app.html').then(function (r) {
+        return r.ok ? r.text().then(function (t) { return t.indexOf('sandbox') > -1 }) : 'HTTP ' + r.status
+      }, function (e) { return 'rejected' }),
+      // last, and the one that proves the rest meant something
+      fetch('./themes/NoSuchThemeExists.json')
+        .then(function (r) { return 'HTTP ' + r.status }, function (e) { return 'rejected' }),
+    ]).then(function (r) {
+      check('theme switching still works offline', function () {
+        return ok(r[0] === true, 'Dracula.json came back: ' + r[0])
+      })
+      check('the preview page is cached too', function () {
+        return ok(r[1] === true, 'app.html came back: ' + r[1])
+      })
+      check('the server really is down: an uncached url fails rather than being invented', function () {
+        return ok(r[2] === 'rejected', 'uncached fetch gave ' + r[2])
+      })
+      report()
+    })
+    return
+  }
+
   // --------------------------------------------------- persistence (reload)
   if (CASE === 'persist') {
     if (!sessionStorage.getItem('qc-phase')) {
@@ -598,7 +910,7 @@
     }, 100)
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
-    formattingChecks().then(themeFallbackChecks).then(fileHandleChecks).then(report, function (err) {
+    formattingChecks().then(themeFallbackChecks).then(fileHandleChecks).then(pwaChecks).then(report, function (err) {
       check('formatting checks completed', function () { return ok(false, String(err)) })
       report()
     })

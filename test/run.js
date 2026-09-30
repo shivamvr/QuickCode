@@ -21,10 +21,13 @@ const CASE_TIMEOUT_MS = 60000
 // The persistence case reloads the page itself rather than relying on a second
 // browser process: killing Chrome can discard localStorage before it reaches
 // disk, and "survives a reload" is the behaviour that actually matters anyway.
+// The offline case goes last: it takes the server down mid-run, and the probe
+// puts it back only by finishing.
 const SCENARIOS = [
   { name: 'core', page: 'index.html', profile: 'core' },
   { name: 'persist', page: 'index.html', profile: 'persist' },
   { name: 'preview-safe', page: 'app.html', profile: 'preview' },
+  { name: 'offline', page: 'index.html', profile: 'offline' },
 ]
 
 function findChrome() {
@@ -136,6 +139,7 @@ async function main() {
   let passed = 0
 
   for (const scenario of SCENARIOS) {
+    server.setOffline(false)        // whatever the previous case did to it
     const report = await runCase(chrome, scenario, tmpDir, pending)
     console.log(scenario.name)
     for (const r of report.results || []) {

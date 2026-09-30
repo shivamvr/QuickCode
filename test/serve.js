@@ -19,6 +19,7 @@ const TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
@@ -97,9 +98,36 @@ function instrument(html, file, caseName) {
 }
 
 function createServer({ root, onReport }) {
-  return http.createServer((req, res) => {
+  // The offline scenario needs the app's own origin to stop answering while the
+  // page stays open, which is what proves the service worker is serving the
+  // whole app from its cache. The suite's own endpoints keep working, or the
+  // probe could not report what it found.
+  let offline = false
+
+  const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost')
     const pathname = decodeURIComponent(url.pathname)
+
+    if (pathname === '/__test/offline' || pathname === '/__test/online') {
+      offline = pathname.endsWith('offline')
+      res.writeHead(204)
+      res.end()
+      return
+    }
+
+    if (offline && !pathname.startsWith('/__test/')) {
+      res.writeHead(503)
+      res.end('offline')
+      return
+    }
+
+    // one url the service worker should fall back to the cache for, without
+    // taking the whole server down
+    if (url.searchParams.has('__fail')) {
+      res.writeHead(503)
+      res.end('deliberate failure')
+      return
+    }
 
     if (req.method === 'POST' && pathname === '/__test/report') {
       let body = ''
@@ -164,6 +192,9 @@ function createServer({ root, onReport }) {
       res.end(data)
     })
   })
+
+  server.setOffline = (value) => { offline = value }
+  return server
 }
 
 module.exports = { createServer }

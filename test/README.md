@@ -13,13 +13,14 @@ off 8399.
 ## What it does
 
 `run.js` starts a static server over the repo, then drives headless Chrome
-through three scenarios, each of which posts a pass/fail report back.
+through four scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
 | `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, and both file-open/save paths |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `preview-safe` | `app.html` | a hostile snippet runs in the preview and cannot reach the saved work |
+| `offline` | `index.html` | waits for the service worker, tells the server to stop answering, reloads, and checks the whole app came out of the cache |
 
 `serve.js` injects `seed.js` and `probe.js` into `index.html` / `app.html` as
 they are served, so the suite always runs against **the real files in the repo**
@@ -76,6 +77,15 @@ that looked correct and proved nothing:
   error.** Monaco observes its own container, so any layout change can raise it,
   unpredictably. `serve.js` filters it out, or every no-errors assertion would be
   flaky.
+- **A synchronous `XMLHttpRequest` is not handed to the service worker.** It goes
+  to the network regardless, so in the `offline` case it fails no matter how
+  complete the cache is. Anything checking the cache has to use `fetch()`.
+- **A `<link disabled>` stylesheet is never loaded by Chrome**, so
+  `verticalNav.css` is absent from `document.styleSheets` until something enables
+  it. Counting stylesheets and expecting three is wrong.
+- **What the cache must hold cannot be hardcoded.** The expected list is derived
+  from the live DOM, which is what caught monaco's lazily-injected language
+  modules - they are in no source file, and are needed offline.
 
 ## Verifying the suite still bites
 
@@ -91,6 +101,10 @@ node test/run.js                                                  # expect FAIL
 #    drop the e.preventDefault() from the open-label handler, or make quickSave
 #    treat every pane as having no handle, in scripts/index.js
 node test/run.js                                                  # expect 4 FAILs
+# 4. the offline cache
+#    delete one theme from SHELL in sw.js, return the data: worker url in
+#    index.html, or make networkFirst return a 5xx instead of falling back
+node test/run.js                              # expect 3 FAILs + the offline case
 ```
 
-All three were confirmed to fail when introduced, and pass once reverted.
+All four were confirmed to fail when introduced, and pass once reverted.

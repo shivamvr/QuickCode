@@ -418,6 +418,17 @@ function openFile(file) {
   reader.readAsText(file)
 }
 
+// read a handle into a pane and leave the pane owning it. Shared by the file
+// picker and by a file the operating system handed us.
+const openHandle = async (handle, id) => {
+  const file = await handle.getFile()
+  // the text lands first: writing it marks the pane unsaved, so the handle has
+  // to be attached before markSaved settles it
+  openText(id, file.name, await file.text())
+  fileHandles[id] = handle
+  markSaved(id)
+}
+
 // The picker path. A zip is still a project import, which has no single file to
 // write back to, so it deliberately leaves the pane without a handle.
 async function openWithPicker() {
@@ -425,21 +436,59 @@ async function openWithPicker() {
   try {
     const picked = await window.showOpenFilePicker({ types: OPEN_TYPES })
     const handle = picked[0]
-    const file = await handle.getFile()
-    if (getExtension(file.name) === 'zip') {
-      openProject(file)
+    if (getExtension(handle.name) === 'zip') {
+      openProject(await handle.getFile())
       return
     }
-    // the text lands first: writing it marks the pane unsaved, so the handle
-    // has to be attached before markSaved settles it
-    openText(id, file.name, await file.text())
-    fileHandles[id] = handle
-    markSaved(id)
+    await openHandle(handle, id)
   } catch (err) {
     if (cancelled(err)) return
     console.error('Failed to open a file', err)
     alert('Could not open that file: ' + err.message)
   }
+}
+
+//------------------------- opened from the desktop -------------------
+// An installed QuickCode registers as a handler for .html, .css and .js
+// (manifest.webmanifest), so double-clicking one of those launches it with a
+// real file handle - and Ctrl+S then writes back to the file that was
+// double-clicked. That is what makes the file handles of item 02 feel finished.
+
+// Which pane a file belongs in, by its language. A stylesheet opened from the
+// desktop belongs in the css pane, not over the top of the html.
+const paneFor = (name) => SPLIT_TABS[fileExt[getExtension(name)]] || 'main'
+
+// The user did not choose the destination here, QuickCode did, so replacing
+// unsaved work that is in no file would lose it without anyone asking.
+const canReplace = (id, name) => {
+  if (!contentOf(id).trim()) return true
+  if (fileHandles[id] && !unsaved[id]) return true
+  return confirm('Open "' + name + '"?\n\nThe ' + TABS[id].lang +
+    ' editor has changes that are not in a file, and they will be replaced.')
+}
+
+// Separate from the wiring below so it can be driven directly: an installed
+// launch is not something a page can stage for itself.
+async function openLaunchedFiles(handles) {
+  for (const handle of handles || []) {
+    const id = paneFor(handle.name)
+    if (!canReplace(id, handle.name)) continue
+    if (id !== 'main') {
+      // the css and js panes only exist while the project is html
+      setLang('html')
+      makeActive(id)
+    }
+    try {
+      await openHandle(handle, id)
+    } catch (err) {
+      console.error('Failed to open', handle.name, err)
+    }
+  }
+}
+
+function wireFileHandler() {
+  if (!('launchQueue' in window)) return
+  window.launchQueue.setConsumer((params) => openLaunchedFiles(params && params.files))
 }
 
 //------------------------- language & theme --------------------------
@@ -695,6 +744,7 @@ function initCore() {
 
   wireToolbar()
   wireDropdowns()
+  wireFileHandler()
 }
 
 function wireToolbar() {
