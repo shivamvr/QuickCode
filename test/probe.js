@@ -2121,7 +2121,9 @@
             'code=' + JSON.stringify(first.code) + ' css=' + JSON.stringify(first.css) +
             ' js=' + JSON.stringify(first.js))
         })
-        check('the old localStorage keys are left in place as a safety net', function () {
+        check('the load that migrates leaves the old keys alone', function () {
+          // one load of grace: the session that writes the new copy is never
+          // the one that deletes the old
           return ok(localStorage.getItem('code') === '<h1>from the old store</h1>',
             'the old code key is ' + (localStorage.getItem('code') === null ? 'gone' : 'still there'))
         })
@@ -2151,22 +2153,33 @@
           'code=' + JSON.stringify(readStored('code')))
       })
 
+      check('the second load clears the old keys, now the work has come back out', function () {
+        var left = LEGACY_CONTENT_KEYS.filter(function (k) { return localStorage.getItem(k) !== null })
+        return ok(left.length === 0,
+          left.length ? 'still on disk: ' + left.join(', ') : 'all three gone')
+      })
+
       // The other half of being idempotent, and the one that matters after
-      // someone has been using it: the old keys are still on disk, so emptying
-      // the store must not bring the deleted work back from the dead.
+      // someone has been using it. The old keys are deliberately put back for
+      // this: what has to stop deleted work coming back is the migration guard,
+      // not the keys happening to be absent by now.
       //
       // The queued write is cancelled and the open record dropped first,
       // because otherwise a flush lands mid-delete and puts it straight back -
       // which is what a fresh load looks like anyway.
       cancelFlush()
       project = null
+      localStorage.setItem('code', '<h1>from the old store</h1>')
       Promise.all(all.map(function (p) { return deleteProject(p.id) }))
         .then(openWorkspace)
         .then(function (fresh) {
           check('deleting every project does not resurrect the old content', function () {
-            return ok(fresh.code === '' && localStorage.getItem('code') !== null,
-              'the new project came back holding ' + JSON.stringify(fresh.code) +
-              ', old key still on disk=' + (localStorage.getItem('code') !== null))
+            return ok(fresh.code === '',
+              'the new project came back holding ' + JSON.stringify(fresh.code))
+          })
+          check('and the key put back for that is cleared again', function () {
+            return ok(localStorage.getItem('code') === null,
+              'the old code key is ' + (localStorage.getItem('code') === null ? 'gone' : 'still there'))
           })
         }, function (err) {
           check('deleting every project does not resurrect the old content', function () {

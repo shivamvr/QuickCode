@@ -290,8 +290,16 @@ const adoptSnapshot = async () => {
 }
 
 //---------------------------- the migration --------------------------
-// The pre-IndexedDB keys are deliberately left in place. If anything here is
-// wrong they are the only copy of the user's work.
+// The pre-IndexedDB keys are read once and then given one load of grace: the
+// boot that migrates leaves them alone, and the next one removes them. Until
+// the work has come back out of the store at least once, they are the only copy
+// of it.
+
+const LEGACY_CONTENT_KEYS = ['code', 'css', 'js']
+
+const dropLegacyContent = () => {
+  LEGACY_CONTENT_KEYS.forEach((key) => localStorage.removeItem(key))
+}
 
 const legacyContent = () => {
   const code = localStorage.getItem('code')
@@ -329,9 +337,12 @@ const migrate = async () => {
 const openWorkspace = async () => {
   await adoptSnapshot().catch((err) => console.error('Could not recover the last session', err))
 
+  let migratedNow = false
   let projects = await listProjects()
   if (!projects.length) {
-    const project = (await migrate()) || makeProject({})
+    const adopted = await migrate()
+    migratedNow = !!adopted
+    const project = adopted || makeProject({})
     await saveProject(project)
     projects = [project]
   }
@@ -341,5 +352,16 @@ const openWorkspace = async () => {
     project = projects[0]          // most recently updated
     setActiveId(project.id)
   }
+
+  // Reaching this line means the store answered and a project came out of it,
+  // so the pre-IndexedDB copies have done their job. Not on the load that
+  // migrated, though: one more load of grace costs nothing, and it means the
+  // session that wrote the new copy is never the one that deletes the old.
+  //
+  // This is also why the guard lives in the store rather than in localStorage.
+  // If the database is ever wiped, the guard goes with it, migrate() runs again
+  // and finds the keys still there - so the grace period restarts instead of
+  // the work being gone.
+  if (!migratedNow) dropLegacyContent()
   return project
 }

@@ -211,6 +211,13 @@ guard, and removing the snapshot each turned the suite red.
   projects, so eviction under storage pressure is less likely. Not called yet -
   it prompts in some browsers, and the right moment for that is a decision of
   its own.
-- **The legacy `code` / `css` / `js` keys.** Nothing writes them any more and
-  nothing reads them, but they are deliberately left on disk for a release, as
-  the safety net the plan asked for. Delete them in the release after.
+- ~~**The legacy `code` / `css` / `js` keys.**~~ **Done, September 2026.**
+  `openWorkspace` clears them once a project has come back out of the store, and
+  never on the load that migrated - one load of grace, so the session that
+  writes the new copy is never the one that deletes the old.
+
+  The guard living in the store rather than in localStorage is what makes this
+  safe: if the database is ever wiped, the guard goes with it, the migration runs
+  again and finds the keys still there, so the grace period restarts instead of
+  the work being gone. The check for it puts the keys back and empties the store,
+  to prove it is the guard doing the work and not the keys being absent.

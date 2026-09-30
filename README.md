@@ -92,8 +92,9 @@ starting something new no longer writes over the last thing.
 - A duplicate is a real copy: it deliberately does not inherit the originals' files on disk,
   so saving it cannot write over them
 
-An install from before projects existed is migrated on first load, and its old storage keys
-are deliberately left untouched as a safety net.
+An install from before projects existed is migrated on first load. Its old storage keys are
+left untouched that once, as a safety net, and cleared on the load after - by which point the
+work has come back out of the database at least one time.
 
 ### 🕓 History
 
@@ -281,3 +282,7 @@ QuickCode/
 - [monaco-themes](https://github.com/brijeshb42/monaco-themes) — theme definitions
 
 Third-party libraries are loaded from CDN; there are no local dependencies to install.
+
+## Licence
+
+[MIT](LICENSE) - Copyright (c) 2026 Shivam. Do what you like with it, keep the notice.
