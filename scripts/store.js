@@ -13,10 +13,13 @@
 //=====================================================================
 
 const DB_NAME = 'quickcode'
-const DB_VERSION = 1
+// 2 added the snapshots store. The upgrade only creates what is missing, so an
+// existing database gains it without touching anything already there.
+const DB_VERSION = 2
 const PROJECTS = 'projects'
 const HANDLES = 'handles'
 const META = 'meta'
+const SNAPSHOTS = 'snapshots'
 
 // Which project is open. Kept in localStorage rather than the database because
 // it is one short string, it is needed synchronously, and the preview window
@@ -49,6 +52,9 @@ const openDb = () => {
         // otherwise resurrect deleted work.
         if (!db.objectStoreNames.contains(META)) {
           db.createObjectStore(META, { keyPath: 'id' })
+        }
+        if (!db.objectStoreNames.contains(SNAPSHOTS)) {
+          db.createObjectStore(SNAPSHOTS, { keyPath: 'id' }).createIndex('projectId', 'projectId')
         }
       }
       req.onsuccess = () => resolve(req.result)
@@ -138,6 +144,108 @@ const loadHandles = async (projectId, panes) => {
 
 const forgetHandles = (projectId, panes) => Promise.all(
   panes.map((pane) => dbDelete(HANDLES, handleKey(projectId, pane)).catch(() => {})))
+
+//---------------------------- snapshots ------------------------------
+// The store is the save file, so without these there is no way back from a bad
+// paste, a file opened into the wrong pane, or a zip import. Whole copies, not
+// diffs: three panes of text are small, and a diff engine for a few KB would be
+// more to go wrong than it saves.
+
+// how many of the newest are always kept, whatever their age
+const SNAPSHOT_KEEP_RECENT = 10
+// the hard ceiling per project
+const SNAPSHOT_MAX = 50
+
+const HOUR = 60 * 60 * 1000
+const DAY = 24 * HOUR
+
+// djb2 over the three panes, to skip writing a snapshot identical to the last
+const contentHash = (a, b, c) => {
+  const text = a + '\u0000' + b + '\u0000' + c
+  let hash = 5381
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0
+  }
+  return String(hash)
+}
+
+const listSnapshots = (projectId) =>
+  runTx(SNAPSHOTS, 'readonly', (store) => store.index('projectId').getAll(projectId))
+    .then((rows) => (rows || []).sort((a, b) => b.takenAt - a.takenAt))
+
+const getSnapshot = (id) => dbGet(SNAPSHOTS, id)
+
+const deleteSnapshots = (ids) =>
+  runTx(SNAPSHOTS, 'readwrite', (store) => {
+    ids.forEach((id) => store.delete(id))
+    return null
+  })
+
+const dropSnapshotsFor = (projectId) =>
+  listSnapshots(projectId).then((rows) => deleteSnapshots(rows.map((r) => r.id)))
+
+// Which snapshots to keep: everything recent, then one an hour for the first
+// day and one a day after that. Written here rather than "later" on purpose -
+// capture without pruning grows without bound.
+const chooseKept = (rows, now) => {
+  const keep = []
+  const buckets = {}
+  rows.forEach((row, index) => {
+    if (keep.length >= SNAPSHOT_MAX) return
+    if (index < SNAPSHOT_KEEP_RECENT) {
+      keep.push(row)
+      return
+    }
+    const age = now - row.takenAt
+    const bucket = age < DAY
+      ? 'h' + Math.floor(row.takenAt / HOUR)
+      : 'd' + Math.floor(row.takenAt / DAY)
+    if (!buckets[bucket]) {
+      buckets[bucket] = true
+      keep.push(row)
+    }
+  })
+  return keep
+}
+
+// Writes one unless it would be identical to the last. Returns the row, or null
+// when nothing had changed.
+//
+// A title is only ever given by hand. Naming a state that is already the latest
+// snapshot renames that one rather than storing a second copy of it: the point
+// of the name is to mark this state, and it is already here.
+const takeSnapshot = async (record, reason, title) => {
+  const hash = contentHash(record.code || '', record.css || '', record.js || '')
+  const rows = await listSnapshots(record.id)
+  if (rows.length && rows[0].hash === hash) {
+    if (!title) return null
+    rows[0].title = title
+    await dbPut(SNAPSHOTS, rows[0])
+    return rows[0]
+  }
+
+  const row = {
+    id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    projectId: record.id,
+    takenAt: Date.now(),
+    reason: reason || 'idle',
+    title: title || '',
+    hash: hash,
+    code: record.code || '',
+    css: record.css || '',
+    js: record.js || '',
+  }
+  await dbPut(SNAPSHOTS, row)
+
+  const all = [row].concat(rows)
+  const keep = chooseKept(all, row.takenAt)
+  const kept = {}
+  keep.forEach((r) => { kept[r.id] = true })
+  const drop = all.filter((r) => !kept[r.id]).map((r) => r.id)
+  if (drop.length) await deleteSnapshots(drop)
+
+  return row
+}
 
 //--------------------------- the crash net ---------------------------
 // An IndexedDB write cannot be relied on to finish while the page is going

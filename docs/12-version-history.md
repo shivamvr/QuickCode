@@ -1,6 +1,6 @@
 # 12 — Version history
 
-**Size:** M · **Depends on:** 04 · **Status:** not started
+**Size:** M · **Depends on:** 04 · **Status:** done (see Outcome)
 
 ## Why
 
@@ -77,3 +77,84 @@ nearly free once history exists.
 
 An accidental bulk overwrite can be undone from the history list, restores are
 themselves reversible, and the store does not grow without limit.
+
+## Outcome
+
+**Done, September 2026.** There is a way back from a bad paste, a file opened
+into the wrong pane, or a zip import.
+
+### What was built
+
+- **A `snapshots` store**, database version 2. Whole copies of the three panes,
+  as the plan said: three panes of text are small, and a diff engine for a few
+  KB is more to go wrong than it saves.
+- **Capture on three occasions**: after a minute of quiet following an edit (a
+  restarting timer, not a clock that fires regardless), immediately before
+  anything that replaces a pane wholesale, and on request.
+- **Deduplication** by a hash of the three panes, so idling never writes the
+  same rows again.
+- **Retention in the same commit as capture**, which the plan insisted on: the
+  newest 10 always, then one an hour for the first day and one a day after that,
+  hard-capped at 50 per project.
+- **The history dropdown**, a fourth `.select` built from the classes the other
+  three already use: time, reason and the line delta, newest first, plus
+  `+ snapshot now`. Restoring confirms, and takes a snapshot on the way in so
+  the restore is itself undoable.
+- **Deleting a project deletes its snapshots.** No orphans.
+
+### Where this differs from the plan
+
+The plan listed **share-link load** and **project switch** as bulk overwrites to
+snapshot before. Neither is destructive any more: since item 04 a share link
+opens as a *new* project and switching projects simply opens a different record,
+so there is nothing to lose and nothing to snapshot. The destructive paths that
+remain are opening a file into a pane, importing a zip, and restoring.
+
+One interaction worth knowing about, found by the test: **a "file opened"
+snapshot is skipped when the content already matches the last one.** If an idle
+snapshot was taken and nothing was typed since, the state before the overwrite is
+already saved and a second copy under a different label would be noise. The
+content is what matters, and it is there.
+
+### Added after the first pass
+
+Two gaps the owner spotted straight away, and both were fair:
+
+- **Nothing could be deleted by hand.** A history you cannot prune yourself is
+  half a feature. Each row now carries a `×`, and there is a `clear history`
+  action beside `+ snapshot now`. Both confirm, and neither touches the files.
+  The cross is looked for before the row in the click handler - without that,
+  every delete would restore instead, which is what the check for it proves.
+- **Snapshots had no names**, only the reason they were taken for. `+ snapshot
+  now` asks for one, and the list shows it in place of the reason.
+
+The automatic snapshots deliberately do **not** ask. A `prompt()` a minute after
+you stopped typing, or in the middle of opening a file, would be intolerable, so
+only the deliberate ones are named.
+
+Naming a state that is already the newest snapshot **renames that one** instead
+of writing a duplicate: the point of the name is to mark this state, and the
+state is already saved. Cancelling the prompt takes no snapshot at all.
+
+### Not done
+
+**Previewing a snapshot before restoring it.** The plan pairs that with item 13,
+and it is the right pairing - comparing a snapshot against what is open is a diff
+view, and monaco's diff editor makes it nearly free. For now restoring is safe
+rather than previewable: it confirms, and it is undoable.
+
+### Verification
+
+`node test/run.js` - **124 checks**, all passing. Fourteen are new: the idle
+snapshot, the dedup, a file open keeping what it replaced, a restore putting all
+three panes back, the restore being undoable, landing exactly where it started
+after undoing it, the menu listing them newest first with a delete on each row,
+the thinning rule over sixty snapshots spread across a fortnight, a deleted
+project leaving nothing behind, a snapshot taking the name you type, naming an
+already-saved state renaming rather than copying it, cancelling the name taking
+nothing, the cross deleting one without restoring it, and clear history emptying
+one project and no other.
+
+Mutation-checked: removing the dedup, the thinning, the pre-restore snapshot,
+the snapshot cleanup, and the cross's place in the click handler each turned the
+suite red.

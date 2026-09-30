@@ -413,6 +413,15 @@ label {
 .select .selectDropdown .active-project {
   font-weight: 600;
 }
+/* the delete cross on a history row */
+.select .selectDropdown .snapX {
+  float: right;
+  padding: 0 2px;
+  color: #8a94a6;
+}
+.select .selectDropdown .snapX:hover {
+  color: #b3261e;
+}
 .select .selectDropdown.toggle {
   visibility: visible;
   -webkit-transform: scale(1, 1);

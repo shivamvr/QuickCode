@@ -81,6 +81,12 @@ function instrument(html, file, caseName) {
     // so the probe has to wait for it rather than for the loader
     const booted =
       'require(["vs/editor/editor.main"], function () {\n' +
+      '  window.__providers = [];\n' +
+      '  var realRegister = monaco.languages.registerCompletionItemProvider;\n' +
+      '  monaco.languages.registerCompletionItemProvider = function (language, provider) {\n' +
+      '    window.__providers.push({ language: language, provider: provider });\n' +
+      '    return realRegister.apply(monaco.languages, arguments);\n' +
+      '  };\n' +
       '  var probe = function () {\n' +
       '    var s = document.createElement("script"); s.src = "/__test/probe.js";\n' +
       '    document.body.appendChild(s);\n' +
@@ -114,6 +120,15 @@ function createServer({ root, onReport }) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost')
     const pathname = decodeURIComponent(url.pathname)
+
+    // TRACE=1 node test/run.js - for when a case hangs and reports nothing, so
+    // you can see how far the page got before it stopped asking for things
+    if (process.env.TRACE) {
+      const at = Date.now()
+      console.log('    [req] ' + req.method + ' ' + req.url)
+      res.on('finish', () => console.log('    [res] ' + res.statusCode + ' ' +
+        (Date.now() - at) + 'ms ' + req.url))
+    }
 
     if (pathname === '/__test/offline' || pathname === '/__test/online') {
       offline = pathname.endsWith('offline')

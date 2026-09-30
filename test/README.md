@@ -97,6 +97,14 @@ that looked correct and proved nothing:
   has to `cancelFlush()` and drop the in-memory record first, or the write lands
   mid-delete and puts the project straight back. The app does the same thing in
   `removeProject()`, for the same reason.
+- **Driving a completion provider by hand is not what monaco does.** Emmet
+  reads monaco's tokens, and monaco tokenizes lazily, so a provider called in
+  the same turn as `setValue` gets nothing - or throws from inside emmet. The
+  check polls instead. It also asks *every* provider registered for the
+  language: monaco registers its own html completions when that mode loads, so
+  picking the first one sometimes asked the wrong library. And registering a
+  second copy of emmet to spy on it tore down state the live one was using;
+  `serve.js` records the real registrations instead.
 - **Ask a library how it actually works before testing it.** Emmet looks like
   "type an abbreviation, press Tab", so the check simulated a Tab and found
   nothing expanded. It is a **completion provider**; Tab is the suggest widget
@@ -119,12 +127,15 @@ that looked correct and proved nothing:
   link case builds its link in node with `zlib.deflateRawSync` and hands it to
   the browser, so encode and decode are different implementations. Encoding and
   decoding with the same code would pass just as happily on a private format.
-- **Budget for the slowest machine, not this one.** Two intermittent failures
-  turned out to be timing: a case that has to install a service worker first
-  (about 2MB from two CDNs) against a 60s cap, and the preview snippet against a
-  5s poll in the fifth browser the suite had started. Both are now generous, and
-  `probe.js` runs a 45s watchdog so a hang reports what it had checked and where
-  it stopped, instead of leaving the runner to say only "timed out".
+- **Budget for the slowest machine, not this one.** Several intermittent
+  failures turned out to be timing. The offline case cannot start until the
+  service worker has precached about 2.5MB from two CDNs, and that case has been
+  measured at anywhere from 3 to 29 seconds depending on the day; it waits 60s
+  now. `probe.js` runs a 90s watchdog so a hang reports what it had checked and
+  where it stopped, instead of leaving the runner to say only "timed out" - that
+  watchdog is what identified this one, by naming the case and the phase.
+  `TRACE=1 node test/run.js` logs every request and its timing, for when a page
+  stops asking for things entirely.
 - **Two reports from one scenario is one too many.** The runner takes the first
   report as final, so a case that reloads hands its results to the next phase
   through `sessionStorage` rather than sending them twice.
@@ -163,6 +174,10 @@ node test/run.js                                          # expect 1 FAIL each
 #    put back one old KeyCode name (KeyD -> KEY_D) in eventListener.js, misspell
 #    an option in editorOptions(), or make settheme() always set vs-dark
 node test/run.js                                       # expect 3, 1 and 1 FAILs
+# 9. version history
+#    drop the dedup or the thinning from scripts/store.js, or the pre-restore
+#    snapshot or the snapshot cleanup from scripts/index.js
+node test/run.js                                          # expect 1 FAIL each
 ```
 
-All eight were confirmed to fail when introduced, and pass once reverted.
+All nine were confirmed to fail when introduced, and pass once reverted.

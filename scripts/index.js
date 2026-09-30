@@ -68,6 +68,7 @@ const writeSoon = (key, value) => {
   project[key] = value
   scheduleFlush()
   schedulePreview()
+  scheduleSnapshot()
 }
 
 // app.html rebuilds the preview whenever localStorage changes. Content does not
@@ -407,6 +408,10 @@ function openProject(zipFile) {
         pick('QuickCode/index.js'),
       ])
     }).then((parts) => {
+      // a zip replaces all three panes at once, which is the most destructive
+      // thing the app can do to a project
+      return snapshotBefore('zip import').then(() => parts)
+    }).then((parts) => {
       let [newHtml, newCss, newJs] = parts
       if (newHtml === null && newCss === null && newJs === null) {
         throw new Error('it contains no QuickCode/index.html, style.css or index.js')
@@ -461,7 +466,8 @@ function openFile(file) {
   const id = quickEdit.tab
   const reader = new FileReader()
   reader.onload = () => {
-    openText(id, file.name, String(reader.result))
+    // the pane is about to be replaced wholesale
+    snapshotBefore('file opened').then(() => openText(id, file.name, String(reader.result)))
   }
   reader.onerror = () => {
     // the name and language used to be applied before the read, so a failed
@@ -476,6 +482,7 @@ function openFile(file) {
 // picker and by a file the operating system handed us.
 const openHandle = async (handle, id) => {
   const file = await handle.getFile()
+  await snapshotBefore('file opened')
   // the text lands first: writing it marks the pane unsaved, so the handle has
   // to be attached before markSaved settles it
   openText(id, file.name, await file.text())
@@ -726,6 +733,7 @@ const openRecord = async (record) => {
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   await restoreHandles()
   applyProject()
+  refreshHistory()
   pingPreview()
 }
 
@@ -834,6 +842,183 @@ async function copyShareLink() {
   }
 }
 
+//------------------------------ history ------------------------------
+// The store is the save file, so a bad paste, a file opened into the wrong pane
+// or a zip import used to be the end of it. Snapshots turn all of those from
+// gone into annoying.
+//
+// Taken on three occasions: after a minute of quiet following an edit, right
+// before anything that overwrites a pane wholesale, and when asked for.
+
+// a let, not a const, so a test can shorten the wait
+let SNAPSHOT_IDLE_MS = 60000
+let snapshotTimer = null
+
+const cancelSnapshot = () => {
+  if (snapshotTimer !== null) {
+    clearTimeout(snapshotTimer)
+    snapshotTimer = null
+  }
+}
+
+// Restarted by every change, so it fires once the typing stops rather than
+// every minute regardless.
+const scheduleSnapshot = () => {
+  if (!storeAvailable || !project) return
+  cancelSnapshot()
+  snapshotTimer = setTimeout(() => {
+    snapshotTimer = null
+    snapshotNow('idle')
+  }, SNAPSHOT_IDLE_MS)
+}
+
+// Returns the row, or null when nothing had changed since the last one.
+async function snapshotNow(reason, title) {
+  if (!storeAvailable || !project) return null
+  cancelSnapshot()
+  try {
+    const row = await takeSnapshot(project, reason, title)
+    if (row) refreshHistory()
+    return row
+  } catch (err) {
+    console.error('Could not take a snapshot', err)
+    return null
+  }
+}
+
+// Only the deliberate ones are named. A prompt appearing a minute after you
+// stopped typing, or in the middle of opening a file, would be unbearable.
+async function snapshotWithTitle() {
+  if (!project) return
+  const title = prompt('Name this snapshot?', '')
+  if (title === null) return                 // cancelled: take nothing
+  const row = await snapshotNow('saved by hand', title.trim())
+  if (!row) await refreshHistory()
+}
+
+async function removeSnapshot(id) {
+  const row = await getSnapshot(id)
+  if (!row) return
+  if (!confirm('Delete the snapshot from ' + new Date(row.takenAt).toLocaleString() +
+      '?\n\nThis one cannot be brought back.')) return
+  await deleteSnapshots([id])
+  await refreshHistory()
+}
+
+async function clearHistory() {
+  if (!project) return
+  const rows = await listSnapshots(project.id)
+  if (!rows.length) return
+  if (!confirm('Delete all ' + rows.length + ' snapshots of "' + project.name +
+      '"?\n\nThe files stay exactly as they are; only the history goes.')) return
+  await deleteSnapshots(rows.map((r) => r.id))
+  await refreshHistory()
+}
+
+// Before anything that replaces a pane's contents outright. Awaited by its
+// callers so the snapshot is on disk before the overwrite happens.
+const snapshotBefore = (reason) => snapshotNow(reason)
+
+const historyLabel = (row, previous) => {
+  const when = new Date(row.takenAt)
+  const time = when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const lines = (text) => String(text || '').split('\n').length
+  const total = (r) => lines(r.code) + lines(r.css) + lines(r.js)
+  const delta = previous ? total(row) - total(previous) : 0
+  const sign = delta > 0 ? '+' + delta : String(delta)
+  // a name the user gave it says more than the reason it was taken for
+  return time + '  ' + (row.title || row.reason) + (previous && delta !== 0 ? '  ' + sign : '')
+}
+
+async function refreshHistory() {
+  const list = gets('#historyList')
+  if (!list) return
+  let rows = []
+  try {
+    rows = project ? await listSnapshots(project.id) : []
+  } catch (err) {
+    rows = []
+  }
+  list.innerHTML = ''
+  if (!rows.length) {
+    const empty = document.createElement('div')
+    empty.className = 'option'
+    empty.textContent = 'nothing saved yet'
+    list.appendChild(empty)
+  }
+  rows.forEach((row, index) => {
+    const item = document.createElement('div')
+    item.className = 'option'
+    item.setAttribute('data-snapshot', row.id)
+    // rows[index + 1] is the one before it in time, the list being newest first
+    item.textContent = historyLabel(row, rows[index + 1])
+    const remove = document.createElement('span')
+    remove.className = 'snapX'
+    remove.setAttribute('data-delete-snapshot', row.id)
+    remove.textContent = '\u00d7'
+    item.appendChild(remove)
+    list.appendChild(item)
+  })
+  const separator = document.createElement('div')
+  separator.className = 'gradient'
+  list.appendChild(separator)
+  const actions = [
+    { id: 'now', label: '+ snapshot now' },
+    { id: 'clear', label: 'clear history' },
+  ]
+  actions.forEach((action) => {
+    const item = document.createElement('div')
+    item.className = 'option'
+    item.setAttribute('data-history-action', action.id)
+    item.textContent = action.label
+    list.appendChild(item)
+  })
+}
+
+// Restoring is itself an overwrite, so it takes a snapshot on the way in: the
+// restore can be undone by restoring that one.
+async function restoreSnapshot(id) {
+  const row = await getSnapshot(id)
+  if (!row) return
+  const when = new Date(row.takenAt).toLocaleString()
+  if (!confirm('Restore all three files as they were at ' + when + '?\n\n' +
+      'What is open now is snapshotted first, so this can be undone.')) return
+  await snapshotBefore('before-restore')
+  TAB_IDS.forEach((id2) => setPaneText(id2, row[TABS[id2].key]))
+  await flushStorage()
+  await refreshHistory()
+}
+
+function wireHistory() {
+  const list = gets('#historyList')
+  if (!list) return
+  refreshHistory()
+  list.addEventListener('click', (e) => {
+    // the delete cross sits inside the row, so it has to be looked for first or
+    // every deletion would restore instead
+    const cross = e.target.closest('[data-delete-snapshot]')
+    if (cross) {
+      e.stopPropagation()
+      removeSnapshot(cross.getAttribute('data-delete-snapshot'))
+        .catch((err) => console.error('Could not delete that snapshot', err))
+      return
+    }
+
+    const item = e.target.closest('[data-snapshot], [data-history-action]')
+    if (!item) return
+    const id = item.getAttribute('data-snapshot')
+    if (id) {
+      list.classList.remove('toggle')
+      restoreSnapshot(id).catch((err) => console.error('Could not restore that', err))
+      return
+    }
+    // the menu stays open for these: you often want another one straight after
+    const action = item.getAttribute('data-history-action')
+    const run = action === 'clear' ? clearHistory : snapshotWithTitle
+    run().catch((err) => console.error('That did not work', err))
+  })
+}
+
 //------------------------- the project picker ------------------------
 
 const updateProjectLabel = () => {
@@ -886,6 +1071,7 @@ async function removeProject() {
   const goneId = project.id
   await deleteProject(goneId)
   await forgetHandles(goneId, TAB_IDS)
+  await dropSnapshotsFor(goneId).catch((err) => console.error('Could not clear its history', err))
   const rest = (await listProjects()).filter((p) => p.id !== goneId)
   // there is always a project open: an empty one is a better landing place
   // than a blank screen with nothing to type into
@@ -1202,6 +1388,7 @@ function initCore() {
   wireDropdowns()
   wireFileHandler()
   wireProjects()
+  wireHistory()
   wirePreview()
 
   if (shareProblem) {

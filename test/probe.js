@@ -29,12 +29,12 @@
   // into evidence: whatever was checked before it stopped, and where.
   var watchdog = setTimeout(function () {
     check('the case finished on its own', function () {
-      return ok(false, 'still going after 45s; phase=' + (sessionStorage.getItem('qc-phase') || 'first') +
+      return ok(false, 'still going after 90s; phase=' + (sessionStorage.getItem('qc-phase') || 'first') +
         '; page errors: ' + (window.__errors.join(' | ') || 'none') +
         '; logged: ' + (window.__console.join(' | ') || 'nothing'))
     })
     report()
-  }, 45000)
+  }, 90000)
 
   function report() {
     clearTimeout(watchdog)
@@ -274,58 +274,86 @@
   // provider what it offers - which also exercises the monaco model APIs the
   // library reaches into, and those are what an upgrade breaks.
   function emmetChecks() {
-    var captured = []
-    var realRegister = monaco.languages.registerCompletionItemProvider
-    monaco.languages.registerCompletionItemProvider = function (language, provider) {
-      captured.push({ language: language, provider: provider })
-      return realRegister.apply(monaco.languages, arguments)
-    }
-    // registering a second time just to see what gets registered; the
-    // disposables below take these back out again straight away
-    var disposables = [emmetMonaco.emmetHTML(monaco), emmetMonaco.emmetCSS(monaco)]
-    monaco.languages.registerCompletionItemProvider = realRegister
-    disposables.forEach(function (d) { if (d && d.dispose) d.dispose() })
+    // The providers the app itself registered, recorded by serve.js between
+    // monaco loading and initCore running. Registering a second copy here and
+    // disposing it - which is what this used to do - tore down state the live
+    // one was still using, and monaco threw from inside its tokenizer a third
+    // of the time.
+    var captured = window.__providers || []
 
-    var ask = function (language, text, column) {
-      var entry = captured.filter(function (c) { return c.language === language })[0]
-      if (!entry) return Promise.resolve({ error: 'nothing registered for ' + language })
-      var model = monaco.editor.createModel(text, language)
-      return Promise.resolve(entry.provider.provideCompletionItems(
-        model, new monaco.Position(1, column), {}, { isCancellationRequested: false }
-      )).then(function (result) {
-        model.dispose()
-        var items = (result && result.suggestions) || []
-        return { items: items.map(function (i) { return String(i.insertText || '') }) }
+    // Ask every provider registered for the language, not the first one:
+    // monaco registers its own html completions when the html mode loads, so
+    // picking by order sometimes asked the wrong one. The claim being tested is
+    // that typing the abbreviation offers the expansion - from whichever
+    // provider offers it.
+    //
+    // It polls, because emmet reads monaco's tokens and monaco tokenizes
+    // lazily: asked too early it returns nothing at all, or throws from inside
+    // itself. Monaco's own suggest controller never calls a provider that
+    // early. The editors' own models are used rather than throwaway ones, since
+    // disposing a model mid-tokenization throws too.
+    var ask = function (language, text, column, matches) {
+      var providers = captured.filter(function (c) { return c.language === language })
+      if (!providers.length) return Promise.resolve({ error: 'nothing registered for ' + language })
+
+      var ed = language === 'css' ? ensureCssEditor() : ensureMainEditor()
+      var model = ed.getModel()
+      var before = model.getValue()
+      model.setValue(text)
+
+      var askOne = function (entry) {
+        return Promise.resolve().then(function () {
+          return entry.provider.provideCompletionItems(
+            model, new monaco.Position(1, column), {}, { isCancellationRequested: false })
+        }).then(function (result) {
+          return ((result && result.suggestions) || []).map(function (i) { return String(i.insertText || '') })
+        }, function () {
+          return []          // one provider failing is not the question here
+        })
+      }
+
+      var attempt = function (left) {
+        return Promise.all(providers.map(askOne)).then(function (lists) {
+          var items = []
+          lists.forEach(function (list) { items = items.concat(list) })
+          if (left <= 0 || items.filter(matches).length) return items
+          return new Promise(function (r) { setTimeout(r, 150) }).then(function () {
+            return attempt(left - 1)
+          })
+        })
+      }
+
+      return attempt(20).then(function (items) {
+        model.setValue(before)
+        return { items: items, providers: providers.length }
       }, function (err) {
-        model.dispose()
-        return { error: String(err && err.message || err) }
+        model.setValue(before)
+        return { error: String((err && err.message) || err) }
       })
     }
 
+    var expandsHtml = function (t) { return /<div class="a">/.test(t) && (t.match(/<li>/g) || []).length === 3 }
+    var expandsCss = function (t) { return /margin:\s*10px/.test(t) }
+
     return Promise.all([
-      ask('html', 'div.a>ul>li*3', 14),
-      ask('css', 'm10', 4),
+      ask('html', 'div.a>ul>li*3', 14, expandsHtml),
+      ask('css', 'm10', 4, expandsCss),
     ]).then(function (results) {
       check('emmet still expands, in html and in css', function () {
         var html = results[0]
         var css = results[1]
-        var expandedHtml = (html.items || []).filter(function (t) {
-          return /<div class="a">/.test(t) && (t.match(/<li>/g) || []).length === 3
-        })[0]
-        var expandedCss = (css.items || []).filter(function (t) {
-          return /margin:\s*10px/.test(t)
-        })[0]
+        var expandedHtml = (html.items || []).filter(expandsHtml)[0]
+        var expandedCss = (css.items || []).filter(expandsCss)[0]
         return ok(!!expandedHtml && !!expandedCss,
           'html: ' + (html.error || JSON.stringify(String(expandedHtml).slice(0, 50)) ||
-            (html.items || []).length + ' suggestions, none expanded') +
+            (html.items || []).length + ' suggestions from ' + html.providers + ' providers, none expanded') +
           '; css: ' + (css.error || JSON.stringify(expandedCss) ||
-            (css.items || []).length + ' suggestions, none expanded'))
+            (css.items || []).length + ' suggestions from ' + css.providers + ' providers, none expanded'))
       })
-      check('registering emmet twice leaves nothing behind', function () {
-        return ok(captured.length >= 2 &&
-          monaco.languages.registerCompletionItemProvider === realRegister,
-          captured.length + ' providers seen, monaco restored=' +
-          (monaco.languages.registerCompletionItemProvider === realRegister))
+      check('emmet registered itself for both languages at boot', function () {
+        var languages = captured.map(function (c) { return c.language })
+        return ok(languages.indexOf('html') > -1 && languages.indexOf('css') > -1,
+          captured.length + ' completion providers registered: ' + languages.join(', '))
       })
     })
   }
@@ -956,6 +984,228 @@
       })
   }
 
+  // -------------------------------------------------------------- history
+  function historyChecks() {
+    var home = project
+    var realIdle = SNAPSHOT_IDLE_MS
+    var realConfirm = window.confirm
+    var mine = makeProject({ name: 'history under test', code: 'first', css: 'a{}', js: '// one' })
+
+    return saveProject(mine)
+      .then(function () { return openRecord(mine) })
+      .then(function () {
+        // an edit, then quiet: the snapshot is taken once the typing stops, not
+        // on a timer that runs regardless
+        SNAPSHOT_IDLE_MS = 150
+        setPaneText('main', 'second')
+        return waitFor(function () { return true }, 0).then(function () {
+          return new Promise(function (resolve) { setTimeout(resolve, 600) })
+        })
+      })
+      .then(function () { return listSnapshots(mine.id) })
+      .then(function (rows) {
+        check('going quiet after an edit saves a snapshot', function () {
+          return ok(rows.length === 1 && rows[0].reason === 'idle' && rows[0].code === 'second',
+            rows.length + ' snapshots: ' + rows.map(function (r) {
+              return r.reason + '/' + JSON.stringify(r.code)
+            }).join(', '))
+        })
+        SNAPSHOT_IDLE_MS = realIdle
+        // nothing has changed, so asking again must not write another
+        return snapshotNow('asked for').then(function (row) {
+          return listSnapshots(mine.id).then(function (after) {
+            check('an unchanged project does not pile up identical snapshots', function () {
+              return ok(row === null && after.length === rows.length,
+                'a second snapshot returned ' + row + ', total still ' + after.length)
+            })
+          })
+        })
+      })
+      .then(function () {
+        // Type again first. Without a change there is nothing new to keep - the
+        // idle snapshot above already holds this exact content, and the dedup
+        // is right to refuse a second copy of it under a different label.
+        setPaneText('main', 'third')
+        // opening a file replaces a pane outright, so the state before it has
+        // to be kept
+        return openHandle(fakeHandle('dropped-in.html', 'from a file'), 'main')
+      })
+      .then(function () { return listSnapshots(mine.id) })
+      .then(function (rows) {
+        check('opening a file keeps what it replaced', function () {
+          var before = rows.filter(function (r) { return r.reason === 'file opened' })[0]
+          return ok(!!before && before.code === 'third' && contentOf('main') === 'from a file',
+            'snapshot holds ' + JSON.stringify(before && before.code) +
+            ', the pane now holds ' + JSON.stringify(contentOf('main')))
+        })
+        // restore the state from before the file, then undo that restore
+        var target = rows.filter(function (r) { return r.reason === 'file opened' })[0]
+        window.confirm = function () { return true }
+        if (!target) return null          // reported above; do not take the rest down with it
+        return restoreSnapshot(target.id)
+      })
+      .then(function () {
+        check('restoring puts all three panes back', function () {
+          return ok(contentOf('main') === 'third' && contentOf('css') === 'a{}' &&
+            contentOf('js') === '// one',
+            'main=' + JSON.stringify(contentOf('main')) + ' css=' + JSON.stringify(contentOf('css')))
+        })
+        return listSnapshots(mine.id)
+      })
+      .then(function (rows) {
+        var undo = rows.filter(function (r) { return r.reason === 'before-restore' })[0]
+        check('the restore itself is undoable', function () {
+          return ok(!!undo && undo.code === 'from a file',
+            'the pre-restore snapshot holds ' + JSON.stringify(undo && undo.code))
+        })
+        if (!undo) return null          // reported above
+        return restoreSnapshot(undo.id)
+      })
+      .then(function () {
+        check('undoing the restore lands exactly where it started', function () {
+          return ok(contentOf('main') === 'from a file',
+            'main=' + JSON.stringify(contentOf('main')))
+        })
+        window.confirm = realConfirm
+
+        // the menu lists them, newest first, with a way to take one by hand
+        return refreshHistory()
+      })
+      .then(function () {
+        check('the history menu lists them, newest first, each with a way to delete it', function () {
+          var rows = getsAll('#historyList [data-snapshot]')
+          var actions = getsAll('#historyList [data-history-action]')
+          var crosses = getsAll('#historyList [data-delete-snapshot]')
+          return ok(rows.length >= 3 && actions.length === 2 && crosses.length === rows.length &&
+            rows[0].textContent.length > 0,
+            rows.length + ' entries, ' + crosses.length + ' delete crosses, ' +
+            actions.length + ' actions; first reads ' +
+            JSON.stringify(rows[0] && rows[0].textContent))
+        })
+      })
+      .then(function () {
+        // naming one by hand, and naming a state that is already saved
+        var realPrompt = window.prompt
+        window.prompt = function () { return '  before the rewrite  ' }
+        setPaneText('main', 'worth marking')
+        return snapshotWithTitle()
+          .then(function () { return listSnapshots(mine.id) })
+          .then(function (rows) {
+            check('a snapshot taken by hand is given the name you type', function () {
+              var named = rows.filter(function (r) { return r.title === 'before the rewrite' })[0]
+              return ok(!!named && named.reason === 'saved by hand' && named.code === 'worth marking',
+                named ? 'named ' + JSON.stringify(named.title) + ', holding ' +
+                  JSON.stringify(named.code) : 'no named snapshot: ' +
+                  rows.map(function (r) { return r.reason + '/' + r.title }).join(', '))
+            })
+            var count = rows.length
+            // naming the same state again renames it rather than duplicating
+            window.prompt = function () { return 'renamed' }
+            return snapshotWithTitle()
+              .then(function () { return listSnapshots(mine.id) })
+              .then(function (after) {
+                check('naming a state that is already saved renames it, it does not copy it', function () {
+                  return ok(after.length === count && after[0].title === 'renamed',
+                    after.length + ' snapshots (was ' + count + '), newest named ' +
+                    JSON.stringify(after[0].title))
+                })
+                // cancelling the prompt takes nothing at all
+                window.prompt = function () { return null }
+                setPaneText('main', 'not worth marking')
+                return snapshotWithTitle()
+              })
+              .then(function () { return listSnapshots(mine.id) })
+              .then(function (after) {
+                check('cancelling the name takes no snapshot', function () {
+                  return ok(after.length === count, after.length + ' snapshots, still ' + count)
+                })
+                window.prompt = realPrompt
+              })
+          })
+      })
+      .then(function () {
+        // the cross on a row deletes just that one, and does not restore it
+        return refreshHistory()
+      })
+      .then(function () {
+        var before = contentOf('main')
+        var rows = getsAll('#historyList [data-snapshot]')
+        var doomed = rows[1].getAttribute('data-snapshot')
+        var crosses = getsAll('#historyList [data-delete-snapshot]')
+        var realConfirm2 = window.confirm
+        window.confirm = function () { return true }
+        crosses[1].click()
+        return waitFor(function () {
+          return getsAll('#historyList [data-snapshot]').length === rows.length - 1
+        }, 4000).then(function (gone) {
+          check('the cross deletes one snapshot without restoring it', function () {
+            return ok(gone && contentOf('main') === before &&
+              !Array.prototype.some.call(getsAll('#historyList [data-snapshot]'), function (r) {
+                return r.getAttribute('data-snapshot') === doomed
+              }),
+              'rows left ' + getsAll('#historyList [data-snapshot]').length + ' of ' + rows.length +
+              ', the pane still holds ' + JSON.stringify(contentOf('main')))
+          })
+          window.confirm = realConfirm2
+        })
+      })
+      .then(function () {
+        // clear history empties this project and leaves the others alone
+        var other = makeProject({ name: 'not this one', code: 'keep me' })
+        var realConfirm3 = window.confirm
+        window.confirm = function () { return true }
+        return saveProject(other)
+          .then(function () { return takeSnapshot(other, 'idle') })
+          .then(function () { return clearHistory() })
+          .then(function () {
+            return Promise.all([listSnapshots(mine.id), listSnapshots(other.id)])
+          })
+          .then(function (both) {
+            check('clear history empties this project and nobody else', function () {
+              return ok(both[0].length === 0 && both[1].length === 1,
+                'this project has ' + both[0].length + ', the other still has ' + both[1].length)
+            })
+            window.confirm = realConfirm3
+            return deleteProject(other.id).then(function () { return dropSnapshotsFor(other.id) })
+          })
+      })
+      .then(function () {
+        // the pruning rule on its own: sixty snapshots over a fortnight
+        var now = Date.now()
+        var rows = []
+        for (var i = 0; i < 60; i++) {
+          // the first twenty within the hour, the rest spread back over 14 days
+          var takenAt = i < 20 ? now - i * 60 * 1000 : now - (i - 19) * 6 * 60 * 60 * 1000
+          rows.push({ id: 'x' + i, takenAt: takenAt })
+        }
+        var keep = chooseKept(rows, now)
+        var ids = keep.map(function (r) { return r.id })
+        var newestTen = rows.slice(0, 10).every(function (r) { return ids.indexOf(r.id) > -1 })
+        check('old snapshots are thinned out and the count is capped', function () {
+          return ok(keep.length <= 50 && keep.length < rows.length && newestTen,
+            'kept ' + keep.length + ' of ' + rows.length +
+            ', the newest ten all kept=' + newestTen)
+        })
+      })
+      .then(function () {
+        // deleting a project takes its history with it
+        var doomed = mine.id
+        window.confirm = function () { return true }
+        return removeProject()
+          .then(function () { return listSnapshots(doomed) })
+          .then(function (left) {
+            check('deleting a project leaves no snapshots behind', function () {
+              return ok(left.length === 0, left.length + ' snapshots still stored')
+            })
+            window.confirm = realConfirm
+          })
+      })
+      .then(function () {
+        SNAPSHOT_IDLE_MS = realIdle
+        return switchProject(home.id)
+      })
+  }
+
   // --------------------------------------------------------------- sharing
   // The values here must match SHARED in run.js: that case opens a link this
   // browser did not build, which is the only way to prove the format is really
@@ -1512,12 +1762,15 @@
   // then the page reloads: the whole app now has to come out of the cache.
   if (CASE === 'offline') {
     if (!sessionStorage.getItem('qc-phase')) {
+      // Patient on purpose: the worker does not activate until it has
+      // precached about 2.5MB from two CDNs, so this case is as slow as the
+      // network is on the day.
       navigator.serviceWorker.ready
-        .then(function () { return waitFor(function () { return !!navigator.serviceWorker.controller }, 15000) })
+        .then(function () { return waitFor(function () { return !!navigator.serviceWorker.controller }, 60000) })
         .then(function (controlled) {
           if (!controlled) {
             check('the service worker took control before the network went away', function () {
-              return ok(false, 'no controller after 15s')
+              return ok(false, 'no controller after 60s')
             })
             report()
             return
@@ -1758,9 +2011,11 @@
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
     storeChecks().then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
-      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks)
+      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks)
       .then(report, function (err) {
-      check('formatting checks completed', function () { return ok(false, String(err)) })
+      check('the core chain ran to the end', function () {
+        return ok(false, String(err) + ' | ' + String(err && err.stack).slice(0, 400))
+      })
       report()
     })
   } else {

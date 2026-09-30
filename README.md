@@ -76,6 +76,28 @@ starting something new no longer writes over the last thing.
 An install from before projects existed is migrated on first load, and its old storage keys
 are deliberately left untouched as a safety net.
 
+### 🕓 History
+
+The **history dropdown** lists snapshots of the project you have open, newest first, with the
+time, why it was taken, and how many lines it gained or lost.
+
+QuickCode takes one **after a minute of quiet following an edit**, **immediately before
+anything that replaces a pane wholesale** — opening a file into it, importing a zip — and
+whenever you pick **+ snapshot now**.
+
+- **Name your own.** `+ snapshot now` asks what to call it, and the name is what the list
+  shows. Naming a state that is already saved renames that entry rather than storing it twice.
+  The automatic ones are never named — a prompt appearing a minute after you stopped typing
+  would be unbearable
+- **Restore** by clicking one: all three files come back as they were. It asks first, and
+  takes a snapshot on the way in, so a restore can itself be undone
+- **Delete** a single entry with the **×** on its row, or wipe the lot with **clear history**.
+  Both ask first, and neither touches your files
+- Identical snapshots are never stored twice, so sitting idle does not fill it up
+- The last 10 are always kept, then one an hour for a day and one a day after that, capped at
+  50 per project
+- Deleting a project deletes its history with it
+
 ### 📂 Open & save real files
 
 | Action | What happens |

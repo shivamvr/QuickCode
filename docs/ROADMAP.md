@@ -22,7 +22,7 @@ web workers).
 | 09 | [Upgrade monaco](09-monaco-upgrade.md) | ~~Pinned to 0.25.1 from mid-2021~~ **done** - on 0.52.2, the last release with the classic file layout | 15 | M |
 | 10 | [TypeScript, JSX, Sass](10-typescript-jsx.md) | Needs a real transpile step | 01, 09 | L |
 | 11 | [npm imports](11-npm-imports.md) | Make bare `import` specifiers work | 01 | M |
-| 12 | [Version history](12-version-history.md) | There is no recovery path from any mistake | 04 | M |
+| 12 | [Version history](12-version-history.md) | ~~There was no recovery path from any mistake~~ **done** | 04 | M |
 | 13 | [Diff view](13-diff-view.md) | Nearly free once history exists | 09, 12 | S |
 | 14 | [Emmet and theme polish](14-emmet-and-theming.md) | Emmet **done**; toolbar recolouring **reverted** by the owner | — | S |
 | 15 | [Tests and repo hygiene](15-tests-and-repo-hygiene.md) | ~~Nothing above is safe to do twice without this~~ **done** — `node test/run.js` | — | M |
@@ -40,9 +40,10 @@ small enough to slot in whenever.
 tool rather than a web page; ~~04~~ + ~~05~~ + 12 make it somewhere work actually
 lives.
 
-**What is left:** 12 (version history) is the last of the "somewhere work
-lives" group and the only recovery path from a mistake. ~~09~~ is done, so 13
-(diff view) and 10 (TypeScript, JSX) are unblocked. 11 stands alone.
+**What is left:** 13 (diff view) is next and nearly free - ~~09~~ and ~~12~~
+are both done, and comparing a snapshot against what is open is the thing 12
+deliberately left out. Then 10 (TypeScript, JSX), which is the last large one.
+11 stands alone.
 
 **Do not take monaco past 0.52.2** without reading the Outcome in
 [09](09-monaco-upgrade.md): 0.53 onwards has content-hashed filenames and no
