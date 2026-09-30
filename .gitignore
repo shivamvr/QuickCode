@@ -1,0 +1,11 @@
+# editors / OS
+.DS_Store
+Thumbs.db
+*.swp
+
+# logs and scratch
+*.log
+test/.tmp/
+
+# not used by this project, but keeps an accidental install out of the repo
+node_modules/

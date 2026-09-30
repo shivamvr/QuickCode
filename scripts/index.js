@@ -9,7 +9,7 @@ const getsAll = (selector) => document.querySelectorAll(selector)
 
 //----------------------------- settings ------------------------------
 
-const defaultSettings = { theme: 'vs-dark', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html' }
+const defaultSettings = { theme: 'vs-dark', lang: 'html', tab: 'main', js: false, css: false, vnav: false, split: false, splitLang: 'html', splitRatio: 0.5 }
 
 // themes stored before the dropdown values were corrected to match the file
 // names on disk, which 404 on a case sensitive host
@@ -306,7 +306,10 @@ function settheme(themeName) {
   fetch('./themes/' + themeName + '.json')
     .then((response) => {
       if (!response.ok) {
-        throw new Error('HTTP ' + response.status)
+        const err = new Error('HTTP ' + response.status)
+        // a 404 means the theme is gone for good, not a passing network problem
+        err.permanent = response.status === 404
+        throw err
       }
       return response.json()
     })
@@ -315,34 +318,87 @@ function settheme(themeName) {
       monaco.editor.setTheme(themeName)
     })
     .catch((err) => {
-      // without this the theme silently stayed on the previous one
+      // Fall back for this session only, and leave the stored choice alone.
+      // Persisting the fallback meant any transient failure permanently reset
+      // the user's theme - including the fetch simply being cancelled because
+      // they reloaded the page right after picking one.
       console.error('Failed to load theme', themeName, err)
       monaco.editor.setTheme('vs-dark')
-      gets('#theme').innerText = 'vs-dark'
-      saveSettings({ theme: 'vs-dark' })
+      if (err.permanent) {
+        // the theme no longer exists, so stop asking for it on every load. A
+        // transient failure deliberately keeps the stored choice instead.
+        saveSettings({ theme: 'vs-dark' })
+        gets('#theme').innerText = 'vs-dark'
+        gets('#theme').setAttribute('data-type', 'vs-dark')
+      }
     })
+}
+
+//---------------------------- formatting -----------------------------
+// Prettier is a few hundred KB, so it is fetched the first time a format is
+// actually asked for rather than on every page load.
+
+const PRETTIER_BASE = 'https://unpkg.com/prettier@3'
+const PRETTIER_PARSERS = { html: 'html', css: 'css', javascript: 'babel', json: 'json' }
+
+let prettierReady = null
+
+// Use the ESM build, not the UMD one. Monaco's AMD loader defines `define.amd`,
+// and any UMD script loaded after it registers as an anonymous AMD module
+// instead of creating the global it is supposed to - so `prettier` would come
+// back undefined and formatting would silently do nothing.
+const loadPrettier = () => {
+  if (!prettierReady) {
+    prettierReady = Promise.all([
+      import(PRETTIER_BASE + '/standalone.mjs'),
+      import(PRETTIER_BASE + '/plugins/html.mjs'),
+      import(PRETTIER_BASE + '/plugins/postcss.mjs'),
+      import(PRETTIER_BASE + '/plugins/babel.mjs'),
+      import(PRETTIER_BASE + '/plugins/estree.mjs'),
+    ]).then((mods) => ({
+      format: mods[0].format,
+      plugins: mods.slice(1).map((m) => m.default || m),
+    })).catch((err) => {
+      prettierReady = null   // so a later attempt can retry
+      throw err
+    })
+  }
+  return prettierReady
+}
+
+// Registered as real monaco providers, so the context menu entry, the keyboard
+// shortcut and editor.action.formatDocument all go through the same path.
+const registerFormatters = () => {
+  Object.keys(PRETTIER_PARSERS).forEach((language) => {
+    monaco.languages.registerDocumentFormattingEditProvider(language, {
+      provideDocumentFormattingEdits: async (model) => {
+        try {
+          const engine = await loadPrettier()
+          // format is async in prettier 3
+          const text = await engine.format(model.getValue(), {
+            parser: PRETTIER_PARSERS[language],
+            plugins: engine.plugins,
+          })
+          return [{ range: model.getFullModelRange(), text: text }]
+        } catch (err) {
+          // returning no edits leaves the buffer exactly as it was, which is
+          // what should happen when the code does not parse
+          console.error('Could not format:', err.message)
+          return []
+        }
+      },
+    })
+  })
 }
 
 //---------------------------- preview tab ----------------------------
 
+// app.html builds and sandboxes the document for every language, so there is no
+// longer a document.write path here. The old one opened about:blank, which is
+// same-origin, meaning a previewed script could reach this page's storage.
 function openWin() {
   flushStorage()
-  if (quickEdit.lang === 'html') {
-    window.open('./app.html', '_blank')
-    return
-  }
-  let code = readStored('code')
-  const win = window.open()
-  const doc = win.document
-  doc.open()
-  if (quickEdit.lang === 'javascript') {
-    code = `<script>${code}</script>`
-  } else if (quickEdit.lang === 'plaintext') {
-    const escaped = code.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    code = `<pre style="margin: .5rem">${escaped}</pre>`
-  }
-  doc.write(code)
-  doc.close()
+  window.open('./app.html', '_blank')
 }
 
 //------------------------------- navbar ------------------------------
@@ -424,6 +480,9 @@ const onClick = (el, fn) => {
 
 function initCore() {
   emmetMonaco.emmetHTML(monaco)
+  // the library also ships a CSS mode; without it the css pane had no
+  // abbreviations at all (m10 -> margin: 10px, df -> display: flex)
+  emmetMonaco.emmetCSS(monaco)
 
   // seed the content keys so app.html and the line counters never see null
   TAB_IDS.forEach((id) => {
@@ -445,6 +504,7 @@ function initCore() {
   gets('#filename').value = 'file.' + ext
 
   settheme(quickEdit.theme)
+  registerFormatters()
   ensureMainEditor()
 
   if (quickEdit.lang === 'html') {

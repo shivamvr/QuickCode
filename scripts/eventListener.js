@@ -17,13 +17,30 @@ function splitMenu(lang) {
     updateSplit(lang)
 }
 
+// How much of the width the tab editor gets; the split pane takes the rest.
+// Kept away from 0 and 1 so neither pane can be dragged out of existence.
+const MIN_RATIO = 0.15
+const MAX_RATIO = 0.85
+let splitRatio = 0.5
+
+const clampRatio = (r) => Math.min(MAX_RATIO, Math.max(MIN_RATIO, Number(r) || 0.5))
+
+// Widths stay inline rather than moving into a class, because the narrow
+// layout in tabs.css overrides them with `width: 100% !important` to stack the
+// panes, and that must keep winning.
+function applySplitRatio() {
+    getsAll('.editor').forEach((e) => { e.style.width = (splitRatio * 100) + '%' })
+    gets('#splitContainer').style.width = ((1 - splitRatio) * 100) + '%'
+}
+
 function doSplit() {
     saveSettings({ split: true })
     ensureSplitEditor()
     gets('.splitsvg').style.display = 'none'
     gets('.single').style.display = 'block'
-    getsAll('.editor').forEach((e) => { e.style.width = '50%' })
+    applySplitRatio()
     gets('#splitContainer').style.display = 'block'
+    gets('#splitHandle').style.display = 'block'
     gets('.container').style.display = 'none'
     splitMenuClosed = true
 }
@@ -35,6 +52,35 @@ function singleEditor() {
     gets('.container').style.display = 'none'
     getsAll('.editor').forEach((e) => { e.style.width = '100%' })
     gets('#splitContainer').style.display = 'none'
+    gets('#splitHandle').style.display = 'none'
+}
+
+function wireSplitHandle() {
+    const handle = gets('#splitHandle')
+
+    handle.addEventListener('pointerdown', (e) => {
+        e.preventDefault()
+        // capture keeps the events coming even when the pointer outruns the
+        // handle, which it will during a fast drag
+        handle.setPointerCapture(e.pointerId)
+        const bounds = gets('#editor').getBoundingClientRect()
+
+        const move = (ev) => {
+            if (bounds.width <= 0) return
+            splitRatio = clampRatio((ev.clientX - bounds.left) / bounds.width)
+            applySplitRatio()
+        }
+        const up = (ev) => {
+            handle.releasePointerCapture(ev.pointerId)
+            handle.removeEventListener('pointermove', move)
+            handle.removeEventListener('pointerup', up)
+            // persist once at the end, not on every pointer move
+            saveSettings({ splitRatio: splitRatio })
+        }
+
+        handle.addEventListener('pointermove', move)
+        handle.addEventListener('pointerup', up)
+    })
 }
 
 function makeSplitTabActive(lang) {
@@ -223,6 +269,19 @@ function addAction(e) {
     });
 
     e.addAction({
+        id: 'formatDocument',
+        label: 'Format Document',
+        // Alt+Shift+F: Ctrl+Shift+F is already fold all, and menu orders
+        // 1.1 to 1.6 are taken
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KEY_F],
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1.7,
+        run: function () {
+            e.getAction('editor.action.formatDocument').run()
+        }
+    });
+
+    e.addAction({
         id: 'toggleFoldAll',
         label: 'Fold All / Unfold All',
         keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_F],
@@ -262,6 +321,9 @@ function wireSplit() {
         el.addEventListener('click', () => splitMenu(el.dataset.splitLang))
     })
     onClick(gets('.single'), singleEditor)
+
+    splitRatio = clampRatio(quickEdit.splitRatio)
+    wireSplitHandle()
 
     if (quickEdit.split) {
         doSplit()

@@ -2,22 +2,35 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>App</title>
-    <style id="mystyle"></style>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #fff;
+      }
+      #preview {
+        display: block;
+        border: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"><!-- code from local storage --></div>
-    <script id="myscript"></script>
-    <script id="myscript2"></script>
+    <!-- The snippet runs inside this frame, never in this page. allow-scripts
+         without allow-same-origin gives it an opaque origin, so it cannot reach
+         the localStorage that holds the user's saved work. Adding
+         allow-same-origin alongside allow-scripts would let the frame remove
+         its own sandbox, so do not. -->
+    <iframe
+      id="preview"
+      title="Preview"
+      sandbox="allow-scripts allow-modals allow-forms allow-popups allow-downloads"
+    ></iframe>
     <script>
-      const gets = (selector) => {
-        return document.querySelector(selector);
-      };
-      const getsAll = (selector) => {
-        return document.querySelectorAll(selector);
-      };
       // this page can be opened before the editor has stored anything, so
       // never assume a key is present
       const read = (key) => localStorage.getItem(key) || "";
@@ -29,56 +42,92 @@
         }
       };
 
-      let code = read("code");
-      let quickEdit = readSettings();
-      let root = document.querySelector("#root");
-      let myScript2 = gets("#myscript2");
-      let localJs = read("js");
-      let mystyle = gets("#mystyle");
-      let localCss = read("css");
+      // A literal closing script or style tag inside the user's code would end
+      // the tag we inject it into and spill the rest into the markup. Escaping
+      // the slash is a no-op in both JS and CSS, so the code still means the
+      // same thing. (Note this comment cannot itself spell those tags out: the
+      // HTML parser would end THIS script element right here.)
+      const safeInline = (text) => text.replace(/<\/(script|style)/gi, "<\\/$1");
 
-      root.innerHTML = code;
-      mystyle.innerHTML = localCss;
+      const escapeText = (text) =>
+        text
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
 
-      if (quickEdit.js) {
-        myScript2.innerHTML = localJs;
-      }
+      const buildDoc = () => {
+        const settings = readSettings();
+        const code = read("code");
 
-      if (quickEdit.css) {
-        mystyle.disabled = false;
-      } else {
-        mystyle.disabled = true;
-      }
-
-      window.onload = () => {
-        // innerHTML never runs a <script>, so copy an inline one out of the
-        // rendered markup into a script element of our own, which does run it
-        let myScript = gets("#myscript");
-        let data = gets(`#root>script`);
-        if (data) {
-          myScript.innerHTML = data.innerHTML;
+        // in javascript and plaintext mode the main editor is the whole payload
+        if (settings.lang === "javascript") {
+          return (
+            '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>' +
+            "<script>" +
+            safeInline(code) +
+            "<\/script></body></html>"
+          );
         }
+        if (settings.lang === "plaintext") {
+          return (
+            '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>' +
+            '<pre style="margin: .5rem">' +
+            escapeText(code) +
+            "</pre></body></html>"
+          );
+        }
+
+        const styleTag = settings.css
+          ? "<style>" + safeInline(read("css")) + "</style>"
+          : "";
+        const scriptTag = settings.js
+          ? "<script>" + safeInline(read("js")) + "<\/script>"
+          : "";
+
+        // a full document from the editor keeps its own structure, so inject
+        // into it rather than nesting it inside another document
+        if (/<html[\s>]/i.test(code)) {
+          let doc = code;
+          if (styleTag) {
+            doc = /<\/head>/i.test(doc)
+              ? doc.replace(/<\/head>/i, styleTag + "</head>")
+              : styleTag + doc;
+          }
+          if (scriptTag) {
+            doc = /<\/body>/i.test(doc)
+              ? doc.replace(/<\/body>/i, scriptTag + "</body>")
+              : doc + scriptTag;
+          }
+          return doc;
+        }
+
+        return (
+          '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+          styleTag +
+          "</head><body>" +
+          code +
+          scriptTag +
+          "</body></html>"
+        );
       };
 
+      const frame = document.getElementById("preview");
 
+      // Assigning srcdoc gives a brand new document, so inline <script> tags in
+      // the snippet run on their own. That replaces both the old trick of
+      // copying script text into a live <script> element and the full
+      // window.location.reload() this page used to do on every change.
+      const render = () => {
+        frame.srcdoc = buildDoc();
+      };
+
+      render();
+
+      // the editor batches its writes, and a burst should still only rebuild once
+      let pending = null;
       window.addEventListener("storage", () => {
-        let myScript2 = gets("#myscript2");
-        let quickEdit = readSettings();
-        let code = read("code");
-        let localCss = read("css").replace(/\s+/g, " ");
-        let localJs = read("js");
-        let root = document.querySelector("#root");
-        let mystyle = gets("#mystyle");
-        root.innerHTML = code;
-        mystyle.innerHTML = localCss;
-        myScript2.innerHTML = localJs;
-        let script = gets(`#root>script`);
-    
-
-        if (script || quickEdit.js ) {
-          window.location.reload();
-        }
-
+        clearTimeout(pending);
+        pending = setTimeout(render, 200);
       });
     </script>
   </body>

@@ -63,11 +63,11 @@ second pane, and edit both at once.
 The export is a **ready-to-run project folder**, not a dump — if your HTML has no
 `<head>`/`<body>`, QuickCode wraps it in a full document for you.
 
-### 🎨 19 editor themes
+### 🎨 13 editor themes
 
-Switch instantly from the theme dropdown: `vs`, `vs-dark`, Ayu Dark, Cobalt, Cobalt 2,
-Synthwave, Dracula, Monokai, Tomorrow, Solarized Dark, Oceanic Next, Night Blue, Night,
-Night Owl, idleFingers, Eighties, and more.
+Switch instantly from the theme dropdown: `vs`, `vs-dark`, Ayu Dark, Cobalt,
+Synthwave, Dracula, Monokai, Solarized Dark, Oceanic Next, Night Blue, Night,
+Night Owl, idleFingers, Eighties and Zenburnesque.
 
 ### 🧭 Adaptive interface
 
@@ -141,7 +141,7 @@ QuickCode/
 │   ├── style.css           # layout, toolbar, editors
 │   ├── tabs.css            # tab bar and split menu
 │   └── verticalNav.css     # vertical toolbar layout (toggled on demand)
-├── themes/                 # 19 Monaco theme definitions
+├── themes/                 # 13 Monaco theme definitions
 └── icon/                   # UI icons
 ```
 

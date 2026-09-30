@@ -1,6 +1,6 @@
 # 15 — Tests and repo hygiene
 
-**Size:** M · **Depends on:** nothing · **Status:** not started
+**Size:** M · **Depends on:** nothing · **Status:** done (see Outcome)
 
 ## Why
 
@@ -99,3 +99,39 @@ While in here:
 
 One command runs the suite, it exits non-zero on failure, and it catches at least
 the four historical bugs listed at the top when they are reintroduced.
+
+## Outcome
+
+`node test/run.js` runs 23 checks across three scenarios and exits non-zero on
+failure. Four files, no dependencies: `run.js` (orchestrator), `serve.js`
+(case-sensitive server that injects the probes as it serves), `seed.js`
+(per-case storage state), `probe.js` (the assertions). Full notes in
+[test/README.md](../test/README.md).
+
+Also added `.gitignore` and `.editorconfig`. **LICENSE was deliberately not
+added** — it needs a copyright holder name, and guessing one is worse than
+leaving it to the owner.
+
+### Proven to bite
+
+Both historical bugs were reintroduced and the suite failed, then passed again on
+revert:
+
+- theme filename case (`Dracula.json` → `dracula.json`) → `every offered theme
+  resolves` FAIL
+- monaco key rename (`KEY_Z` → `KeyZ`) → `every key constant the app names
+  actually exists` FAIL
+
+### Two corrections this work forced
+
+- **`KeyMod.Alt | undefined` is `512`, not `NaN`.** The plan above and
+  [09-monaco-upgrade.md](09-monaco-upgrade.md) both claimed otherwise. Bitwise OR
+  coerces `undefined` to `0`, so a renamed constant produces a valid-looking
+  number silently bound to the wrong key. The first two versions of this check
+  passed while the binding was broken; it now verifies the constant *names*
+  resolve against the loaded build. 09 has been corrected.
+- **A real bug fell out of writing the persistence test.** `settheme()`'s
+  `.catch` used to persist `vs-dark` over the stored theme, so any transient
+  failure — including the fetch being cancelled because the user reloaded right
+  after picking a theme — permanently reset their choice. It now falls back for
+  the session only and leaves the stored preference alone.

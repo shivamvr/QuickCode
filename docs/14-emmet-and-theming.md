@@ -1,6 +1,6 @@
 # 14 — Emmet and theme polish
 
-**Size:** S · **Depends on:** nothing · **Status:** not started
+**Size:** S · **Depends on:** nothing · **Status:** done (see Outcome)
 
 Two small visible inconsistencies, unrelated except that both are quick.
 
@@ -79,3 +79,73 @@ are replaced with variables there, check the vertical layout still looks right.
 
 Emmet works in the CSS pane and the toolbar visibly follows the selected theme,
 including for `vs`, `vs-dark` and the failure fallback.
+
+## Outcome
+
+**Emmet for CSS: done and kept.** `emmetMonaco.emmetCSS(monaco)` runs alongside
+the HTML mode in `initCore()`, so the CSS pane has abbreviations (`m10` ->
+`margin: 10px`). `emmetJSX` was left out - only useful once item 10 lands.
+
+Also removed a dead `background: var(--bg1)` from `style.css`: the variable is
+defined nowhere and the declaration was overridden two lines later. No visual
+effect.
+
+**Toolbar theming: built, then reverted at the owner's request.** The
+fully theme-driven version was implemented and verified, and the owner did not
+like the result. The teal/blue gradient scheme is restored exactly.
+
+Do not re-attempt this without a specific brief. What was tried, so nobody
+repeats it blind:
+
+- `settheme()` set `--bg`, `--fg` and `--accent` from the theme, and
+  `style.css` derived `--chrome` / `--surface` / `--surface-hover` / `--active` /
+  `--border` / `--fg-muted` from them with `color-mix`.
+- The derivation was forced by the data: only **3 of 19** theme files carry keys
+  like `dropdown.background`; the other 16 define essentially just
+  `editor.background` and `editor.foreground`.
+- 33 rules across the three stylesheets were rewritten, replacing the gradients
+  with flat derived surfaces. That flatness is the most likely reason it was
+  rejected - the gradients are the app's visual identity, and no mapping from
+  `editor.background` reproduces them.
+
+If it is ever revisited, option 1 from the original plan is the one to try:
+**keep the gradient scheme and hand-author a second palette for dark themes**,
+switching on the theme's `base`. That addresses the one thing that genuinely
+looks wrong today - the dropdown panel and save dialog are hardcoded light
+(`#f8f8f8`, `#fff`, `rgb(227, 227, 227)`) under a dark editor theme - without
+discarding the design.
+
+## Resolved by removing the light themes
+
+The `.mtk*` problem below was closed without touching the CSS. Measuring the
+forced default-text colour (`#5CCFE6`) against every theme's background showed
+the damage was confined to the light themes:
+
+| | Theme | contrast of forced cyan on its background |
+|---|---|---|
+| removed | Slush | 1.61:1 |
+| removed | Solarizelight | 1.69:1 |
+| removed | Textmate | 1.82:1 |
+| removed | Tomorrow | 1.82:1 |
+| kept | every dark theme | 5.69:1 - 10.06:1 |
+
+WCAG wants 4.5:1 for text, so the four light themes were unreadable and every
+dark one was merely "not what the theme intended". Dropping the light themes
+removed the legibility problem with no CSS change and no change to how the
+editor looks.
+
+The `.mtk*` rules are therefore **still in `tabs.css` on purpose**. They still
+mean theme switching mostly changes the background rather than the syntax
+colours. If that ever becomes annoying, the options are in the section below.
+
+## Still open (cosmetic only): hardcoded syntax colours
+
+Separate from the toolbar, and **not** fixed: `tabs.css` ends with 12 `.mtk*`
+rules using `!important` that hardcode Ayu Dark's token colours (`.mtk1` is
+declared twice). Monaco assigns those class names per theme, so these force one
+theme's syntax palette onto all 19 - picking Dracula or Solarized Light still
+gets Ayu's colours for the most common token classes.
+
+They were removed as part of the theming work and restored with the revert,
+because they are part of how the editor currently looks. Removing them is a real
+fix but it *will* change the syntax colours you see, so it is the owner's call.

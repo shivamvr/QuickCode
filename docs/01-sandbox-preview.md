@@ -1,6 +1,6 @@
 # 01 — Sandbox the preview
 
-**Size:** S · **Depends on:** nothing · **Status:** not started
+**Size:** S · **Depends on:** nothing · **Status:** done (see Outcome at the end)
 
 ## Why
 
@@ -107,3 +107,39 @@ Also confirm still working, since this rewrites how the snippet is executed:
 A snippet containing `localStorage.clear()` previews and renders, and the three
 saved files plus settings are provably untouched afterwards — with the four
 behaviour checks above still passing.
+
+## Outcome
+
+Implemented as planned. `app.html` is now a host page whose only job is to build
+a document and hand it to a sandboxed frame; `openWin()` is four lines and every
+language goes through the same path, so `document.write` into a same-origin
+`about:blank` is gone.
+
+Verified in headless Chrome across eight scenarios:
+
+| Case | Result |
+|---|---|
+| Hostile snippet (`localStorage.clear()`) | ran, then **SecurityError**; all three files and settings intact |
+| Inline `<script>` in the HTML pane | executes |
+| CSS/JS toggles off | neither tag emitted, JS does not run |
+| CSS/JS toggles on | both emitted, JS runs |
+| Full document with `<body class="x">` | one `<html>`, not nested; style into its head, script into its body |
+| `javascript` language mode | runs |
+| `plaintext` mode | escaped correctly (`a &amp; b &lt;tag&gt;`) |
+| Literal closing script tag in the JS pane | neutralised to `<\/script>`, snippet still runs, no breakout |
+
+The frame reports `origin=null`, and `frame.contentDocument` is unreachable from
+the host, which is what makes the isolation real rather than nominal.
+
+### Two things worth remembering
+
+- **A comment containing a literal closing script tag broke the whole file.** The
+  HTML parser ends a script element at the first such sequence, even inside a
+  `//` comment, so the inline script was truncated mid-comment and threw
+  `SyntaxError`. Nothing ran, and the first test run therefore "passed" because
+  no code executed at all. Any future edit to this file must avoid spelling those
+  tags out in prose.
+- **Snippets can no longer use `localStorage`.** That is the point, but it is a
+  real behaviour change: a tutorial snippet demoing web storage now throws
+  `SecurityError` instead of working. Worth a line in the README if it surprises
+  anyone.

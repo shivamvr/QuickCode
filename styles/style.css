@@ -44,6 +44,20 @@ body {
 #jsEditor {
   display: none;
 }
+/* the divider between the two panes; only shown while split */
+#splitHandle {
+  display: none;
+  flex: 0 0 6px;
+  cursor: col-resize;
+  background: rgba(128, 128, 128, 0.25);
+  touch-action: none; /* let a pointer drag work on touch without scrolling */
+}
+
+#splitHandle:hover,
+#splitHandle:active {
+  background: rgba(128, 128, 128, 0.55);
+}
+
 #splitContainer {
   width: 50%;
   display: none;
@@ -285,7 +299,6 @@ label {
   width: 100%;
   border-radius: 0 0 3px 3px;
   overflow: hidden;
-  background: var(--bg1);
   border-top: 1px solid #eee;
   z-index: 1;
   background: rgba(255, 255, 255, 0.7);

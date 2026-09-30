@@ -1,0 +1,13 @@
+# Keep line endings and encoding consistent. Indent width is deliberately left
+# alone: eventListener.js uses 4 spaces and the rest use 2, and normalising that
+# would reflow files for no benefit.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false

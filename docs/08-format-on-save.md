@@ -1,6 +1,6 @@
 # 08 — Format on save
 
-**Size:** S · **Depends on:** nothing · **Status:** not started
+**Size:** S · **Depends on:** nothing · **Status:** done (see Outcome)
 
 ## Why
 
@@ -86,3 +86,28 @@ dynamic `import()` both work. Do not add them as blocking tags in `<head>`.
 
 `Alt+Shift+F` formats all four languages correctly, a syntax error leaves the
 buffer untouched, and Prettier is not fetched until first use.
+
+## Outcome
+
+Done. Prettier 3 is registered as real monaco formatting providers for html,
+css, javascript and json, so the context menu, `Alt+Shift+F` and
+`editor.action.formatDocument` all take the same path. It is fetched on first
+use, not on page load.
+
+### The trap worth recording
+
+The plan said to load `standalone.js` and the UMD plugin builds. That **does not
+work here**: monaco's AMD loader defines `define.amd`, so a UMD script loaded
+afterwards registers as an anonymous AMD module instead of creating its global,
+and `prettier` comes back `undefined`. Formatting then silently does nothing.
+
+Worse, the first test run hid it: monaco has a *built-in* HTML formatter, so
+"html is reformatted" passed while prettier was never loaded at all. Only the
+javascript case exposed it, because monaco has no built-in JS formatter.
+
+The fix is the ESM build with dynamic `import()`, which ignores AMD entirely.
+The suite now checks that prettier itself resolves, and asserts on javascript
+formatting specifically for the reason above.
+
+A syntax error returns no edits, leaving the buffer exactly as it was - also
+covered by a test.

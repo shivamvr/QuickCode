@@ -24,12 +24,16 @@ in [`addAction()`](../scripts/eventListener.js#L147) use the old names:
 | `KeyCode.US_MINUS` | `KeyCode.Minus` |
 | `KeyCode.US_EQUAL` | `KeyCode.Equal` |
 
-These fail in the worst possible way: the old name is `undefined`,
-`KeyMod.Alt | undefined` is `NaN`, and the action registers with a garbage
-keybinding. The context-menu entries keep working, so it is easy to believe the
-upgrade succeeded while every shortcut is quietly dead. This is exactly the class
-of bug a smoke test catches and eyeballing does not — hence the dependency on
-item 15.
+These fail in the worst possible way, and more subtly than it first appears.
+An undefined constant does **not** produce `NaN`: `KeyMod.Alt | undefined`
+coerces to `512`, a perfectly valid number. So the action registers happily with
+a modifier-only binding, the context-menu entry still works, and the shortcut is
+silently bound to the wrong thing. Nothing throws and nothing looks broken.
+
+The suite from item 15 checks that every `monaco.KeyCode.*` and `monaco.KeyMod.*`
+name used in `eventListener.js` resolves to a number in the loaded build, which
+is what actually catches this. (Asserting the arithmetic is not `NaN` does not —
+that was tried and passed while the binding was broken.)
 
 ## Also check
 

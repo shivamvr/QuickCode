@@ -1,6 +1,6 @@
 # 07 — Resizable split
 
-**Size:** S · **Depends on:** nothing · **Status:** not started
+**Size:** S · **Depends on:** nothing · **Status:** done (see Outcome)
 
 ## Why
 
@@ -76,3 +76,19 @@ leaving both mechanisms in play.
 
 The divider drags, the ratio persists across reloads, and the narrow-screen
 stacked layout is unaffected.
+
+## Outcome
+
+Done. A 6px drag handle sits between the panes; `splitRatio` persists in
+settings (clamped to 0.15-0.85 so neither pane can be dragged away).
+
+Widths stayed **inline** rather than moving to a CSS class, because the
+`max-width: 650px` rules in `tabs.css` stack the panes with
+`width: 100% !important`, and that has to keep winning. The handle is hidden
+there too.
+
+The ratio is written once on pointer-up, not on every pointer move - persisting
+mid-drag would have undone the point of the batched-storage work.
+
+Covered by `node test/run.js`: drag to 0.75 and 0.25, clamping past both ends,
+the pane taking the complement, and the handle hiding when the split closes.
