@@ -10,6 +10,11 @@ check failed, `2` if it could not run at all (no browser found).
 Set `CHROME=/path/to/chrome` to override browser discovery, and `PORT` to move
 off 8399.
 
+`CASES=core` runs one scenario instead of all six, which is what mutation
+testing wants: proving a single check bites should not cost six browser
+launches. Names come from the table below, comma-separated, and an unknown one
+is an error rather than a silent no-op. Run the whole suite before committing.
+
 ## What it does
 
 `run.js` starts a static server over the repo, then drives headless Chrome
@@ -17,7 +22,7 @@ through six scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
-| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, and the preview console |
+| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, and the diff view |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `migrate` | `index.html` | loads over a seeded pre-IndexedDB `localStorage`, then reloads: the migration must take everything, keep the old keys, and not run twice |
 | `share` | `index.html#s=…` | opens a share link that **node's zlib** built, not the browser |
@@ -105,6 +110,19 @@ that looked correct and proved nothing:
   picking the first one sometimes asked the wrong library. And registering a
   second copy of emmet to spy on it tore down state the live one was using;
   `serve.js` records the real registrations instead.
+- **A mutation that does not apply looks exactly like a check that does not
+  bite.** The first attempt at mutating the diff view matched on `\n` against
+  CRLF files, changed nothing, and reported a clean run - which read as "the
+  leak check is useless". The script that applies these now refuses to continue
+  unless the bytes actually changed.
+- **Calling the function is not clicking the thing.** The first draft of the
+  diff checks called `openDiff()` directly, so neutering the click handler
+  passed every one of them - while a real click on the compare glyph fell
+  through to the row and *restored*, overwriting the work. Drive the DOM for
+  anything whose failure mode is "it did the other thing".
+- **Monaco reports adjacent edits as a single change.** A fixture with an edit,
+  a deletion and an addition on consecutive lines counts as one change, not
+  three. Space them out with unchanged lines between.
 - **Ask a library how it actually works before testing it.** Emmet looks like
   "type an abbreviation, press Tab", so the check simulated a Tab and found
   nothing expanded. It is a **completion provider**; Tab is the suggest widget
@@ -177,7 +195,15 @@ node test/run.js                                       # expect 3, 1 and 1 FAILs
 # 9. version history
 #    drop the dedup or the thinning from scripts/store.js, or the pre-restore
 #    snapshot or the snapshot cleanup from scripts/index.js
-node test/run.js                                          # expect 1 FAIL each
+CASES=core node test/run.js                               # expect 1 FAIL each
+# 10. the diff view, in scripts/diff.js unless said otherwise
+#     drop dropDiffModels() from teardownDiff, or put the borrowed live model
+#     into diffModels so it gets disposed too, or drop teardownDiff() from
+#     splitMenu() in eventListener.js, or drop the showSplitPane that hands the
+#     pane back, or drop closeDiffIfGone from removeSnapshot in index.js, or
+#     look for the row before the compare glyph in the history click handler,
+#     or point the bar's restore at an element that does not exist
+CASES=core node test/run.js                          # expect 1-2 FAILs each
 ```
 
-All nine were confirmed to fail when introduced, and pass once reverted.
+All ten were confirmed to fail when introduced, and pass once reverted.

@@ -309,7 +309,7 @@
 #splitEditor{
  height: 100% !important;
 }
-#previewPane{
+#previewPane,#diffPane{
  height: calc(100% - 30px) !important;
 }
 #splitHandle{

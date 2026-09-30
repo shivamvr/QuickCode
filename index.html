@@ -162,6 +162,18 @@
                <div class="splitTab splitpreview" data-split-lang="preview"><img src="icon/code1.svg" alt=""><span>preview</span></div>
             </div>
             <pre id="splitEditor" class="scrollbar"></pre>
+            <!-- a snapshot beside what is open; see scripts/diff.js -->
+            <div id="diffPane">
+               <div id="diffBar">
+                  <span id="diffTitle"></span>
+                  <span class="diffFile" data-diff-file="main">html</span>
+                  <span class="diffFile" data-diff-file="css">css</span>
+                  <span class="diffFile" data-diff-file="js">js</span>
+                  <span id="diffRestore">restore</span>
+                  <span id="diffClose">close</span>
+               </div>
+               <div id="diffBody"></div>
+            </div>
             <!-- the preview, and what the snippet had to say for itself -->
             <div id="previewPane">
                <iframe id="previewFrame" title="Preview" sandbox="allow-scripts allow-modals allow-forms allow-popups"></iframe>
@@ -201,6 +213,7 @@
       <script src="scripts/cssEditor.js"></script>
       <script src="scripts/jsEditor.js"></script>
       <script src="scripts/splitEditor.js"></script>
+      <script src="scripts/diff.js"></script>
       <script src="scripts/eventListener.js"></script>
       <script>
          // the editor.main bundle is large; letting the loader fetch it keeps

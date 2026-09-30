@@ -1072,14 +1072,15 @@
         return refreshHistory()
       })
       .then(function () {
-        check('the history menu lists them, newest first, each with a way to delete it', function () {
+        check('the history menu lists them, newest first, each with a way to delete or compare it', function () {
           var rows = getsAll('#historyList [data-snapshot]')
           var actions = getsAll('#historyList [data-history-action]')
           var crosses = getsAll('#historyList [data-delete-snapshot]')
+          var compares = getsAll('#historyList [data-diff-snapshot]')
           return ok(rows.length >= 3 && actions.length === 2 && crosses.length === rows.length &&
-            rows[0].textContent.length > 0,
+            compares.length === rows.length && rows[0].textContent.length > 0,
             rows.length + ' entries, ' + crosses.length + ' delete crosses, ' +
-            actions.length + ' actions; first reads ' +
+            compares.length + ' compare glyphs, ' + actions.length + ' actions; first reads ' +
             JSON.stringify(rows[0] && rows[0].textContent))
         })
       })
@@ -1203,6 +1204,254 @@
       .then(function () {
         SNAPSHOT_IDLE_MS = realIdle
         return switchProject(home.id)
+      })
+  }
+
+  // ----------------------------------------------------------------- diff
+  // The diff editor is the only thing here that creates models it then has to
+  // throw away, so most of this is about what is left behind afterwards.
+
+  // Null until the worker has answered; [] once it has and there is nothing
+  // to report. So "no changes" and "not computed yet" are distinguishable,
+  // which is the whole reason these checks wait rather than look once.
+  function diffChanges() {
+    if (!diffEditor || typeof diffEditor.getLineChanges !== 'function') return null
+    return diffEditor.getLineChanges() || null
+  }
+
+  function waitForDiff() {
+    return waitFor(function () { return diffChanges() !== null }, 8000)
+  }
+
+  function diffChecks() {
+    var home = project
+    var realConfirm = window.confirm
+    var mine = makeProject({
+      name: 'diffed',
+      code: 'one\ntwo\nthree\nfour\nfive\nsix\nseven',
+      css: 'a { color: red }',
+      js: '// unchanged',
+    })
+    var baseline = 0
+    var taken = null
+
+    return saveProject(mine)
+      .then(function () { return openRecord(mine) })
+      .then(function () {
+        // an explicit starting point: the split open, showing its own editor,
+        // so what closing the diff restores is not whatever ran before this
+        splitMenu('html')
+        return snapshotNow('saved by hand', 'the version to compare against')
+      })
+      .then(function (row) {
+        taken = row
+        if (!row) {
+          check('the diff had a snapshot to compare against', function () {
+            return ok(false, 'no snapshot was taken')
+          })
+          return null
+        }
+        // Every pane's own model first, so the baseline is the page at rest.
+        // The diff borrows those models rather than copying them, and one of
+        // them being created by the first comparison would look like a leak.
+        TAB_IDS.forEach(function (id) { TABS[id].ensure() })
+        baseline = monaco.editor.getModels().length
+        // Line 2 edited, line 5 deleted, a line added at the end: the three
+        // kinds of change the view has to tell apart. They are spaced out on
+        // purpose - monaco reports adjacent edits as a single block, so
+        // changes sitting next to each other would count as one.
+        setPaneText('main', 'one\ntwo changed\nthree\nfour\nsix\nseven\neight')
+        return openDiff(row.id).then(waitForDiff)
+      })
+      .then(function () {
+        if (!taken) return null
+        var changes = diffChanges() || []
+        check('the diff is the snapshot against what is open, not a copy of either', function () {
+          var models = diffEditor.getModel() || {}
+          var original = models.original && models.original.getValue()
+          var modified = models.modified && models.modified.getValue()
+          return ok(original === 'one\ntwo\nthree\nfour\nfive\nsix\nseven' && modified === contentOf('main'),
+            'the snapshot side holds ' + JSON.stringify(String(original).slice(0, 24)) +
+            ', the live side ' + JSON.stringify(String(modified).slice(0, 24)))
+        })
+        check('an edit, a deletion and an addition are each reported as such', function () {
+          // a pure addition has nothing on the snapshot side, a pure deletion
+          // nothing on the live side, and an edit has lines on both
+          var kind = function (c) {
+            if (c.originalEndLineNumber === 0) return 'added'
+            if (c.modifiedEndLineNumber === 0) return 'deleted'
+            return 'edited'
+          }
+          var kinds = changes.map(kind).sort().join(',')
+          return ok(kinds === 'added,deleted,edited',
+            changes.length + ' changes: ' + (kinds || 'none') + ' (wanted one of each)')
+        })
+        check('additions and deletions both reach the screen', function () {
+          var inserted = getsAll('#diffBody .line-insert').length
+          var deleted = getsAll('#diffBody .line-delete').length
+          return ok(!!gets('#diffBody .monaco-diff-editor') && (inserted + deleted) > 0,
+            inserted + ' inserted rows and ' + deleted + ' deleted rows drawn')
+        })
+        check('neither side of the diff can be typed into', function () {
+          // the live model is the pane's own, so an editable modified side
+          // would let a look at the past quietly become an edit of the present
+          var readOnly = function (ed) { return ed.getOption(monaco.editor.EditorOption.readOnly) }
+          return ok(readOnly(diffEditor.getOriginalEditor()) &&
+            readOnly(diffEditor.getModifiedEditor()),
+            'snapshot side readOnly=' + readOnly(diffEditor.getOriginalEditor()) +
+            ', live side readOnly=' + readOnly(diffEditor.getModifiedEditor()))
+        })
+        check('the diff is drawn in the active theme, not a default one', function () {
+          var pane = gets('#diffBody .monaco-editor-background') || gets('#diffBody .monaco-editor')
+          var mine2 = pane ? getComputedStyle(pane).backgroundColor : 'no diff pane'
+          return ok(mine2 === editorBackground(), 'the diff is ' + mine2 +
+            ', the editor is ' + editorBackground())
+        })
+        // a file that did not change must read as unchanged, not as broken
+        showDiffFile('css')
+        return waitForDiff()
+      })
+      .then(function () {
+        if (!taken) return null
+        check('a file that did not change shows no differences', function () {
+          var changes = diffChanges()
+          var models = diffEditor.getModel() || {}
+          return ok(!!changes && changes.length === 0 &&
+            models.original.getValue() === 'a { color: red }',
+            'changes=' + (changes && changes.length) + ', both sides hold ' +
+            JSON.stringify(models.original && models.original.getValue()))
+        })
+        // the live side is the pane's own model, and closing must not take it
+        var livePane = cssEditor && cssEditor.getModel()
+        closeDiff()
+        check('closing the diff leaves the pane it was comparing alone', function () {
+          return ok(!!livePane && !livePane.isDisposed() && contentOf('css') === 'a { color: red }',
+            'the css model is ' + (livePane && livePane.isDisposed() ? 'DISPOSED' : 'alive') +
+            ' and holds ' + JSON.stringify(contentOf('css')))
+        })
+        check('closing the diff gives the split pane back as it was', function () {
+          return ok(gets('#diffPane').style.display === 'none' &&
+            gets('#splitEditor').style.display === 'block' &&
+            gets('#splitContainer').style.display === 'block' &&
+            quickEdit.split === true && quickEdit.splitLang === 'html',
+            'diff pane display=' + JSON.stringify(gets('#diffPane').style.display) +
+            ', split editor display=' + JSON.stringify(gets('#splitEditor').style.display) +
+            ', split open=' + quickEdit.split + ' showing ' + JSON.stringify(quickEdit.splitLang))
+        })
+        return null
+      })
+      .then(function () {
+        if (!taken) return null
+        // Ten rounds. Nothing else in this project makes a throwaway model, so
+        // a missing dispose would go unnoticed until the tab was slow.
+        var round = function (left) {
+          if (left === 0) return Promise.resolve()
+          return openDiff(taken.id)
+            .then(waitForDiff)
+            .then(function () {
+              showDiffFile('js')
+              return waitForDiff()
+            })
+            .then(function () { closeDiff(); return round(left - 1) })
+        }
+        return round(10).then(function () {
+          check('opening and closing the diff ten times leaves no models behind', function () {
+            var now = monaco.editor.getModels().length
+            return ok(now === baseline, now + ' models, started from ' + baseline)
+          })
+        })
+      })
+      .then(function () {
+        if (!taken) return null
+        // opened from a closed split, closing it should close the split again
+        singleEditor()
+        return openDiff(taken.id).then(waitForDiff).then(function () {
+          var opened = gets('#splitContainer').style.display === 'block'
+          closeDiff()
+          check('a diff opened from a single editor puts the single editor back', function () {
+            return ok(opened && gets('#splitContainer').style.display === 'none' &&
+              quickEdit.split === false,
+              'the split opened=' + opened + ', and afterwards display=' +
+              JSON.stringify(gets('#splitContainer').style.display) +
+              ' split=' + quickEdit.split)
+          })
+        })
+      })
+      .then(function () {
+        if (!taken) return null
+        // picking a split tab is a decision about the pane; the diff yields
+        return openDiff(taken.id).then(waitForDiff).then(function () {
+          splitMenu('css')
+          check('picking a split tab closes the diff instead of hiding behind it', function () {
+            return ok(!diffShowing() && gets('#diffPane').style.display === 'none' &&
+              gets('#splitEditor').style.display !== 'none',
+              'diff still open=' + diffShowing() + ', diff pane display=' +
+              JSON.stringify(gets('#diffPane').style.display))
+          })
+        })
+      })
+      .then(function () {
+        if (!taken) return null
+        // Through the menu, not by calling openDiff. The glyph sits inside the
+        // row, and a click that falls through to the row restores instead of
+        // comparing - overwriting the very work you wanted to compare against.
+        // confirm says yes throughout, so a restore cannot be excused by the
+        // dialog having turned it down.
+        closeDiff()
+        return refreshHistory().then(function () {
+          var before = contentOf('main')
+          var glyph = gets('#historyList [data-diff-snapshot="' + taken.id + '"]')
+          window.confirm = function () { return true }
+          if (glyph) glyph.click()
+          return waitFor(function () { return diffShowing() }, 5000)
+            .then(waitForDiff)
+            .then(function () {
+              check('the compare glyph compares instead of restoring', function () {
+                return ok(!!glyph && diffShowing() && contentOf('main') === before,
+                  'glyph found=' + !!glyph + ', diff open=' + diffShowing() +
+                  ', the pane still holds ' + JSON.stringify(String(contentOf('main')).slice(0, 24)))
+              })
+              window.confirm = realConfirm
+            })
+        })
+      })
+      .then(function () {
+        if (!taken) return null
+        // Restoring from the bar is the point of having looked: decide, then
+        // act, without going back to a list of timestamps.
+        window.confirm = function () { return true }
+        gets('#diffRestore').click()
+        return waitFor(function () { return contentOf('main') === taken.code }, 5000)
+          .then(waitForDiff)
+          .then(function () {
+            var changes = diffChanges()
+            check('restoring from the diff bar puts the snapshot back and says so', function () {
+              return ok(contentOf('main') === taken.code && !!changes && changes.length === 0,
+                'the pane holds ' + JSON.stringify(String(contentOf('main')).slice(0, 24)) +
+                ' and the diff now reports ' + (changes ? changes.length : 'null') + ' changes')
+            })
+            window.confirm = realConfirm
+          })
+      })
+      .then(function () {
+        if (!taken) return null
+        // deleting the snapshot on screen must not leave it on screen
+        return openDiff(taken.id).then(waitForDiff).then(function () {
+          window.confirm = function () { return true }
+          return removeSnapshot(taken.id).then(function () {
+            check('deleting the snapshot being compared closes the comparison', function () {
+              return ok(!diffShowing() && gets('#diffPane').style.display === 'none',
+                'diff still open=' + diffShowing())
+            })
+            window.confirm = realConfirm
+          })
+        })
+      })
+      .then(function () {
+        window.confirm = function () { return true }
+        return removeProject()
+          .then(function () { window.confirm = realConfirm })
+          .then(function () { return switchProject(home.id) })
       })
   }
 
@@ -2011,7 +2260,7 @@
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
     storeChecks().then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
-      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks)
+      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks)
       .then(report, function (err) {
       check('the core chain ran to the end', function () {
         return ok(false, String(err) + ' | ' + String(err && err.stack).slice(0, 400))

@@ -31,6 +31,7 @@ const SHELL = [
   './app.html',
   './manifest.webmanifest',
   './scripts/cssEditor.js',
+  './scripts/diff.js',
   './scripts/eventListener.js',
   './scripts/fileSaver.js',
   './scripts/index.js',

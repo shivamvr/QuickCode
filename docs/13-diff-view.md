@@ -1,6 +1,6 @@
 # 13 — Diff view
 
-**Size:** S · **Depends on:** 09, 12 · **Status:** not started
+**Size:** S · **Depends on:** 09, 12 · **Status:** done (see Outcome)
 
 ## Why
 
@@ -65,3 +65,73 @@ easy to forget.
 
 A snapshot can be compared against current in a side-by-side view, closing it
 leaves no models behind, and the split pane returns to its prior state.
+
+## Outcome
+
+**Done, September 2026.** The **⇄** on a history row puts that snapshot beside
+what is open, which is what makes restoring a decision rather than a guess at a
+timestamp.
+
+### What was built
+
+- **`scripts/diff.js`**, in the split pane as the plan preferred: the layout,
+  the drag handle, the narrow-screen stacking and the theme all came for free.
+  A bar across the top names the snapshot, offers html / css / js, and carries
+  `restore` and `close`.
+- **`restore` from the bar.** Decide, then act, without going back to a list of
+  times. It confirms and is undoable, exactly as restoring from the menu is, and
+  the view is rebuilt afterwards so it shows nothing left to change.
+- **Three files, not one.** A diff editor takes one pair of models, so the bar
+  switches which file is being compared.
+
+### The model discipline
+
+The plan called model leaks the one real trap, and it was right to. Two rules
+came out of it:
+
+- **The snapshot side is created here and disposed here** - `diffModels` is the
+  list, and it is the only thing that gets disposed.
+- **The live side is the pane's own model, borrowed.** That is what makes the
+  diff follow your typing as you work, rather than being a still of the moment
+  it opened. It also means disposing it would take the editor with it, so it is
+  deliberately kept out of `diffModels`, and `setModel(null)` runs before the
+  editor is disposed so nothing internal can reach for it. The test that proves
+  this mutates it: disposing the live side empties the css pane outright.
+
+A new pair replaces the old one **before** the old one is disposed, so there is
+no moment where the editor holds a disposed model.
+
+### Where this differs from the plan
+
+The plan only said "swap the contents of `#splitContainer`". Doing that turned
+up a real bug in what was already there: `showPreviewPane(boolean)` decided
+between two things, and a third made the boolean wrong - the diff hid both, and
+closing it left the pane empty until something else happened to set it. There is
+now one `showSplitPane('editor' | 'preview' | 'diff')` that owns the question,
+and closing the diff always hands the pane back before deciding whether the
+split itself stays open.
+
+### Verification
+
+`node test/run.js` - **138 checks**, all passing. Fourteen are new: the diff
+being the snapshot against what is open, an edit, a deletion and an addition
+each reported as such, both of them drawn, neither side editable, the active
+theme, an unchanged file reading as unchanged rather than broken, the compared
+pane surviving the close, the split pane coming back as it was, a diff opened
+from a single editor putting the single editor back, ten rounds leaving no
+models behind, a split tab closing the diff rather than hiding behind it, the
+⇄ comparing instead of restoring, `restore` from the bar, and a deleted
+snapshot closing the comparison.
+
+Mutation-checked, seven of them, all caught: dropping the dispose, disposing the
+borrowed live model, letting a split tab be picked with the diff still holding
+the pane, closing without handing the pane back, leaving a deleted snapshot on
+screen, looking for the row before the ⇄ inside it, and unwiring `restore`.
+
+Two of those are worth naming. **Looking for the row first makes ⇄ restore
+instead of compare** - the same shape as the delete cross in item 12, and the
+check for it only existed after a mutation walked straight past the first draft
+of these tests, which called `openDiff()` directly and never clicked anything.
+And **monaco reports adjacent edits as one change**, so the fixture spaces the
+three kinds out with unchanged lines between them; the first version put them
+next to each other and counted one change where it wanted three.

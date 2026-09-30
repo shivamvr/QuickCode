@@ -725,6 +725,8 @@ const restoreHandles = async () => {
 
 // make a record the open one, and put it on the screen
 const openRecord = async (record) => {
+  // whatever the diff was showing belonged to the project being left
+  closeDiff()
   project = record
   setActiveId(record.id)
   // the last project's file name must not follow us into this one's save dialog
@@ -902,6 +904,7 @@ async function removeSnapshot(id) {
   if (!confirm('Delete the snapshot from ' + new Date(row.takenAt).toLocaleString() +
       '?\n\nThis one cannot be brought back.')) return
   await deleteSnapshots([id])
+  closeDiffIfGone([id])
   await refreshHistory()
 }
 
@@ -911,7 +914,9 @@ async function clearHistory() {
   if (!rows.length) return
   if (!confirm('Delete all ' + rows.length + ' snapshots of "' + project.name +
       '"?\n\nThe files stay exactly as they are; only the history goes.')) return
-  await deleteSnapshots(rows.map((r) => r.id))
+  const ids = rows.map((r) => r.id)
+  await deleteSnapshots(ids)
+  closeDiffIfGone(ids)
   await refreshHistory()
 }
 
@@ -957,6 +962,13 @@ async function refreshHistory() {
     remove.setAttribute('data-delete-snapshot', row.id)
     remove.textContent = '\u00d7'
     item.appendChild(remove)
+    // appended second, so it floats to the left of the cross
+    const compare = document.createElement('span')
+    compare.className = 'snapDiff'
+    compare.setAttribute('data-diff-snapshot', row.id)
+    compare.setAttribute('title', 'compare with what is open')
+    compare.textContent = '\u21c4'
+    item.appendChild(compare)
     list.appendChild(item)
   })
   const separator = document.createElement('div')
@@ -1001,6 +1013,15 @@ function wireHistory() {
       e.stopPropagation()
       removeSnapshot(cross.getAttribute('data-delete-snapshot'))
         .catch((err) => console.error('Could not delete that snapshot', err))
+      return
+    }
+
+    const compare = e.target.closest('[data-diff-snapshot]')
+    if (compare) {
+      e.stopPropagation()
+      list.classList.remove('toggle')
+      openDiff(compare.getAttribute('data-diff-snapshot'))
+        .catch((err) => console.error('Could not open that comparison', err))
       return
     }
 
@@ -1251,18 +1272,26 @@ function wirePreview() {
   })
 }
 
-// showing the preview means building it; leaving it means the editor is back
-function showPreviewPane(showing) {
-  const pane = gets('#previewPane')
-  const editorPane = gets('#splitEditor')
-  if (!pane) return
-  pane.style.display = showing ? 'flex' : 'none'
-  if (editorPane) editorPane.style.display = showing ? 'none' : 'block'
-  if (showing) {
+// The split pane can show one of three things: the editor, the live preview,
+// or a diff against a snapshot. They are mutually exclusive, and this is the
+// only place that decides which - a second opinion about it leaves the pane
+// showing nothing at all.
+const SPLIT_PANES = { editor: ['#splitEditor', 'block'], preview: ['#previewPane', 'flex'], diff: ['#diffPane', 'flex'] }
+
+function showSplitPane(which) {
+  Object.keys(SPLIT_PANES).forEach((name) => {
+    const el = gets(SPLIT_PANES[name][0])
+    if (el) el.style.display = name === which ? SPLIT_PANES[name][1] : 'none'
+  })
+  // showing the preview means building it
+  if (which === 'preview') {
     previewLive = true
     renderPreview()
   }
 }
+
+// what the pane shows when nothing is borrowing it
+const splitPaneDefault = () => (previewShowing() ? 'preview' : 'editor')
 
 //------------------------------- navbar ------------------------------
 
@@ -1390,6 +1419,7 @@ function initCore() {
   wireProjects()
   wireHistory()
   wirePreview()
+  wireDiff()
 
   if (shareProblem) {
     // after this turn of the loop, so the editor is on screen behind it rather

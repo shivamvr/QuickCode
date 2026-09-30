@@ -89,6 +89,9 @@ whenever you pick **+ snapshot now**.
   shows. Naming a state that is already saved renames that entry rather than storing it twice.
   The automatic ones are never named — a prompt appearing a minute after you stopped typing
   would be unbearable
+- **Compare** one with the **⇄** on its row: the snapshot and what is open, side by side
+  in the split pane, with tabs for html, css and js. The live side follows your typing, so
+  the differences update as you work, and `restore` in its bar acts on what you just read
 - **Restore** by clicking one: all three files come back as they were. It asks first, and
   takes a snapshot on the way in, so a restore can itself be undone
 - **Delete** a single entry with the **×** on its row, or wipe the lot with **clear history**.

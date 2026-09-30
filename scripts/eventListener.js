@@ -8,17 +8,20 @@ let splitMenuClosed = true
 //------------------------------ split view ---------------------------
 
 function splitMenu(lang) {
+    // picking a tab is a decision about what the pane shows, so the diff that
+    // borrowed it is over; the branches below say what replaces it
+    teardownDiff()
     // the preview is the one split tab that is not an editor
     if (lang === PREVIEW_LANG) {
         saveSettings({ splitLang: lang })
         doSplit()
         makeSplitTabActive(lang)
-        showPreviewPane(true)
+        showSplitPane('preview')
         return
     }
     if (!SPLIT_TABS[lang]) return
     saveSettings({ splitLang: lang })
-    showPreviewPane(false)
+    showSplitPane('editor')
     ensureSplitEditor()
     monaco.editor.setModelLanguage(splitEditor.getModel(), lang)
     doSplit()
@@ -350,7 +353,7 @@ function restoreSplit() {
     if (!quickEdit.split) return
     doSplit()
     makeSplitTabActive(quickEdit.splitLang)
-    showPreviewPane(quickEdit.splitLang === PREVIEW_LANG)
+    showSplitPane(quickEdit.splitLang === PREVIEW_LANG ? 'preview' : 'editor')
 }
 
 //-------------------------------- boot -------------------------------

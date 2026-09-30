@@ -53,6 +53,23 @@ const SCENARIOS = [
   { name: 'offline', page: 'index.html', profile: 'offline' },
 ]
 
+// CASES=core,share runs just those, in the order above. For mutation testing:
+// proving one check bites should not cost six browser launches. Everything runs
+// when it is unset, which is what CI and a final check before a commit do.
+function chosen() {
+  const only = String(process.env.CASES || '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (!only.length) return SCENARIOS
+  const unknown = only.filter((name) => !SCENARIOS.some((s) => s.name === name))
+  if (unknown.length) {
+    console.log('no such case: ' + unknown.join(', ') +
+      ' (have: ' + SCENARIOS.map((s) => s.name).join(', ') + ')')
+    process.exit(2)
+  }
+  console.log('CASES=' + only.join(',') + ': running ' + only.length +
+    ' of ' + SCENARIOS.length + ' cases\n')
+  return SCENARIOS.filter((s) => only.indexOf(s.name) > -1)
+}
+
 function findChrome() {
   const candidates = [
     process.env.CHROME,
@@ -162,7 +179,7 @@ async function main() {
   let failed = 0
   let passed = 0
 
-  for (const scenario of SCENARIOS) {
+  for (const scenario of chosen()) {
     server.setOffline(false)        // whatever the previous case did to it
     const started = Date.now()
     const report = await runCase(chrome, scenario, tmpDir, pending)
