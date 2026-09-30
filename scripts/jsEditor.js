@@ -7,7 +7,7 @@ let jsEditor = null
 function ensureJsEditor() {
   if (!jsEditor) {
     gets('#jsEditor').innerHTML = ''
-    jsEditor = monaco.editor.create(gets('#jsEditor'), editorOptions(readStored('js'), 'javascript'))
+    jsEditor = monaco.editor.create(gets('#jsEditor'), editorOptions(readStored('js'), langOf('js')))
     jsEditor.getModel().onDidChangeContent(() => saveEditor('js'))
     jsEditor.onDidBlurEditorWidget(() => onEditorBlur('js'))
     jsEditor.onDidFocusEditorWidget(() => onEditorFocus('js'))

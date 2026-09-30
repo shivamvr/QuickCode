@@ -20,7 +20,7 @@ web workers).
 | 07 | [Resizable split](07-resizable-split.md) | ~~The split is hard-coded 50/50~~ **done** | — | S |
 | 08 | [Format on save](08-format-on-save.md) | ~~Small change, large daily payoff~~ **done** | — | S |
 | 09 | [Upgrade monaco](09-monaco-upgrade.md) | ~~Pinned to 0.25.1 from mid-2021~~ **done** - on 0.52.2, the last release with the classic file layout | 15 | M |
-| 10 | [TypeScript, JSX, Sass](10-typescript-jsx.md) | Needs a real transpile step | 01, 09 | L |
+| 10 | [TypeScript, JSX, Sass](10-typescript-jsx.md) | ~~Needs a real transpile step~~ **TypeScript done**; JSX waits on 11, Sass dropped | 01, 09 | L |
 | 11 | [npm imports](11-npm-imports.md) | Make bare `import` specifiers work | 01 | M |
 | 12 | [Version history](12-version-history.md) | ~~There was no recovery path from any mistake~~ **done** | 04 | M |
 | 13 | [Diff view](13-diff-view.md) | ~~Nearly free once history existed~~ **done** | 09, 12 | S |
@@ -40,9 +40,15 @@ small enough to slot in whenever.
 tool rather than a web page; ~~04~~ + ~~05~~ + 12 make it somewhere work actually
 lives.
 
-**What is left:** 10 (TypeScript, JSX, Sass) is the last large one, and 11 (npm
-imports) stands alone. Everything else is done: ~~13~~ closed the gap 12 left,
-so a snapshot can be read before it is restored.
+**What is left:** 11 (npm imports), which stands alone and is now the only thing
+between QuickCode and JSX - ~~10~~ shipped TypeScript and stopped there on
+purpose, because `jsx: 'automatic'` cannot resolve `react/jsx-runtime` until 11
+exists. Sass was dropped: plain CSS has nesting and custom properties natively.
+
+**No transpiler was added.** Item 10's plan called for esbuild-wasm; monaco
+already ships the TypeScript compiler and item 09 already precaches its worker,
+so TypeScript costs nothing to download and works offline. See the Outcome in
+[10](10-typescript-jsx.md) before reaching for a build tool.
 
 **Do not take monaco past 0.52.2** without reading the Outcome in
 [09](09-monaco-upgrade.md): 0.53 onwards has content-hashed filenames and no

@@ -10,7 +10,8 @@ function ensureSplitEditor() {
   if (!splitEditor) {
     const lang = SPLIT_TABS[quickEdit.splitLang] ? quickEdit.splitLang : 'html'
     gets('#splitEditor').innerHTML = ''
-    splitEditor = monaco.editor.create(gets('#splitEditor'), editorOptions(contentOf(SPLIT_TABS[lang]), lang))
+    splitEditor = monaco.editor.create(gets('#splitEditor'),
+      editorOptions(contentOf(SPLIT_TABS[lang]), langOf(SPLIT_TABS[lang])))
     splitEditor.getModel().onDidChangeContent(saveSplitEditor)
     splitEditor.onDidBlurEditorWidget(onSplitBlur)
     splitEditor.onDidFocusEditorWidget(onSplitFocus)

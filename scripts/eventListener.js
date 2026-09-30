@@ -23,7 +23,8 @@ function splitMenu(lang) {
     saveSettings({ splitLang: lang })
     showSplitPane('editor')
     ensureSplitEditor()
-    monaco.editor.setModelLanguage(splitEditor.getModel(), lang)
+    // the js pane has two flavours, and the split pane shows the same file
+    monaco.editor.setModelLanguage(splitEditor.getModel(), langOf(SPLIT_TABS[lang]))
     doSplit()
     makeSplitTabActive(lang)
     updateSplit(lang)

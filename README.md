@@ -33,6 +33,25 @@ highlighting, IntelliSense, bracket matching, code folding and minimap.
   the preview**, so you can toggle a stylesheet or a script off without deleting it
 - **Emmet abbreviations** in the HTML editor — type `div.card>ul>li*3` and press <kbd>Tab</kbd>
 
+### 🅣 TypeScript in the js pane
+
+The **js** tab carries a small **js** badge. Click it and it says **ts**: that pane is now
+TypeScript, and the preview compiles it before running it.
+
+- **Per project.** One project can be TypeScript while another stays plain javascript, and
+  the setting travels with the project
+- **Type errors appear in the console** against the line they are on, and the code still runs
+  — the compiler disagreeing with you is not a reason to refuse to run
+- **A syntax error runs nothing**, rather than leaving the last version running as though it
+  were current
+- **Runtime errors report the line you wrote**, not the line of the compiled output. Stripping
+  types removes lines, so the emitted source map is read to work the number back
+- **Nothing is downloaded for this.** It uses the TypeScript that monaco already ships, so it
+  works offline the first time you try it
+- **Plain javascript projects are untouched** — there is no compile step on that path at all
+
+Switching flavour keeps your text, your undo history and your cursor exactly where they were.
+
 ### 🖥️ Live preview, with a console
 
 Pick **preview** in the split menu and it runs beside the editor; the **Run** icon still opens

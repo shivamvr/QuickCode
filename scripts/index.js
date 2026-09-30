@@ -13,7 +13,7 @@ const getsAll = (selector) => document.querySelectorAll(selector)
 // would drop you into someone else's tab, language and split after a switch.
 // quickEdit is the flat merged view that everything reads.
 
-const defaultSettings = { theme: 'vs-dark', vnav: false, lang: 'html', tab: 'main', js: false, css: false, split: false, splitLang: 'html', splitRatio: 0.5 }
+const defaultSettings = { theme: 'vs-dark', vnav: false, lang: 'html', tab: 'main', js: false, css: false, split: false, splitLang: 'html', splitRatio: 0.5, jsLang: 'javascript' }
 
 // the per-project half, defined next to the record in store.js
 const PROJECT_SETTING_KEYS = Object.keys(PROJECT_SETTINGS)
@@ -76,6 +76,12 @@ const writeSoon = (key, value) => {
 // after the write lands, so the preview never shows something that was not
 // saved.
 const pingPreview = () => {
+  // app.html has no monaco and cannot compile TypeScript, so the output it
+  // needs is produced here and left where it can find it. Same text twice
+  // compiles once, so this costs nothing while the html pane is being edited.
+  if (usingTypeScript()) {
+    jsForPreview(readStored('js')).catch((err) => console.error('Could not compile', err))
+  }
   try {
     localStorage.setItem('quickcodeRev', String(Date.now()))
   } catch (err) {
@@ -123,8 +129,15 @@ const TABS = {
 }
 const TAB_IDS = ['main', 'css', 'js']
 
-// the split pane is addressed by monaco language name
-const SPLIT_TABS = { html: 'main', css: 'css', javascript: 'js' }
+// The split pane is addressed by monaco language name, and the js pane answers
+// to both of its flavours.
+const SPLIT_TABS = { html: 'main', css: 'css', javascript: 'js', typescript: 'js' }
+
+// What monaco should highlight a pane as. The js pane follows the project's
+// flavour; the other two are what the table says. The plan for item 10 called
+// this out: one fixed language per pane was baked into TABS, and TypeScript
+// needed "what it is highlighted as" separated from the table's fixed answer.
+const langOf = (id) => (id === 'js' ? quickEdit.jsLang : (TABS[id] && TABS[id].lang))
 
 // Shared monaco setup. The option names matter: lineNumber, glyphmargin and
 // scrollBeyoundLastLine were misspelled and silently ignored.
@@ -702,7 +715,7 @@ async function loadWorkspace() {
   }
   const fragment = sharedFragment()
   if (fragment) await importShared(fragment)
-  Object.assign(quickEdit, project.settings)
+  Object.assign(quickEdit, settingsOf(project))
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   await restoreHandles()
 }
@@ -731,7 +744,7 @@ const openRecord = async (record) => {
   setActiveId(record.id)
   // the last project's file name must not follow us into this one's save dialog
   fileName = false
-  Object.assign(quickEdit, record.settings)
+  Object.assign(quickEdit, settingsOf(record))
   localStorage.setItem('quickEdit', JSON.stringify(quickEdit))
   await restoreHandles()
   applyProject()
@@ -752,6 +765,8 @@ function applyProject() {
     const ed = TABS[id].get()
     if (ed) syncValue(ed, readStored(TABS[id].key))
   })
+
+  applyJsLang()
 
   const lang = quickEdit.lang
   gets('#lang').innerText = lang
@@ -1179,13 +1194,20 @@ let previewLive = true
 
 const previewShowing = () => quickEdit.split && quickEdit.splitLang === PREVIEW_LANG
 
-function renderPreview() {
+// Numbered, because compiling TypeScript is a worker round trip and two
+// renders can overlap: an older one finishing last would paint over the newer.
+let previewRender = 0
+
+async function renderPreview() {
   const frame = gets('#previewFrame')
   if (!frame || !previewShowing()) return
   clearTimeout(previewTimer)
   previewTimer = null
+  const mine = ++previewRender
+  const js = await jsForPreview(readStored('js'))
+  if (mine !== previewRender || !previewShowing()) return
   const built = buildPreviewDoc({
-    code: readStored('code'), css: readStored('css'), js: readStored('js'),
+    code: readStored('code'), css: readStored('css'), js: js,
   }, quickEdit)
   previewSources = built.sources
   frame.srcdoc = built.html
@@ -1194,7 +1216,9 @@ function renderPreview() {
 function schedulePreview() {
   if (!previewShowing() || !previewLive) return
   clearTimeout(previewTimer)
-  previewTimer = setTimeout(renderPreview, PREVIEW_DEBOUNCE_MS)
+  previewTimer = setTimeout(() => {
+    renderPreview().catch((err) => console.error('Could not build the preview', err))
+  }, PREVIEW_DEBOUNCE_MS)
 }
 
 // Navigating the frame is what actually kills a script that is still running,
@@ -1210,7 +1234,7 @@ function stopPreview() {
 
 function runPreview() {
   previewLive = true
-  renderPreview()
+  renderPreview().catch((err) => console.error('Could not build the preview', err))
 }
 
 //------------------------------ the console --------------------------
@@ -1234,16 +1258,25 @@ function logToConsole(message) {
   if (placeholder) placeholder.remove()
 
   const row = document.createElement('div')
-  row.className = 'logRow log-' + (message.kind || 'log')
+  // compile rows are marked so the next compile can replace them
+  row.className = 'logRow log-' + (message.kind || 'log') + (message.compile ? ' log-compile' : '')
   // textContent, never innerHTML: this is output from code we did not write
   row.textContent = (message.args || []).join('  ')
 
-  const where = previewLocation(previewSources, message.file, message.line)
+  // A compile problem knows exactly where it is; everything else arrives as a
+  // line of the generated document and has to be worked back.
+  let where = message.where || previewLocation(previewSources, message.file, message.line)
+  // What ran was the compiled javascript, so a line number from it is not a
+  // line of what was written. Say which line it really was, or say nothing -
+  // the rule preview.js already follows about confidently wrong numbers.
+  if (where && where.pane === 'js' && !message.where && usingTypeScript()) {
+    const line = tsSourceLine(where.line)
+    where = line ? { pane: 'js', line: line } : null
+  }
   if (where) {
     const tag = document.createElement('span')
     tag.className = 'logWhere'
-    // the main pane is whatever language it is currently set to
-    tag.textContent = (where.pane === 'main' ? quickEdit.lang : where.pane) + ':' + where.line
+    tag.textContent = paneLabel(where.pane) + ':' + where.line
     row.appendChild(tag)
   }
 
@@ -1252,6 +1285,65 @@ function logToConsole(message) {
     out.removeChild(out.firstChild)
   }
   out.scrollTop = out.scrollHeight
+}
+
+// The main pane is whatever language it is set to; the js pane says which
+// flavour it is, because ts:9 and js:9 are not the same line.
+const paneLabel = (pane) => {
+  if (pane === 'main') return quickEdit.lang
+  if (pane === 'js') return usingTypeScript() ? 'ts' : 'js'
+  return pane
+}
+
+// What the compiler thinks is a current state, not a history: a new report
+// replaces the last one rather than adding a row per keystroke.
+function reportCompileProblems(result) {
+  if (!consoleRows()) return
+  getsAll('#consoleOut .log-compile').forEach((row) => row.remove())
+  const say = (problems, kind, prefix) => {
+    (problems || []).forEach((p) => logToConsole({
+      kind: kind,
+      compile: true,
+      args: [prefix + p.message],
+      where: { pane: 'js', line: p.line },
+    }))
+  }
+  // a syntax error stopped it running at all; a type error only means the
+  // compiler disagrees with you, and the javascript ran anyway
+  say(result.errors, 'error', 'Will not compile: ')
+  say(result.warnings, 'warn', 'Type error: ')
+}
+
+//----------------------- the js pane's flavour -----------------------
+
+const updateJsLangBadge = () => {
+  const badge = gets('#jsLang')
+  if (!badge) return
+  badge.textContent = usingTypeScript() ? 'ts' : 'js'
+  badge.classList.toggle('on', usingTypeScript())
+}
+
+// Retargets the model rather than rebuilding the editor, so the text, the undo
+// stack and the cursor all stay exactly where they were.
+function setJsLang(flavour) {
+  if (JS_FLAVOURS.indexOf(flavour) < 0) return
+  saveSettings({ jsLang: flavour })
+  applyJsLang()
+  // whatever was compiled belongs to the other flavour now
+  forgetCompiled()
+  schedulePreview()
+  pingPreview()
+}
+
+// Puts the current flavour on the panes that show the js file. Called on a
+// switch, and again whenever a project is opened, since it is the project's.
+function applyJsLang() {
+  const ed = TABS.js.get()
+  if (ed) monaco.editor.setModelLanguage(ed.getModel(), langOf('js'))
+  if (splitEditor && SPLIT_TABS[quickEdit.splitLang] === 'js') {
+    monaco.editor.setModelLanguage(splitEditor.getModel(), langOf('js'))
+  }
+  updateJsLangBadge()
 }
 
 function wirePreview() {
@@ -1399,8 +1491,10 @@ function initCore() {
   gets('#filename').value = 'file.' + ext
 
   settheme(quickEdit.theme)
+  configureTypeScript()
   registerFormatters()
   ensureMainEditor()
+  updateJsLangBadge()
 
   if (quickEdit.lang === 'html') {
     gets('.tabs').style.display = 'flex'
@@ -1496,6 +1590,16 @@ function wireToolbar() {
       updateEditor(id)
     })
   })
+
+  // the flavour badge sits inside the js tab, so like the checkboxes below it
+  // must not also switch tabs
+  const badge = gets('#jsLang')
+  if (badge) {
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation()
+      setJsLang(usingTypeScript() ? 'javascript' : 'typescript')
+    })
+  }
 
   // the enable-in-preview checkboxes must not also switch tabs
   getsAll('.tab>input').forEach((box) => {

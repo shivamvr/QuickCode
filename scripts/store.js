@@ -91,7 +91,14 @@ const dbDelete = (store, key) => runTx(store, 'readwrite', (s) => s.delete(key))
 const PROJECT_SETTINGS = {
   lang: 'html', tab: 'main', js: false, css: false,
   split: false, splitLang: 'html', splitRatio: 0.5,
+  jsLang: 'javascript',
 }
+
+// A record written before a setting existed does not have it. Assigning its
+// settings straight over the live ones would then leave the last project's
+// value in place - so a project saved without jsLang would inherit whatever the
+// one before it was using. Every read goes through here instead.
+const settingsOf = (record) => Object.assign({}, PROJECT_SETTINGS, (record && record.settings) || {})
 
 const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
 

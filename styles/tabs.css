@@ -70,6 +70,25 @@
   pointer-events: none;
 }
 
+/* which flavour the js pane is in, and the way to change it */
+.tabLang {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #f0f4f8;
+  background: rgba(0, 0, 0, 0.18);
+}
+.tabLang:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+.tabLang.on {
+  color: #063;
+  background: #70dc95;
+}
+
 #main {
   text-align: center;
   justify-content: center;

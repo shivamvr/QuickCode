@@ -22,12 +22,12 @@ through six scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
-| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, and the diff view |
+| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, the diff view, and TypeScript |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `migrate` | `index.html` | loads over a seeded pre-IndexedDB `localStorage`, then reloads: the migration must take everything, keep the old keys, and not run twice |
 | `share` | `index.html#s=…` | opens a share link that **node's zlib** built, not the browser |
 | `preview-safe` | `app.html` | a hostile snippet runs in the preview and cannot reach the saved work |
-| `offline` | `index.html` | waits for the service worker, tells the server to stop answering, reloads, and checks the whole app came out of the cache |
+| `offline` | `index.html` | waits for the service worker, tells the server to stop answering, reloads, and checks the whole app came out of the cache - TypeScript compiling included, since that is the reason no transpiler was added |
 
 `serve.js` injects `seed.js` and `probe.js` into `index.html` / `app.html` as
 they are served, so the suite always runs against **the real files in the repo**
@@ -110,6 +110,12 @@ that looked correct and proved nothing:
   picking the first one sometimes asked the wrong library. And registering a
   second copy of emmet to spy on it tore down state the live one was using;
   `serve.js` records the real registrations instead.
+- **A mutation can find a gap in the tests rather than a bug in the code.**
+  Dropping the sign bit from the source map's VLQ decoder passed all 150 checks:
+  compiled code only ever walks forwards through its source, so no fixture ever
+  reached a negative delta. The fix was not to the decoder but to the suite -
+  the decoder is now called directly with a mappings string that goes backwards.
+  A mutation that survives is a question about the checks, not a clean bill.
 - **A mutation that does not apply looks exactly like a check that does not
   bite.** The first attempt at mutating the diff view matched on `\n` against
   CRLF files, changed nothing, and reported a clean run - which read as "the
@@ -204,6 +210,14 @@ CASES=core node test/run.js                               # expect 1 FAIL each
 #     look for the row before the compare glyph in the history click handler,
 #     or point the bar's restore at an element that does not exist
 CASES=core node test/run.js                          # expect 1-2 FAILs each
+# 11. typescript, in scripts/typescript.js unless said otherwise
+#     drop the plain-javascript short circuit from jsForPreview, or the source
+#     map step from logToConsole in index.js, or the sign bit from decodeVlq, or
+#     make a syntax error non-fatal, or have settingsOf in store.js skip the
+#     defaults, or let the badge's click reach the tab in index.js, or drop
+#     applyJsLang from applyProject, or publish nothing for the popped out
+#     preview
+CASES=core node test/run.js                               # expect 1 FAIL each
 ```
 
-All ten were confirmed to fail when introduced, and pass once reverted.
+All eleven were confirmed to fail when introduced, and pass once reverted.

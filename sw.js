@@ -40,6 +40,7 @@ const SHELL = [
   './scripts/share.js',
   './scripts/splitEditor.js',
   './scripts/store.js',
+  './scripts/typescript.js',
   './styles/style.css',
   './styles/tabs.css',
   './styles/verticalNav.css',

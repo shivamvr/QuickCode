@@ -69,12 +69,31 @@
 
       const frame = document.getElementById("preview");
 
+      // This page has no monaco, so it cannot compile TypeScript. The editor
+      // window publishes its last good output; using it only when it belongs to
+      // the project on screen is what stops one project's javascript running
+      // under another's markup. With none yet, the js is left out rather than
+      // the raw TypeScript being run, which would only throw.
+      const compiledJs = () => {
+        try {
+          const saved = JSON.parse(localStorage.getItem("quickcodeCompiled"));
+          return saved && saved.id === content.id ? String(saved.js || "") : "";
+        } catch (err) {
+          return "";
+        }
+      };
+
       // Assigning srcdoc gives a brand new document, so inline script tags in
       // the snippet run on their own. The builder is the one the pane inside
       // the editor uses, so the two previews cannot drift apart; this window
       // has no console panel, so what the prelude sends goes nowhere here.
       const render = () => {
-        frame.srcdoc = buildPreviewDoc(content, readSettings()).html;
+        const settings = readSettings();
+        const files =
+          settings.jsLang === "typescript"
+            ? Object.assign({}, content, { js: compiledJs() })
+            : content;
+        frame.srcdoc = buildPreviewDoc(files, settings).html;
       };
 
       refresh();

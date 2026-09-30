@@ -1455,6 +1455,179 @@
       })
   }
 
+  // ----------------------------------------------------------- typescript
+  // The js pane has two flavours. Most of what matters here is what does NOT
+  // happen in the plain javascript one, and whether a line number survives
+  // having the types taken out from under it.
+
+  function tsChecks() {
+    // The decoder, on its own. A compiled snippet only ever walks forwards
+    // through its source, so nothing above reaches the sign bit - and dropping
+    // it went unnoticed until this was here.
+    check('the source map decoder reads deltas in both directions', function () {
+      // fields are deltas that carry across lines: 0, then +1, then -1
+      var back = decodeLineMap('AAAA;AACA;AADA')
+      // and one that needs a second character to hold it: +16
+      var far = decodeLineMap('AAAA;AAgBA')
+      return ok(String(back) === '0,1,0' && String(far) === '0,16',
+        '0/+1/-1 gave [' + back + '] (want 0,1,0), and +16 gave [' + far + '] (want 0,16)')
+    })
+
+    var home = project
+    var mine = makeProject({ name: 'typed', code: '<h1>ts</h1>', css: '', js: '' })
+
+    return saveProject(mine)
+      .then(function () { return openRecord(mine) })
+      .then(function () {
+        // Deliberately TypeScript source in a javascript project: it has to
+        // come back untouched, which is the whole of the promise that existing
+        // projects pay nothing for this feature.
+        setJsLang('javascript')
+        localStorage.removeItem('quickcodeCompiled')
+        var typed = 'const x: number = 1'
+        return jsForPreview(typed).then(function (out) {
+          check('a plain javascript project is never compiled', function () {
+            return ok(out === typed && !localStorage.getItem('quickcodeCompiled'),
+              'came back ' + JSON.stringify(out) + ', anything published=' +
+              !!localStorage.getItem('quickcodeCompiled'))
+          })
+        })
+      })
+      .then(function () {
+        setJsLang('typescript')
+        return jsForPreview('interface P { n: number }\nconst p: P = { n: 41 }\nconsole.log(p.n + 1)\n')
+      })
+      .then(function (js) {
+        check('typescript compiles, with the types taken out', function () {
+          return ok(js.indexOf('interface') === -1 && js.indexOf(': P') === -1 &&
+            js.indexOf('console.log(p.n + 1)') > -1,
+            JSON.stringify(js))
+        })
+        check('the compiled output does not ask the preview for a map file', function () {
+          // the emit names one that is never written, and the name is a model
+          // this file threw away
+          return ok(js.indexOf('sourceMappingURL') === -1,
+            'tail is ' + JSON.stringify(js.slice(-40)))
+        })
+        check('the compiled output is left where the popped out preview can find it', function () {
+          var saved
+          try { saved = JSON.parse(localStorage.getItem('quickcodeCompiled')) } catch (err) { saved = null }
+          return ok(!!saved && saved.id === project.id && saved.js === js,
+            saved ? 'published for ' + saved.id + ' (open project is ' + project.id + ')'
+                  : 'nothing was published')
+        })
+        clearConsole()
+        return jsForPreview('const n: number = "no"\nconsole.log("ran anyway")\n')
+      })
+      .then(function (js) {
+        check('a type error is reported on its own line, and the javascript still runs', function () {
+          var row = rowSaying('Type error')
+          return ok(!!row && whereOf(row) === 'ts:1' && js.indexOf('ran anyway') > -1,
+            row ? 'said ' + JSON.stringify(row.textContent) + ' at ' + whereOf(row) + ' (want ts:1)'
+                : 'nothing was reported: ' + consoleRowsText().join(' | '))
+        })
+        return jsForPreview('const a: number = "no"\nconst b: number = "also no"\n')
+      })
+      .then(function () {
+        check('a new report replaces the last one instead of stacking up', function () {
+          var rows = getsAll('#consoleOut .log-compile')
+          return ok(rows.length === 2, rows.length + ' compile rows, wanted 2 (one per error)')
+        })
+        clearConsole()
+        return jsForPreview('function ( {\n')
+      })
+      .then(function (js) {
+        check('a syntax error runs nothing rather than running the last good output', function () {
+          var row = rowSaying('Will not compile')
+          return ok(js === '' && !!row,
+            'emitted ' + JSON.stringify(js) + '; said ' +
+            (row ? JSON.stringify(row.textContent) : 'nothing'))
+        })
+      })
+      .then(function () {
+        // Two type-only lines above the throw. The generated javascript has it
+        // on line 1; the editor has it on line 3. Without the source map being
+        // read this reports ts:1, which is the kind of confidently wrong number
+        // preview.js exists to avoid.
+        gets('#jsCheck').checked = true
+        saveSettings({ js: true, css: true })
+        setPaneText('main', '<h1>ts</h1>')
+        setPaneText('js', 'interface P { n: number }\ntype Q = string\nthrow new Error("from ts")\n')
+        clearConsole()
+        splitMenu('preview')
+        return waitFor(function () { return !!rowSaying('from ts') }, 15000)
+      })
+      .then(function (spoke) {
+        check('a runtime error is reported against the typescript line, not the compiled one', function () {
+          var row = rowSaying('from ts')
+          return ok(spoke && !!row && whereOf(row) === 'ts:3',
+            row ? 'reported at ' + whereOf(row) + ' (want ts:3)'
+                : 'nothing came back: ' + consoleRowsText().join(' | '))
+        })
+      })
+      .then(function () {
+        // the model is retargeted rather than rebuilt, so nothing is lost
+        splitMenu('javascript')
+        makeActive('js')
+        setPaneText('js', 'const kept: number = 1')
+        setJsLang('javascript')
+        check('switching flavour keeps the text and retargets the highlighting', function () {
+          var ed = TABS.js.get()
+          return ok(contentOf('js') === 'const kept: number = 1' &&
+            ed.getModel().getLanguageId() === 'javascript' &&
+            splitEditor.getModel().getLanguageId() === 'javascript',
+            'text=' + JSON.stringify(contentOf('js')) + ', pane is ' +
+            ed.getModel().getLanguageId() + ', split pane is ' +
+            splitEditor.getModel().getLanguageId())
+        })
+      })
+      .then(function () {
+        // the badge sits inside the js tab; clicking it must not also move tabs
+        makeActive('main')
+        var badge = gets('#jsLang')
+        badge.click()
+        check('the flavour badge switches flavour without switching tabs', function () {
+          return ok(quickEdit.jsLang === 'typescript' && quickEdit.tab === 'main' &&
+            badge.textContent === 'ts' && badge.classList.contains('on'),
+            'flavour=' + quickEdit.jsLang + ', tab=' + quickEdit.tab +
+            ', badge reads ' + JSON.stringify(badge.textContent))
+        })
+      })
+      .then(function () {
+        // A record written before the setting existed has no opinion about it,
+        // and must not inherit the open project's - which is typescript here.
+        var legacy = makeProject({ name: 'before typescript', js: 'var a = 1' })
+        delete legacy.settings.jsLang
+        return saveProject(legacy)
+          .then(function () { return switchProject(legacy.id) })
+          .then(function () {
+            check('a project saved before the setting existed does not inherit a flavour', function () {
+              return ok(quickEdit.jsLang === 'javascript' &&
+                gets('#jsLang').textContent === 'js',
+                'flavour=' + quickEdit.jsLang + ', badge reads ' +
+                JSON.stringify(gets('#jsLang').textContent))
+            })
+            return switchProject(mine.id)
+          })
+          .then(function () {
+            check('the flavour belongs to the project and comes back with it', function () {
+              return ok(quickEdit.jsLang === 'typescript' &&
+                TABS.js.get().getModel().getLanguageId() === 'typescript',
+                'flavour=' + quickEdit.jsLang + ', pane is ' +
+                TABS.js.get().getModel().getLanguageId())
+            })
+            return deleteProject(legacy.id)
+          })
+      })
+      .then(function () {
+        var realConfirm = window.confirm
+        window.confirm = function () { return true }
+        return removeProject()
+          .then(function () { window.confirm = realConfirm })
+          .then(function () { return switchProject(home.id) })
+      })
+  }
+
   // --------------------------------------------------------------- sharing
   // The values here must match SHARED in run.js: that case opens a link this
   // browser did not build, which is the only way to prove the format is really
@@ -2084,7 +2257,23 @@
       check('the server really is down: an uncached url fails rather than being invented', function () {
         return ok(r[2] === 'rejected', 'uncached fetch gave ' + r[2])
       })
-      report()
+      // The reason the plan's esbuild-wasm was turned down: the compiler is
+      // monaco's own, so there is nothing left to download by the time the
+      // network is gone. This is where that claim is either true or it is not.
+      configureTypeScript()
+      saveSettings({ jsLang: 'typescript' })
+      return jsForPreview('interface P { n: number }\nconst p: P = { n: 7 }\nconsole.log(p.n)\n')
+        .then(function (js) {
+          check('typescript still compiles with the network gone', function () {
+            return ok(js.indexOf('interface') === -1 && js.indexOf('console.log(p.n)') > -1,
+              JSON.stringify(js))
+          })
+        }, function (err) {
+          check('typescript still compiles with the network gone', function () {
+            return ok(false, 'it could not: ' + String(err && err.message || err))
+          })
+        })
+        .then(report)
     })
     return
   }
@@ -2260,7 +2449,7 @@
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
     storeChecks().then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
-      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks)
+      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks).then(tsChecks)
       .then(report, function (err) {
       check('the core chain ran to the end', function () {
         return ok(false, String(err) + ' | ' + String(err && err.stack).slice(0, 400))
