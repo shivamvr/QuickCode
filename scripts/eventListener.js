@@ -209,7 +209,7 @@ function addAction(e) {
     e.addAction({
         id: 'toggleWordWrap',
         label: 'Toggle Word Wrap',
-        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KEY_Z],
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KeyZ],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.5,
         togglewrap: true,
@@ -222,7 +222,7 @@ function addAction(e) {
     e.addAction({
         id: 'copyLines_Down',
         label: 'Copy Lines Down',
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_D],
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyD],
         run: function () {
             e.trigger('copyLineDown', 'editor.action.copyLinesDownAction');
         }
@@ -231,7 +231,7 @@ function addAction(e) {
     e.addAction({
         id: 'addSelectionTo_Next',
         label: 'Add Selection To Next',
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_Q],
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyQ],
         run: function () {
             e.trigger('addSelectionToNext', 'editor.action.addSelectionToNextFindMatch');
         }
@@ -240,7 +240,7 @@ function addAction(e) {
     e.addAction({
         id: 'font_big',
         label: 'Font Zoom In',
-        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.US_EQUAL],
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.Equal],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.1,
         run: function () {
@@ -251,7 +251,7 @@ function addAction(e) {
     e.addAction({
         id: 'font_small',
         label: 'Font Zoom Out',
-        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.US_MINUS],
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.Minus],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.2,
         run: function () {
@@ -262,7 +262,7 @@ function addAction(e) {
     e.addAction({
         id: 'font_reset',
         label: 'Font Reset',
-        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KEY_0],
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.Digit0],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.3,
         run: function () {
@@ -273,7 +273,7 @@ function addAction(e) {
     e.addAction({
         id: 'toggleFontLigatures',
         label: 'Toggle Font Ligatures',
-        keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KEY_L],
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyL],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.4,
         toggleFontLigatures: true,
@@ -288,7 +288,7 @@ function addAction(e) {
         label: 'Format Document',
         // Alt+Shift+F: Ctrl+Shift+F is already fold all, and menu orders
         // 1.1 to 1.6 are taken
-        keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KEY_F],
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyF],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.7,
         run: function () {
@@ -299,7 +299,7 @@ function addAction(e) {
     e.addAction({
         id: 'toggleFoldAll',
         label: 'Fold All / Unfold All',
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_F],
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1.6,
         toggleFoldAll: true,

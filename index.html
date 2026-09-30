@@ -9,7 +9,8 @@
            it was a race whether the library had arrived yet -->
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js" integrity="sha512-xcHCGC5tQ0SHlRX8Anbz6oy/OullASJkEhb4gjkneVpGE3/QGYejf14CUO5n5q5paiHfRFTa9HKgByxzidw2Bw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
       <!-----------------------------emmet--------------------------->
-      <script src="https://unpkg.com/emmet-monaco-es/dist/emmet-monaco.min.js"></script>
+      <!-- pinned: it reaches into monaco's internals, so it must not move on its own -->
+      <script src="https://unpkg.com/emmet-monaco-es@5.7.0/dist/emmet-monaco.min.js"></script>
       <!------------------------------------------------------------->
       <link rel="shortcut icon" href="icon/favicon.png" type="image/x-icon">
       <!---------------------installable-app------------------------->
@@ -18,7 +19,11 @@
       <link rel="apple-touch-icon" href="icon/icon-192.png">
       <!------------------------monaco-editor------------------------->
       <script>
-         var MONACO_BASE = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/";
+         // 0.52.2, not the newest. 0.53 onwards is a rollup rebuild with
+         // content-hashed filenames and no vs/base/worker/workerMain.js, which
+         // both the worker bootstrap below and the service worker's precache
+         // list depend on. See docs/09-monaco-upgrade.md.
+         var MONACO_BASE = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/";
          var require = { paths: { vs: MONACO_BASE + "vs" } };
          // Without this monaco cannot start its language workers cross-origin
          // and runs validation and IntelliSense on the main thread, competing
@@ -37,7 +42,11 @@
             }
          };
       </script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/loader.js"></script>
+      <!-- the one url that cannot use MONACO_BASE, because it is what defines
+           require(). Keep the version in step with the constant above; the test
+           suite fails if they drift, because the service worker precaches one
+           list and the page then asks for another. -->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.js"></script>
       <!---------------------Styles--------------------------------->
       <link rel="stylesheet" href="styles/style.css">
       <link rel="stylesheet" href="styles/tabs.css">

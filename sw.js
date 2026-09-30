@@ -11,7 +11,7 @@
 //                working with no network without ever serving something stale
 //                while the network is fine.
 //   the CDNs     cache first, refreshed in the background. Those URLs are
-//                version pinned (monaco 0.25.1, jszip 3.10.0) so stale is not a
+//                version pinned (monaco 0.52.2, jszip 3.10.0) so stale is not a
 //                risk, and they are by far the largest download.
 //   anything else is left alone entirely.
 //
@@ -19,7 +19,7 @@
 // deleted on activate.
 //=====================================================================
 
-const CACHE = 'quickcode-v4'
+const CACHE = 'quickcode-v5'
 
 // Everything the editor needs to start, from this origin. The theme JSON files
 // are fetched at runtime by settheme(), so every one of them has to be here or
@@ -76,12 +76,11 @@ const SHELL = [
 // AMD loader fetches most of this itself, at the moment a language is first
 // used, and the language workers fetch their own half from inside a worker.
 // Miss one and the editor opens offline but the language it needs is dead.
-const MONACO = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.25.1/min/vs/'
+const MONACO = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/'
 
 const VENDOR = [
   MONACO + 'loader.js',
   MONACO + 'editor/editor.main.js',
-  MONACO + 'editor/editor.main.nls.js',
   MONACO + 'editor/editor.main.css',
   MONACO + 'base/browser/ui/codicons/codicon/codicon.ttf',
 
@@ -103,7 +102,7 @@ const VENDOR = [
   MONACO + 'basic-languages/typescript/typescript.js',
 
   'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js',
-  'https://unpkg.com/emmet-monaco-es/dist/emmet-monaco.min.js',
+  'https://unpkg.com/emmet-monaco-es@5.7.0/dist/emmet-monaco.min.js',
 ]
 
 const VENDOR_HOSTS = ['cdnjs.cloudflare.com', 'unpkg.com']

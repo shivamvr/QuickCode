@@ -1,6 +1,6 @@
 # 09 — Upgrade monaco
 
-**Size:** M · **Depends on:** 15 (tests first) · **Status:** not started
+**Size:** M · **Depends on:** 15 (tests first) · **Status:** done (see Outcome)
 
 ## Why
 
@@ -90,3 +90,86 @@ that was tried and passed while the binding was broken.)
 
 The suite passes on the new version, all 8 shortcuts fire from the keyboard, all
 19 themes apply, and emmet still expands.
+
+## Outcome
+
+**Done, September 2026.** Monaco went from **0.25.1 (mid-2021) to 0.52.2**, and
+`emmet-monaco-es` is pinned at 5.7.0.
+
+### Why 0.52.2 and not the newest
+
+cdnjs has 0.57.0. It is not usable here, and this is the main finding of the
+item: **from 0.53 onwards monaco is a rollup rebuild with content-hashed
+filenames** - `cssMode-eIUIN_ru.js`, `html-BTio3wpy.js` - and
+`vs/base/worker/workerMain.js` no longer exists. Two things in this project
+depend on that layout:
+
+- the worker bootstrap in `index.html`, which builds a tiny worker that
+  `importScripts` that exact path
+- the service worker's vendor precache list, which has to name every file by
+  hand because nothing can discover them
+
+Hashed names would mean rewriting that list, with new hashes, on every upgrade.
+0.52.2 is the last release with the classic layout, so it is the one to sit on
+until there is a reason to take the rebuild on properly.
+
+The one thing that did move even in 0.52.2: **`vs/editor/editor.main.nls.js` is
+gone**. English is built in now and only translations ship as
+`nls.messages.<lang>.js`, so that entry came out of the precache list.
+
+### The renames, which were the whole risk
+
+All seven, as the plan listed them: `KEY_Z` `KEY_D` `KEY_Q` `KEY_L` to `KeyZ`
+`KeyD` `KeyQ` `KeyL`, `KEY_0` to `Digit0`, `US_MINUS` to `Minus`, `US_EQUAL` to
+`Equal`.
+
+The existing check that every named constant resolves caught these, as designed.
+But the plan also said that was not enough - running an action does not prove
+its key is bound - so there is now a check that **sends real keyboard events at
+the editor**: Ctrl+D has to make a second line, Alt+Z has to flip word wrap.
+Reverting one rename proves it works: the action still registers, the context
+menu entry still appears, and the new check reports `ctrl+D made 1 lines (want
+2)` while the old one says the constant is undefined. That is exactly the
+failure this item existed to prevent.
+
+### Two defaults that would have changed how the editor looks
+
+`bracketPairColorization` and `stickyScroll` both arrived **on by default**.
+Coloured brackets and a pinned scope header are real changes to an editor nobody
+asked to change, and coloured brackets in particular would sit oddly against the
+hardcoded `.mtk*` token colours in `tabs.css`. Both are explicitly **off** in
+`editorOptions()`, so the editor looks exactly as it did; each is one word to
+turn on and both are worth trying.
+
+### What else was checked
+
+- **Unknown options.** `lineNumber`, `glyphmargin` and `scrollBeyoundLastLine`
+  were all misspelled once and monaco said nothing for years, because it ignores
+  options it does not recognise. Every key `editorOptions()` passes is now
+  checked against `monaco.editor.EditorOption`.
+- **Every theme.** Not just that the files load - each of the 13 is applied and
+  the editor's computed background is compared against the `editor.background`
+  in its own JSON. All 13 take. Making `settheme` fall back on purpose names all
+  13 with their expected colours, so the check is not vacuous.
+- **Emmet, and a correction.** The plan and the old test both described emmet as
+  "type an abbreviation and press Tab". That is what a user sees, but it is not
+  how the library works: **emmet-monaco-es registers a completion provider**, and
+  Tab is the suggest widget accepting its item. A synthetic Tab therefore expands
+  nothing, which looked like a break and was not. The check now asks the provider
+  directly - `div.a>ul>li*3` and `m10` both expand - which also exercises the
+  monaco model APIs the library reaches into, and those are what an upgrade
+  breaks.
+
+### Verification
+
+`node test/run.js` - **110 checks**, all passing, five of them new: real
+keyboard dispatch, option-name validation, every theme applying visibly, emmet
+through its provider, and the two appearance defaults staying off.
+
+The `core` case also got **faster**, 11.5s to about 7.5s, despite the larger
+bundle (editor.main.js is 735KB against 509KB).
+
+### Now unblocked
+
+Item 13 (diff view) wanted a newer monaco for its diff editor, and item 10
+(TypeScript, JSX) wanted the newer TypeScript that ships inside it.

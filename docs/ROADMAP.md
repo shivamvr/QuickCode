@@ -19,7 +19,7 @@ web workers).
 | 06 | [Preview console and errors](06-preview-console.md) | ~~Runtime errors and `console.log` vanished into a tab nobody was looking at~~ **done** | 01 | M |
 | 07 | [Resizable split](07-resizable-split.md) | ~~The split is hard-coded 50/50~~ **done** | — | S |
 | 08 | [Format on save](08-format-on-save.md) | ~~Small change, large daily payoff~~ **done** | — | S |
-| 09 | [Upgrade monaco](09-monaco-upgrade.md) | Pinned to 0.25.1 from mid-2021 | 15 | M |
+| 09 | [Upgrade monaco](09-monaco-upgrade.md) | ~~Pinned to 0.25.1 from mid-2021~~ **done** - on 0.52.2, the last release with the classic file layout | 15 | M |
 | 10 | [TypeScript, JSX, Sass](10-typescript-jsx.md) | Needs a real transpile step | 01, 09 | L |
 | 11 | [npm imports](11-npm-imports.md) | Make bare `import` specifiers work | 01 | M |
 | 12 | [Version history](12-version-history.md) | There is no recovery path from any mistake | 04 | M |
@@ -40,9 +40,14 @@ small enough to slot in whenever.
 tool rather than a web page; ~~04~~ + ~~05~~ + 12 make it somewhere work actually
 lives.
 
-**What is left:** 09 (upgrade monaco) unblocks 10 and 13; 12 (version history)
-is the last of the "somewhere work lives" group and the only recovery path from
-a mistake. 11 stands alone.
+**What is left:** 12 (version history) is the last of the "somewhere work
+lives" group and the only recovery path from a mistake. ~~09~~ is done, so 13
+(diff view) and 10 (TypeScript, JSX) are unblocked. 11 stands alone.
+
+**Do not take monaco past 0.52.2** without reading the Outcome in
+[09](09-monaco-upgrade.md): 0.53 onwards has content-hashed filenames and no
+`workerMain.js`, which the worker bootstrap and the service worker's precache
+list both depend on.
 
 Of the two things 02 left for later, **remembering file handles across a
 reload** is done (04 stores them per project and pane). **Directory handles** as

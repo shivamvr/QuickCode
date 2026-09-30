@@ -57,6 +57,61 @@
       return ok(missing.length === 0, missing.length ? 'missing: ' + missing.join(', ') : ids.length + ' actions')
     })
 
+    check('the keybindings actually fire from the keyboard', function () {
+      // The whole risk of a monaco upgrade is a binding that registers happily
+      // and is bound to the wrong key: an undefined constant is not NaN, it is
+      // a valid number. Running the action proves nothing about that, so this
+      // sends real keys at the editor and watches what happens.
+      ensureMainEditor()
+      var input = editor.getDomNode().querySelector('textarea.inputarea')
+      if (!input) return ok(false, 'monaco has no input area to type into')
+
+      var press = function (init) {
+        var e = new KeyboardEvent('keydown', {
+          bubbles: true, cancelable: true,
+          key: init.key, code: init.code,
+          ctrlKey: !!init.ctrl, altKey: !!init.alt, shiftKey: !!init.shift,
+        })
+        // monaco reads the legacy numeric keyCode, which a KeyboardEvent init
+        // does not carry
+        Object.defineProperty(e, 'keyCode', { get: function () { return init.keyCode } })
+        Object.defineProperty(e, 'which', { get: function () { return init.keyCode } })
+        input.dispatchEvent(e)
+      }
+
+      editor.focus()
+      editor.getModel().setValue('one line')
+      editor.setPosition({ lineNumber: 1, column: 1 })
+
+      // Ctrl+D is rebound to copy-line-down, so the model grows a line
+      press({ key: 'd', code: 'KeyD', keyCode: 68, ctrl: true })
+      var duplicated = editor.getModel().getLineCount()
+
+      // Alt+Z toggles word wrap, which the editor reports back
+      var wrapBefore = editor.getOption(monaco.editor.EditorOption.wordWrap)
+      press({ key: 'z', code: 'KeyZ', keyCode: 90, alt: true })
+      var wrapAfter = editor.getOption(monaco.editor.EditorOption.wordWrap)
+
+      editor.getModel().setValue('')
+      return ok(duplicated === 2 && wrapBefore !== wrapAfter,
+        'ctrl+D made ' + duplicated + ' lines (want 2); alt+Z took word wrap from ' +
+        wrapBefore + ' to ' + wrapAfter)
+    })
+
+    check('no option the editor is created with is silently ignored', function () {
+      // lineNumber, glyphmargin and scrollBeyoundLastLine were all misspelled
+      // once and monaco said nothing for years. It ignores unknown options, so
+      // the only way to notice is to ask whether it knows the name.
+      var options = editorOptions('', 'html')
+      var notOptions = ['value', 'language']     // create-time arguments, not options
+      var unknown = Object.keys(options).filter(function (key) {
+        return notOptions.indexOf(key) === -1 && !(key in monaco.editor.EditorOption)
+      })
+      return ok(unknown.length === 0,
+        unknown.length ? 'monaco does not know: ' + unknown.join(', ')
+                       : Object.keys(options).length + ' options, all recognised')
+    })
+
     check('every key constant the app names actually exists', function () {
       // The failure mode of a monaco rename is subtler than it looks: an
       // undefined constant does NOT make the expression NaN, because
@@ -204,16 +259,137 @@
       return ok(readSettings().splitRatio === 0.3, 'stored ratio = ' + readSettings().splitRatio)
     })
 
-    check('emmet is enabled for html and css', function () {
-      // expansion itself needs a real Tab keypress inside monaco, which is
-      // fragile to simulate; this at least fails loudly if the library stops
-      // exposing a mode we call
-      return ok(typeof emmetMonaco.emmetHTML === 'function' && typeof emmetMonaco.emmetCSS === 'function',
-        'emmetHTML=' + typeof emmetMonaco.emmetHTML + ' emmetCSS=' + typeof emmetMonaco.emmetCSS)
-    })
+    // emmet is checked in the promise chain below: asking a completion
+    // provider for its suggestions is asynchronous.
 
     check('no errors after exercising everything', function () {
       return ok(window.__errors.length === 0, window.__errors.join(' | ') || 'none')
+    })
+  }
+
+  // ---------------------------------------------------------- emmet
+  // emmet-monaco-es works by registering a completion provider, not by binding
+  // Tab: what the user sees as "type an abbreviation and press Tab" is the
+  // suggest widget accepting its item. So the honest check is to ask the
+  // provider what it offers - which also exercises the monaco model APIs the
+  // library reaches into, and those are what an upgrade breaks.
+  function emmetChecks() {
+    var captured = []
+    var realRegister = monaco.languages.registerCompletionItemProvider
+    monaco.languages.registerCompletionItemProvider = function (language, provider) {
+      captured.push({ language: language, provider: provider })
+      return realRegister.apply(monaco.languages, arguments)
+    }
+    // registering a second time just to see what gets registered; the
+    // disposables below take these back out again straight away
+    var disposables = [emmetMonaco.emmetHTML(monaco), emmetMonaco.emmetCSS(monaco)]
+    monaco.languages.registerCompletionItemProvider = realRegister
+    disposables.forEach(function (d) { if (d && d.dispose) d.dispose() })
+
+    var ask = function (language, text, column) {
+      var entry = captured.filter(function (c) { return c.language === language })[0]
+      if (!entry) return Promise.resolve({ error: 'nothing registered for ' + language })
+      var model = monaco.editor.createModel(text, language)
+      return Promise.resolve(entry.provider.provideCompletionItems(
+        model, new monaco.Position(1, column), {}, { isCancellationRequested: false }
+      )).then(function (result) {
+        model.dispose()
+        var items = (result && result.suggestions) || []
+        return { items: items.map(function (i) { return String(i.insertText || '') }) }
+      }, function (err) {
+        model.dispose()
+        return { error: String(err && err.message || err) }
+      })
+    }
+
+    return Promise.all([
+      ask('html', 'div.a>ul>li*3', 14),
+      ask('css', 'm10', 4),
+    ]).then(function (results) {
+      check('emmet still expands, in html and in css', function () {
+        var html = results[0]
+        var css = results[1]
+        var expandedHtml = (html.items || []).filter(function (t) {
+          return /<div class="a">/.test(t) && (t.match(/<li>/g) || []).length === 3
+        })[0]
+        var expandedCss = (css.items || []).filter(function (t) {
+          return /margin:\s*10px/.test(t)
+        })[0]
+        return ok(!!expandedHtml && !!expandedCss,
+          'html: ' + (html.error || JSON.stringify(String(expandedHtml).slice(0, 50)) ||
+            (html.items || []).length + ' suggestions, none expanded') +
+          '; css: ' + (css.error || JSON.stringify(expandedCss) ||
+            (css.items || []).length + ' suggestions, none expanded'))
+      })
+      check('registering emmet twice leaves nothing behind', function () {
+        return ok(captured.length >= 2 &&
+          monaco.languages.registerCompletionItemProvider === realRegister,
+          captured.length + ' providers seen, monaco restored=' +
+          (monaco.languages.registerCompletionItemProvider === realRegister))
+      })
+    })
+  }
+
+  // ---------------------------------------------------------- the themes
+  // Every theme file is fed to defineTheme, and a newer monaco validates more
+  // strictly than the one these were written for. A theme that throws is
+  // swallowed by settheme's own catch, so the only thing that shows is the
+  // editor not changing - which is what this measures.
+  function rgbOf(hex) {
+    var h = String(hex).replace('#', '')
+    if (h.length === 8) h = h.slice(0, 6)
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]
+    var n = parseInt(h, 16)
+    return 'rgb(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ')'
+  }
+
+  function editorBackground() {
+    var el = editor.getDomNode().querySelector('.monaco-editor-background') ||
+      editor.getDomNode().querySelector('.monaco-editor')
+    return el ? getComputedStyle(el).backgroundColor : 'no element'
+  }
+
+  function themeChecks() {
+    var names = []
+    getsAll('.selectB .option').forEach(function (o) {
+      var v = o.getAttribute('data-type')
+      if (v !== 'vs' && v !== 'vs-dark') names.push(v)
+    })
+
+    var failed = []
+    var applied = 0
+    var chain = Promise.resolve()
+    names.forEach(function (name) {
+      chain = chain.then(function () {
+        return fetch('./themes/' + name + '.json').then(function (r) { return r.json() })
+      }).then(function (data) {
+        var want = data.colors && data.colors['editor.background']
+        settheme(name)
+        if (!want) return null               // nothing to measure it against
+        var target = rgbOf(want)
+        return waitFor(function () { return editorBackground() === target }, 3000)
+          .then(function (matched) {
+            applied++
+            if (!matched) failed.push(name + ' (wanted ' + target + ', got ' + editorBackground() + ')')
+          })
+      })
+    })
+
+    return chain.then(function () {
+      check('every theme applies, and none of them quietly falls back', function () {
+        return ok(failed.length === 0 && applied > 0,
+          failed.length ? 'did not take: ' + failed.join('; ')
+                        : applied + ' of ' + names.length + ' themes measured, all applied')
+      })
+      check('the editor still looks the way it did before the upgrade', function () {
+        // both default to on in 0.52 and both change the editor visibly
+        var brackets = editor.getOption(monaco.editor.EditorOption.bracketPairColorization)
+        var sticky = editor.getOption(monaco.editor.EditorOption.stickyScroll)
+        return ok(brackets && brackets.enabled === false && sticky && sticky.enabled === false,
+          'bracket colouring=' + (brackets && brackets.enabled) +
+          ', sticky scroll=' + (sticky && sticky.enabled))
+      })
+      settheme('vs-dark')
     })
   }
 
@@ -1581,7 +1757,7 @@
     })
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
-    storeChecks().then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
+    storeChecks().then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
       .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks)
       .then(report, function (err) {
       check('formatting checks completed', function () { return ok(false, String(err)) })

@@ -143,6 +143,12 @@ const editorOptions = (value, language) => ({
     verticalScrollbarSize: 20,
     horizontalScrollbarSize: 17,
   },
+  // Both of these arrived turned on by default in the 0.52 upgrade, and both
+  // change how the editor looks: coloured brackets, and a pinned header showing
+  // the enclosing scope. Off keeps the editor looking exactly as it did. Either
+  // is one word to turn on, and worth trying.
+  bracketPairColorization: { enabled: false },
+  stickyScroll: { enabled: false },
 })
 
 // setValue() throws away the undo stack, so only write when the text differs

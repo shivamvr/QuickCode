@@ -97,6 +97,14 @@ that looked correct and proved nothing:
   has to `cancelFlush()` and drop the in-memory record first, or the write lands
   mid-delete and puts the project straight back. The app does the same thing in
   `removeProject()`, for the same reason.
+- **Ask a library how it actually works before testing it.** Emmet looks like
+  "type an abbreviation, press Tab", so the check simulated a Tab and found
+  nothing expanded. It is a **completion provider**; Tab is the suggest widget
+  accepting its item. The check asks the provider directly now.
+- **Running an action does not prove its key is bound.** That is the whole
+  failure mode of a monaco upgrade - `KeyMod.Alt | undefined` is `512`, a
+  perfectly valid binding on the wrong key. The suite sends real keyboard events
+  and watches the model change.
 - **Test the invariant, not the description of it.** The preview's line numbers
   depend on nothing injected above the user's code carrying a newline. A check
   that exercised only the mapping passed happily while a newline was being
@@ -151,6 +159,10 @@ node test/run.js                                       # expect 2, 1 and 2 FAILs
 #    inject a newline above the user's code in scripts/preview.js, or drop the
 #    e.source check from the message handler in scripts/index.js
 node test/run.js                                          # expect 1 FAIL each
+# 8. the monaco upgrade
+#    put back one old KeyCode name (KeyD -> KEY_D) in eventListener.js, misspell
+#    an option in editorOptions(), or make settheme() always set vs-dark
+node test/run.js                                       # expect 3, 1 and 1 FAILs
 ```
 
-All seven were confirmed to fail when introduced, and pass once reverted.
+All eight were confirmed to fail when introduced, and pass once reverted.

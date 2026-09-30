@@ -230,8 +230,8 @@ QuickCode/
 
 ## Built with
 
-- [Monaco Editor](https://microsoft.github.io/monaco-editor/) — the editor core
-- [emmet-monaco-es](https://github.com/troy351/emmet-monaco-es) — Emmet support
+- [Monaco Editor](https://microsoft.github.io/monaco-editor/) 0.52.2 — the editor core
+- [emmet-monaco-es](https://github.com/troy351/emmet-monaco-es) 5.7.0 — Emmet support
 - [JSZip](https://stuk.github.io/jszip/) — project export / import
 - [FileSaver.js](https://github.com/eligrey/FileSaver.js/) — file downloads
 - [monaco-themes](https://github.com/brijeshb42/monaco-themes) — theme definitions
