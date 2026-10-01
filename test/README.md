@@ -22,7 +22,7 @@ through six scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
-| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, the diff view, TypeScript, and npm imports |
+| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, the diff view, TypeScript, npm imports, and JSX |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `migrate` | `index.html` | loads over a seeded pre-IndexedDB `localStorage`, then reloads: the migration must take everything, keep the old keys on that first load, clear them on the second, and not run twice |
 | `share` | `index.html#s=…` | opens a share link that **node's zlib** built, not the browser |
@@ -110,6 +110,15 @@ that looked correct and proved nothing:
   picking the first one sometimes asked the wrong library. And registering a
   second copy of emmet to spy on it tore down state the live one was using;
   `serve.js` records the real registrations instead.
+- **The preview only builds while its tab is showing.** A new case that set up
+  content and called `runPreview()` without opening the preview tab reported
+  nothing at all, three times, and spent 87 seconds doing it. "Nothing came back"
+  usually means nothing was asked.
+- **Two awaits are not a synchronised worker.** A `getEmitOutput` issued right
+  after `setCompilerOptions`, on two models created in the same tick, came back
+  `emitSkipped: true` with no output - and read exactly like "JSX cannot compile".
+  Sequentially, the same calls emit fine. The same lazy-worker trap as the emmet
+  checks, wearing a different hat.
 - **The browser does not always tell you a thing failed.** A module whose import
   404s reports nothing at all: no error event, no rejection, nothing after twelve
   seconds. Anything that depends on hearing about a failure needs proof the
@@ -240,6 +249,11 @@ CASES=core node test/run.js                               # expect 1 FAIL each
 #     every slash as division, or drop 2792 from IGNORED_DIAGNOSTICS in
 #     typescript.js
 CASES=core node test/run.js                             # expect 1-4 FAILs each
+# 13. jsx
+#     drop `jsx: ts.JsxEmit.ReactJSX` from configureTypeScript, compile the
+#     throwaway model as .ts instead of .tsx, or let monaco invent the js pane's
+#     model uri instead of naming it .tsx in jsEditor.js
+CASES=core node test/run.js                             # expect 1-5 FAILs each
 ```
 
-All twelve were confirmed to fail when introduced, and pass once reverted.
+All thirteen were confirmed to fail when introduced, and pass once reverted.

@@ -1,6 +1,6 @@
 # 10 — TypeScript, JSX and Sass
 
-**Size:** L · **Depends on:** 01, 09 · **Status:** TypeScript done; JSX and Sass not started (see Outcome)
+**Size:** L · **Depends on:** 01, 09 · **Status:** TypeScript and JSX done; Sass dropped (see Outcome)
 
 ## Why
 
@@ -185,3 +185,71 @@ Mutation-checked, eight of them, all caught. Two are worth naming:
   project saved before `jsLang` existed inherit the previous project's flavour.
   That was a real bug, found by writing the check for it: every settings read now
   goes through `settingsOf`, which fills in from the defaults first.
+
+## Outcome: JSX
+
+**Done, 1 October 2026**, after ~~11~~ made it possible. This plan said to decide
+whether JSX justified item 11's complexity once TypeScript was in. It does, and
+it cost almost nothing once the import map existed.
+
+### How little it took
+
+- **`jsx: ReactJSX`** in the compiler options. The automatic runtime, so a
+  component needs no `import React`.
+- **The compile model is `.tsx`**, not `.ts`.
+- **The js pane's own model is `file:///quickcode/pane.tsx`** instead of the
+  `inmemory://model/3` monaco would invent.
+
+That last one is the only structural change, and it is the one worth explaining.
+
+### Why the pane needs a named model
+
+The TypeScript worker decides whether JSX is allowed **from the file extension and
+nothing else**. On monaco's invented uri, valid JSX reports four syntax errors
+while compiling the very same text succeeds - the editor and the compiler
+disagreeing about what is in front of them. The mutation that removes the named
+uri fails exactly there: *"the pane is inmemory://model/3 and reported 4 syntax
+errors"*.
+
+The uri is set once, at creation, and never changes. That is what keeps item 10's
+promise that a flavour switch preserves the text, the undo stack and the cursor:
+the model is retargeted, never replaced.
+
+`.tsx` has two narrow costs, both accepted deliberately: `<T>value` as a type
+assertion and `<T>(x: T) => x` as a generic arrow are ambiguous with a JSX tag, so
+they need `value as T` and `<T,>(x: T) => x`.
+
+### The join with item 11
+
+The compiler writes `import { jsx as _jsx } from "react/jsx-runtime"` itself. The
+scanner in item 11 reads the **compiled** output, so it finds that import without
+knowing anything about JSX, and the import map resolves it to esm.sh like any
+other package. Nothing had to be taught about React.
+
+### Something written and then removed
+
+An ambient declaration shim for `react`, `react/jsx-runtime` and
+`react-dom/client` went in first, to stop TypeScript reporting a module it cannot
+see. Removing it again changed nothing: all 148 checks still passed, because
+`IGNORED_DIAGNOSTICS` already covers "Cannot find module" for **any** package, and
+no react-specific shim could do that for `nanoid`. Two mechanisms for one job, so
+the narrower one went. Worth recording as a thing that looked necessary and was
+not.
+
+### Verification
+
+`node test/run.js` - **181 checks**, all passing. Seven are new: JSX compiling to
+calls on the automatic runtime, the runtime import reaching the map, nothing being
+reported about a module that only exists at run time, the editor not underlining
+valid JSX, a throw below collapsed JSX still reported on the line it was written
+on, React actually rendering a component in the preview, and JSX in the plain
+javascript flavour failing loudly rather than silently.
+
+Mutation-checked, three of them, all caught: dropping the `jsx` option, compiling
+as `.ts`, and letting monaco invent the pane's model uri.
+
+The suite's budgets were raised with it - the watchdog to 150s and the case
+timeout to 240s - because it now fetches react and react-dom from a CDN. The
+first run of these checks also spent 87 seconds waiting out three timeouts for one
+silly reason: the preview only builds while its tab is showing, and the new case
+never opened it.

@@ -27,6 +27,27 @@ const COMPILED_KEY = 'quickcodeCompiled'
 
 const usingTypeScript = () => quickEdit.jsLang === 'typescript'
 
+// The js pane's model is given this instead of the inmemory uri monaco would
+// invent for it. The typescript worker decides whether JSX is allowed from the
+// file extension and nothing else, so without a .tsx here every tag in valid
+// JSX is underlined in the editor while compiling it succeeds - the editor and
+// the compiler disagreeing about the same text.
+//
+// It is set once, at creation, and never changes. That is what keeps the undo
+// stack and the cursor across a flavour switch: the model is retargeted, never
+// replaced.
+//
+// .tsx has two narrow costs, both deliberate. `<T>value` as a type assertion
+// and `<T>(x: T) => x` as a generic arrow are ambiguous with a JSX tag, so they
+// need `value as T` and `<T,>(x: T) => x`. Consistency between what the editor
+// says and what the compiler does is worth more than those two spellings.
+const JS_PANE_URI = 'file:///quickcode/pane.tsx'
+
+const jsPaneModel = (text, language) => {
+  const uri = monaco.Uri.parse(JS_PANE_URI)
+  return monaco.editor.getModel(uri) || monaco.editor.createModel(text, language, uri)
+}
+
 // 2307 and 2792 are both "Cannot find module" - 2792 is the variant that adds a
 // suggestion about moduleResolution. TypeScript is right that it cannot find it:
 // there is no node_modules here, and no declarations for something the import
@@ -45,19 +66,24 @@ const worthSaying = (diagnostic) => IGNORED_DIAGNOSTICS.indexOf(diagnostic.code)
 // monaco's own default and is what the editor already underlines.
 function configureTypeScript() {
   const ts = monaco.languages.typescript
-  ts.typescriptDefaults.setCompilerOptions(Object.assign(
-    {}, ts.typescriptDefaults.getCompilerOptions(), {
+  const defaults = ts.typescriptDefaults
+  defaults.setCompilerOptions(Object.assign(
+    {}, defaults.getCompilerOptions(), {
       target: ts.ScriptTarget.ES2020,
       module: ts.ModuleKind.ESNext,
       sourceMap: true,
       allowNonTsExtensions: true,
+      // The automatic runtime, so a component needs no `import React`. It emits
+      // an import of react/jsx-runtime, which the import map from item 11 then
+      // resolves - which is the whole reason JSX had to wait for that item.
+      jsx: ts.JsxEmit.ReactJSX,
     }))
 
   // Keeps IGNORED_DIAGNOSTICS out of the editor's own red underlines. It does
   // not affect what the worker hands a direct caller, which is why the same list
   // is applied again when the diagnostics are read below.
-  ts.typescriptDefaults.setDiagnosticsOptions(Object.assign(
-    {}, ts.typescriptDefaults.getDiagnosticsOptions(), {
+  defaults.setDiagnosticsOptions(Object.assign(
+    {}, defaults.getDiagnosticsOptions(), {
       diagnosticCodesToIgnore: IGNORED_DIAGNOSTICS,
     }))
 }
@@ -148,7 +174,9 @@ function describeDiagnostic(model, diagnostic) {
 // loud and the javascript still runs, the way it would through any build step
 // that does not typecheck.
 async function compileTypeScript(source) {
-  const uri = monaco.Uri.parse('file:///quickcode/pane-' + (++compileSeq) + '.ts')
+  // .tsx, so JSX in the pane compiles rather than being read as a type
+  // assertion. Matches the extension the pane's own model carries.
+  const uri = monaco.Uri.parse('file:///quickcode/compile-' + (++compileSeq) + '.tsx')
   const model = monaco.editor.createModel(source, 'typescript', uri)
   const key = uri.toString()
   try {

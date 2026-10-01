@@ -62,6 +62,28 @@ its top-level names are no longer global - so `onclick="myFunction()"` in the ht
 will not find a `function myFunction` declared in the js pane. A snippet with **no**
 imports is untouched and keeps working exactly as before.
 
+### ⚛️ JSX, with React
+
+Switch the js pane to **ts** and write JSX. No `import React`, no configuration:
+
+```jsx
+import { createRoot } from "react-dom/client"
+
+const App = () => <h1>hello from jsx</h1>
+
+createRoot(document.getElementById("root")).render(<App />)
+```
+
+React arrives through the same import map as any other package, so there is nothing to
+install and nothing to set up. Errors still point at the line **you** wrote, even though
+six lines of markup compile down to one function call.
+
+JSX needs the **ts** flavour, because it has to be compiled. In the plain **js** flavour
+it fails with a syntax error rather than quietly doing nothing.
+
+Types inside JSX are not checked - React arrives as `any`. You get JSX that compiles and
+runs, not a type-checked React project.
+
 ### 🅣 TypeScript in the js pane
 
 The **js** tab carries a small **js** badge. Click it and it says **ts**: that pane is now

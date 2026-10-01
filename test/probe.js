@@ -34,7 +34,7 @@
         '; logged: ' + (window.__console.join(' | ') || 'nothing'))
     })
     report()
-  }, 90000)
+  }, 150000)
 
   function report() {
     clearTimeout(watchdog)
@@ -1927,6 +1927,144 @@
       })
   }
 
+  // ------------------------------------------------------------------ jsx
+  // JSX had to wait for item 11: the automatic runtime emits an import of
+  // react/jsx-runtime, and before the import map there was nothing that could
+  // resolve it. So most of this is about that join, and about the editor and the
+  // compiler agreeing on the same text.
+
+  function jsxChecks() {
+    var home = project
+    var mine = makeProject({
+      name: 'jsx',
+      code: '<div id="root"></div>',
+      css: '',
+      js: '',
+    })
+    var COMPONENT = [
+      'interface Props { label: string }',
+      '',
+      'const Button = ({ label }: Props) => (',
+      '  <button className="go">',
+      '    {label}',
+      '  </button>',
+      ')',
+      '',
+      'console.log("JSX BUILT", typeof Button)',
+      'throw new Error("thrown under jsx")',
+    ].join('\n')
+
+    return saveProject(mine)
+      .then(function () { return openRecord(mine) })
+      .then(function () {
+        setJsLang('typescript')
+        gets('#jsCheck').checked = true
+        saveSettings({ js: true, css: false })
+        setPaneText('main', '<div id="root"></div>')
+        // the preview only builds while its tab is the one showing
+        splitMenu('preview')
+        return jsForPreview(COMPONENT)
+      })
+      .then(function (js) {
+        check('jsx compiles to calls on the automatic runtime', function () {
+          return ok(js.indexOf('react/jsx-runtime') > -1 && /_jsx/.test(js) &&
+            js.indexOf('<button') === -1,
+            JSON.stringify(js.replace(/\n/g, ' | ').slice(0, 150)))
+        })
+        check('the runtime it imports is put in the import map', function () {
+          // the compiler wrote that import, not the user, so nothing but reading
+          // the compiled output would find it
+          var built = buildPreviewDoc({ code: '<div id="root"></div>', js: js },
+            { lang: 'html', js: true, css: false })
+          return ok(built.html.indexOf('"react/jsx-runtime":"https://esm.sh/react/jsx-runtime"') > -1 &&
+            built.html.indexOf('type="module"') > -1,
+            'map has the runtime=' +
+            (built.html.indexOf('"react/jsx-runtime"') > -1) +
+            ', module=' + (built.html.indexOf('type="module"') > -1))
+        })
+        check('nothing is reported about a runtime that only exists at run time', function () {
+          return ok(!rowSaying('Cannot find module') && !rowSaying('Will not compile'),
+            consoleRowsText().join(' | ') || 'nothing said, rightly')
+        })
+      })
+      .then(function () {
+        // What the editor itself thinks. This is the check that earns the .tsx
+        // uri: on the inmemory uri monaco invents, the same JSX reports a fistful
+        // of syntax errors while compiling it succeeds.
+        var ed = TABS.js.get() || ensureJsEditor()
+        ed.getModel().setValue(COMPONENT)
+        var uri = ed.getModel().uri
+        return monaco.languages.typescript.getTypeScriptWorker()
+          .then(function (get) { return get(uri) })
+          .then(function (client) { return client.getSyntacticDiagnostics(uri.toString()) })
+          .then(function (diagnostics) {
+            check('the editor does not underline valid jsx', function () {
+              return ok(diagnostics.length === 0 && /\.tsx$/.test(uri.path),
+                'the pane is ' + uri.toString() + ' and reported ' +
+                diagnostics.length + ' syntax errors')
+            })
+          })
+      })
+      .then(function () {
+        // Lines move a long way under JSX: six lines of markup collapse into one
+        // call. The throw is on line 10 of what was written.
+        setPaneText('js', COMPONENT)
+        clearConsole()
+        runPreview()
+        return waitFor(function () { return !!rowSaying('thrown under jsx') }, 25000)
+      })
+      .then(function (spoke) {
+        check('a throw below collapsed jsx is still reported on the line it is on', function () {
+          var row = rowSaying('thrown under jsx')
+          return ok(spoke && !!row && whereOf(row) === 'ts:10',
+            row ? 'reported at ' + whereOf(row) + ' (want ts:10)'
+                : 'never arrived: ' + consoleRowsText().join(' | '))
+        })
+      })
+      .then(function () {
+        // end to end: react itself, fetched through the map, rendering a component
+        setPaneText('js', [
+          'import { createRoot } from "react-dom/client"',
+          'const App = () => {',
+          '  console.log("JSX COMPONENT RAN")',
+          '  return <h1>hello from jsx</h1>',
+          '}',
+          'createRoot(document.getElementById("root")).render(<App />)',
+        ].join('\n'))
+        clearConsole()
+        runPreview()
+        return waitFor(function () { return !!rowSaying('JSX COMPONENT RAN') }, 30000)
+      })
+      .then(function (spoke) {
+        check('react renders a jsx component in the preview', function () {
+          return ok(spoke, spoke ? 'the component function ran, so react arrived and called it'
+                                 : 'it never ran: ' + consoleRowsText().join(' | '))
+        })
+      })
+      .then(function () {
+        // In the plain javascript flavour there is no compile step, so JSX cannot
+        // work. It must fail loudly rather than quietly doing nothing.
+        setJsLang('javascript')
+        setPaneText('js', 'const el = <h1>no compiler here</h1>\nconsole.log(el)')
+        clearConsole()
+        runPreview()
+        return waitFor(function () { return consoleRowsText().length > 0 }, 15000)
+      })
+      .then(function () {
+        check('jsx without the typescript flavour fails loudly, not silently', function () {
+          var said = consoleRowsText().join(' | ')
+          return ok(/unexpected token|syntaxerror/i.test(said), said || 'it said nothing at all')
+        })
+      })
+      .then(function () {
+        var realConfirm = window.confirm
+        window.confirm = function () { return true }
+        return removeProject()
+          .then(function () { window.confirm = realConfirm })
+          .then(function () { return switchProject(home.id) })
+      })
+  }
+
   // --------------------------------------------------------------- sharing
   // The values here must match SHARED in run.js: that case opens a link this
   // browser did not build, which is the only way to prove the format is really
@@ -2761,7 +2899,7 @@
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
     storeChecks().then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
-      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks).then(tsChecks).then(importChecks)
+      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks).then(tsChecks).then(importChecks).then(jsxChecks)
       .then(report, function (err) {
       check('the core chain ran to the end', function () {
         return ok(false, String(err) + ' | ' + String(err && err.stack).slice(0, 400))

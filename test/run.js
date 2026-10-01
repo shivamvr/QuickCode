@@ -19,7 +19,7 @@ const ROOT = path.join(__dirname, '..')
 const PORT = Number(process.env.PORT || 8399)
 // generous because the offline case has to install a service worker first,
 // which precaches about 2MB from two CDNs before the case can even start
-const CASE_TIMEOUT_MS = 120000
+const CASE_TIMEOUT_MS = 240000
 
 // The persistence case reloads the page itself rather than relying on a second
 // browser process: killing Chrome can discard localStorage before it reaches
