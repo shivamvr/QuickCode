@@ -21,7 +21,7 @@ web workers).
 | 08 | [Format on save](08-format-on-save.md) | ~~Small change, large daily payoff~~ **done** | — | S |
 | 09 | [Upgrade monaco](09-monaco-upgrade.md) | ~~Pinned to 0.25.1 from mid-2021~~ **done** - on 0.52.2, the last release with the classic file layout | 15 | M |
 | 10 | [TypeScript, JSX, Sass](10-typescript-jsx.md) | ~~Needs a real transpile step~~ **TypeScript done**; JSX waits on 11, Sass dropped | 01, 09 | L |
-| 11 | [npm imports](11-npm-imports.md) | Make bare `import` specifiers work | 01 | M |
+| 11 | [npm imports](11-npm-imports.md) | ~~Make bare `import` specifiers work~~ **done** | 01 | M |
 | 12 | [Version history](12-version-history.md) | ~~There was no recovery path from any mistake~~ **done** | 04 | M |
 | 13 | [Diff view](13-diff-view.md) | ~~Nearly free once history existed~~ **done** | 09, 12 | S |
 | 14 | [Emmet and theme polish](14-emmet-and-theming.md) | Emmet **done**; toolbar recolouring **reverted** by the owner | — | S |
@@ -40,10 +40,18 @@ small enough to slot in whenever.
 tool rather than a web page; ~~04~~ + ~~05~~ + 12 make it somewhere work actually
 lives.
 
-**What is left:** 11 (npm imports), which stands alone and is now the only thing
-between QuickCode and JSX - ~~10~~ shipped TypeScript and stopped there on
-purpose, because `jsx: 'automatic'` cannot resolve `react/jsx-runtime` until 11
-exists. Sass was dropped: plain CSS has nesting and custom properties natively.
+**Nothing is left.** All fifteen items are done, ~~11~~ last. What the roadmap
+deliberately parked, in the order it is now worth doing:
+
+- **JSX.** Item 10 stopped short of it because `jsx: 'automatic'` emits an import
+  of `react/jsx-runtime`, which nothing could resolve. ~~11~~ resolves it now, so
+  this is a compiler option and a check rather than a feature.
+- **A folder as a project** (`showDirectoryPicker`), the natural replacement for
+  zip import and export. Noted in 04.
+- **`navigator.storage.persist()`**, so projects are less likely to be evicted.
+  Noted in 04, deliberately not called yet: it prompts.
+- **Sass**, if it is ever actually wanted. Dropped in 10 because plain CSS has
+  nesting and custom properties natively now.
 
 **No transpiler was added.** Item 10's plan called for esbuild-wasm; monaco
 already ships the TypeScript compiler and item 09 already precaches its worker,

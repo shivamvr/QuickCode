@@ -27,6 +27,19 @@ const COMPILED_KEY = 'quickcodeCompiled'
 
 const usingTypeScript = () => quickEdit.jsLang === 'typescript'
 
+// 2307 and 2792 are both "Cannot find module" - 2792 is the variant that adds a
+// suggestion about moduleResolution. TypeScript is right that it cannot find it:
+// there is no node_modules here, and no declarations for something the import
+// map fetches from esm.sh when the preview runs. The import works, so saying
+// this would be a complaint about working code.
+//
+// The cost is honest: a mistyped relative path stops being flagged too. Nothing
+// could resolve one of those in a browser anyway, so it was never an error
+// anyone could act on.
+const IGNORED_DIAGNOSTICS = [2307, 2792]
+
+const worthSaying = (diagnostic) => IGNORED_DIAGNOSTICS.indexOf(diagnostic.code) < 0
+
 // Emit as something a browser of this age runs directly, and ask for the map
 // that rule 2 above needs. Left alone: the type checking itself, which is
 // monaco's own default and is what the editor already underlines.
@@ -38,6 +51,14 @@ function configureTypeScript() {
       module: ts.ModuleKind.ESNext,
       sourceMap: true,
       allowNonTsExtensions: true,
+    }))
+
+  // Keeps IGNORED_DIAGNOSTICS out of the editor's own red underlines. It does
+  // not affect what the worker hands a direct caller, which is why the same list
+  // is applied again when the diagnostics are read below.
+  ts.typescriptDefaults.setDiagnosticsOptions(Object.assign(
+    {}, ts.typescriptDefaults.getDiagnosticsOptions(), {
+      diagnosticCodesToIgnore: IGNORED_DIAGNOSTICS,
     }))
 }
 
@@ -151,9 +172,9 @@ async function compileTypeScript(source) {
     return {
       js: js ? withoutMapComment(js.text) : '',
       lineMap: decodeLineMap(mappings),
-      fatal: syntactic.length > 0,
-      errors: syntactic.map(describe),
-      warnings: semantic.map(describe),
+      fatal: syntactic.filter(worthSaying).length > 0,
+      errors: syntactic.filter(worthSaying).map(describe),
+      warnings: semantic.filter(worthSaying).map(describe),
     }
   } finally {
     // the model exists only for the worker's benefit, and only until now

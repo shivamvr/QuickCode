@@ -1455,6 +1455,305 @@
       })
   }
 
+  // -------------------------------------------------------------- imports
+  // Three levels, because the failure modes are different at each: what the
+  // scanner finds, what the document ends up saying, and whether a real package
+  // actually arrives and runs.
+
+  function importScannerChecks() {
+    check('every import form a snippet writes is found', function () {
+      var source = [
+        'import a from "alpha"',
+        'import "beta"',
+        'import { c } from "gamma"',
+        'import * as d from "delta"',
+        'export { e } from "epsilon"',
+        'export * from "zeta"',
+        'const later = import("eta")',
+        'import {',
+        '  spread, over, lines',
+        '} from "theta"',
+      ].join('\n')
+      var found = findSpecifiers(source)
+      var want = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta']
+      var missing = want.filter(function (w) { return found.indexOf(w) < 0 })
+      return ok(missing.length === 0 && found.length === want.length,
+        'found [' + found + ']' + (missing.length ? ', missing ' + missing.join(', ') : ''))
+    })
+
+    check('an import that is only mentioned, not written, is not an import', function () {
+      // a line comment, a block comment, and a string. Finding any of these
+      // would flip the snippet into module mode and change how it runs.
+      var source = [
+        '// import ghost from "commented-out"',
+        '/* import ghost from "block-commented" */',
+        'const help = "import x from \'quoted\'"',
+        'console.log(help)',
+      ].join('\n')
+      return ok(findSpecifiers(source).length === 0 && hasImports(source) === false,
+        'found [' + findSpecifiers(source) + '], hasImports=' + hasImports(source))
+    })
+
+    check('an address is left alone, but still needs a module', function () {
+      var source = 'import x from "https://esm.sh/alpha"\nimport y from "./local.js"\n'
+      return ok(findSpecifiers(source).length === 0 && hasImports(source) === true,
+        'mapped [' + findSpecifiers(source) + '] (want none), hasImports=' + hasImports(source))
+    })
+
+    check('a regular expression holding a quote does not derail the scan', function () {
+      // /['"]/ used to read as the start of a string and swallow what followed
+      var source = 'const quoted = /[\'"]/\nif (quoted.test("x")) { }\nimport real from "omega"\n'
+      return ok(findSpecifiers(source).join() === 'omega',
+        'found [' + findSpecifiers(source) + '] (want omega)')
+    })
+
+    check('a pinned version, a scope and a deep path all resolve', function () {
+      var map = importMapFor(['import a from "lodash-es@4.17"\nimport b from "@scope/pkg"\n' +
+        'import c from "lodash-es/debounce"\n'])
+      var i = map.imports
+      return ok(i['lodash-es@4.17'] === 'https://esm.sh/lodash-es@4.17' &&
+        i['@scope/pkg'] === 'https://esm.sh/@scope/pkg' &&
+        i['lodash-es/debounce'] === 'https://esm.sh/lodash-es/debounce' &&
+        i['lodash-es/'] === 'https://esm.sh/lodash-es/' &&
+        i['@scope/pkg/'] === 'https://esm.sh/@scope/pkg/',
+        JSON.stringify(i))
+    })
+
+    return Promise.resolve()
+  }
+
+  function importDocumentChecks() {
+    var settings = { lang: 'html', css: false, js: true }
+
+    check('a snippet with no imports still runs as a classic script', function () {
+      var built = buildPreviewDoc({ code: '<p>x</p>', js: 'var a = 1' }, settings)
+      return ok(built.html.indexOf('type="module"') === -1 &&
+        built.html.indexOf('importmap') === -1,
+        'module=' + (built.html.indexOf('type="module"') > -1) +
+        ', map=' + (built.html.indexOf('importmap') > -1))
+    })
+
+    check('a snippet that imports runs as a module, with the map above it', function () {
+      var built = buildPreviewDoc({ code: '<p>x</p>', js: 'import a from "alpha"\na()' }, settings)
+      var map = built.html.indexOf('importmap')
+      var mod = built.html.indexOf('type="module"')
+      return ok(map > -1 && mod > -1 && map < mod &&
+        built.html.indexOf('"alpha":"https://esm.sh/alpha"') > -1,
+        'map at ' + map + ', module at ' + mod)
+    })
+
+    check('the map is one line, so it moves nobody else down', function () {
+      // preview.js rule 2: anything above the user's code with a newline in it
+      // makes every reported line number wrong
+      var built = buildPreviewDoc({ code: '<p>x</p>', js: 'import a from "alpha"\na()' }, settings)
+      var tag = built.html.slice(built.html.indexOf('<script type="importmap"'))
+      tag = tag.slice(0, tag.indexOf('</scr' + 'ipt>'))
+      return ok(tag.indexOf('\n') === -1, JSON.stringify(tag.slice(0, 80)))
+    })
+
+    check('the js pane still starts exactly where the document says it does', function () {
+      var js = 'import a from "alpha"\nconst b = 2\nthrow new Error("x")'
+      var built = buildPreviewDoc({ code: '<p>x</p>', js: js }, settings)
+      var at = built.sources['quickcode-js']
+      var line = built.html.split('\n')[at.startLine - 1]
+      return ok(!!at && line === 'import a from "alpha"',
+        'startLine ' + (at && at.startLine) + ' holds ' + JSON.stringify(line))
+    })
+
+    check('a specifier cannot close the map tag early and inject a script', function () {
+      // The hostile text is inside the map, inert, which is correct. What would
+      // be a hole is the map tag ENDING before it - so the question is where the
+      // first closing tag lands, not whether the text appears.
+      var hostile = 'import x from "evil</scr' + 'ipt><scr' + 'ipt>window.pwned=1"'
+      var built = buildPreviewDoc({ code: '<p>x</p>', js: hostile }, settings)
+      var from = built.html.indexOf('<scr' + 'ipt type="importmap">')
+      var closes = built.html.indexOf('</scr' + 'ipt>', from)
+      var payload = built.html.indexOf('window.pwned', from)
+      return ok(from > -1 && payload > -1 && closes > payload,
+        'map opens at ' + from + ', the hostile text is at ' + payload +
+        ', and the tag closes at ' + closes + ' (which must be later)')
+    })
+
+    return Promise.resolve()
+  }
+
+  function importLiveChecks() {
+    var home = project
+    var mine = makeProject({ name: 'importing', code: '<h1>imports</h1>', css: '', js: '' })
+
+    var runSnippet = function (js, waitForText, ms) {
+      setPaneText('js', js)
+      clearConsole()
+      runPreview()
+      return waitFor(function () { return !!rowSaying(waitForText) }, ms || 20000)
+    }
+
+    return saveProject(mine)
+      .then(function () { return openRecord(mine) })
+      .then(function () {
+        setJsLang('javascript')
+        gets('#jsCheck').checked = true
+        saveSettings({ js: true, css: false })
+        setPaneText('main', '<h1>imports</h1>')
+        splitMenu('preview')
+        // one render, three claims: a bare name, a pinned one, and a dynamic
+        // import - then a throw, to see what line it is reported on
+        return runSnippet([
+          'import { nanoid } from "nanoid"',
+          'import { customAlphabet } from "nanoid@5"',
+          'const extra = await import("nanoid")',
+          'console.log("IMPORTS", typeof nanoid, typeof customAlphabet, typeof extra.nanoid)',
+          'throw new Error("thrown from a module")',
+        ].join('\n'), 'IMPORTS')
+      })
+      .then(function (spoke) {
+        check('a bare import, a pinned one and a dynamic one all run in the preview', function () {
+          var row = rowSaying('IMPORTS')
+          return ok(spoke && !!row && row.textContent.indexOf('function  function  function') > -1,
+            row ? JSON.stringify(row.textContent) : 'nothing logged: ' + consoleRowsText().join(' | '))
+        })
+        return waitFor(function () { return !!rowSaying('thrown from a module') }, 8000)
+      })
+      .then(function () {
+        check('a throw inside a module is still reported against the js pane line', function () {
+          var row = rowSaying('thrown from a module')
+          return ok(!!row && whereOf(row) === 'js:5',
+            row ? 'reported at ' + whereOf(row) + ' (want js:5)' : 'never arrived')
+        })
+      })
+      .then(function () {
+        // the classic path, untouched: a top-level var still reaches window
+        return runSnippet('var leaked = "yes"\nconsole.log("GLOBAL", typeof window.leaked)', 'GLOBAL', 10000)
+      })
+      .then(function () {
+        check('without imports a top-level var still reaches window', function () {
+          var row = rowSaying('GLOBAL')
+          return ok(!!row && row.textContent.indexOf('GLOBAL  string') > -1,
+            row ? JSON.stringify(row.textContent) : 'nothing logged')
+        })
+      })
+      .then(function () {
+        // a package that does not exist. The browser says nothing at all about
+        // this - no error event, no rejection - so the message has to be ours.
+        return runSnippet([
+          'import ghost from "qc-no-such-package-9z8y7"',
+          'console.log("SHOULD NOT RUN", ghost)',
+        ].join('\n'), 'Cannot import')
+      })
+      .then(function (spoke) {
+        check('a package that does not exist says so, in words', function () {
+          var row = rowSaying('Cannot import')
+          return ok(spoke && !!row &&
+            row.textContent.indexOf('qc-no-such-package-9z8y7') > -1 &&
+            row.textContent.indexOf('404') > -1,
+            row ? JSON.stringify(row.textContent) : 'nothing said: ' + consoleRowsText().join(' | '))
+        })
+        check('and nothing of that snippet runs', function () {
+          var ran = !!rowSaying('SHOULD NOT RUN')
+          return ok(!ran, ran ? 'it ran anyway: ' + consoleRowsText().join(' | ')
+                              : 'the module never executed, as it should not have')
+        })
+      })
+      .then(function () {
+        // typescript and imports together: the import survives compiling, so the
+        // compiled output is what has to end up as a module
+        setJsLang('typescript')
+        return runSnippet([
+          'import { nanoid } from "nanoid"',
+          'const id: string = nanoid()',
+          'console.log("TS IMPORT", typeof id)',
+        ].join('\n'), 'TS IMPORT')
+      })
+      .then(function (spoke) {
+        check('typescript and imports work together', function () {
+          var row = rowSaying('TS IMPORT')
+          return ok(spoke && !!row && row.textContent.indexOf('TS IMPORT  string') > -1,
+            row ? JSON.stringify(row.textContent) : 'nothing logged: ' + consoleRowsText().join(' | '))
+        })
+        check('typescript does not complain about a package it cannot see', function () {
+          // It genuinely cannot: no node_modules, and no declarations for
+          // something fetched at run time. Saying so would be a complaint about
+          // code the check above just watched work.
+          var row = rowSaying('Cannot find module')
+          return ok(!row, row ? 'it said ' + JSON.stringify(row.textContent) : 'it said nothing, rightly')
+        })
+        setJsLang('javascript')
+      })
+      .then(function () {
+        // the pin is honoured by esm.sh, not just carried in the map
+        return fetch('https://esm.sh/nanoid@5').then(function (r) {
+          return r.text().then(function (body) { return { url: r.url, body: body } })
+        }, function (e) { return { url: '', body: 'fetch failed: ' + e.message } })
+      })
+      .then(function (answer) {
+        check('a pinned version resolves to that version', function () {
+          return ok(/nanoid@5/.test(answer.url + answer.body),
+            'esm.sh answered ' + JSON.stringify(String(answer.body).slice(0, 120)))
+        })
+      })
+      .then(function () {
+        var realConfirm = window.confirm
+        window.confirm = function () { return true }
+        return removeProject()
+          .then(function () { window.confirm = realConfirm })
+          .then(function () { return switchProject(home.id) })
+      })
+  }
+
+  // Taking the suite's own server down does not take esm.sh with it, so the
+  // offline case cannot produce a real one of these. The branch is driven
+  // directly instead: what is being checked is the wording the user ends up
+  // reading, and that a dead network is told apart from a missing package.
+  function importOfflineChecks() {
+    var realFetch = window.fetch
+    var described = Object.getOwnPropertyDescriptor(Navigator.prototype, 'onLine')
+    var pretendOffline = function (offline) {
+      try {
+        Object.defineProperty(navigator, 'onLine', { configurable: true, get: function () { return !offline } })
+        return navigator.onLine === !offline
+      } catch (err) {
+        return false
+      }
+    }
+
+    window.fetch = function () { return Promise.reject(new TypeError('Failed to fetch')) }
+    var couldPretend = pretendOffline(true)
+
+    return importProblem('qc-offline-probe')
+      .then(function (offlineMessage) {
+        pretendOffline(false)
+        return importProblem('qc-online-probe').then(function (onlineMessage) {
+          check('being offline is reported as being offline, not as a missing package', function () {
+            if (!couldPretend) return ok(false, 'navigator.onLine could not be overridden here')
+            return ok(/offline/i.test(offlineMessage) &&
+              offlineMessage.indexOf('qc-offline-probe') > -1 &&
+              !/404|no such package/i.test(offlineMessage),
+              JSON.stringify(offlineMessage))
+          })
+          check('a network that is up but unreachable says that instead', function () {
+            return ok(/could not be reached/i.test(onlineMessage) &&
+              !/offline/i.test(onlineMessage), JSON.stringify(onlineMessage))
+          })
+        })
+      })
+      .then(function () {
+        window.fetch = realFetch
+        if (described) Object.defineProperty(navigator, 'onLine', described)
+        else delete navigator.onLine
+      }, function (err) {
+        window.fetch = realFetch
+        if (described) Object.defineProperty(navigator, 'onLine', described)
+        check('the offline wording could be checked', function () { return ok(false, String(err)) })
+      })
+  }
+
+  function importChecks() {
+    return importScannerChecks()
+      .then(importDocumentChecks)
+      .then(importLiveChecks)
+      .then(importOfflineChecks)
+  }
+
   // ----------------------------------------------------------- typescript
   // The js pane has two flavours. Most of what matters here is what does NOT
   // happen in the plain javascript one, and whether a line number survives
@@ -2462,7 +2761,7 @@
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
     storeChecks().then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
-      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks).then(tsChecks)
+      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks).then(tsChecks).then(importChecks)
       .then(report, function (err) {
       check('the core chain ran to the end', function () {
         return ok(false, String(err) + ' | ' + String(err && err.stack).slice(0, 400))

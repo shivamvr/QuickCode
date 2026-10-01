@@ -21,6 +21,13 @@
 //   3. Each script the user wrote names itself with a sourceURL comment. That
 //      is what makes the reported filename say which pane an error came from;
 //      it does not renumber the lines, which is what rule 2 is for.
+//
+//   4. The js pane runs as a module only when it actually imports something. A
+//      module has its own scope and strict mode, so a top-level `var` stops
+//      reaching `window` - which would quietly break a snippet whose markup
+//      calls it from an onclick. Rules 2 and 3 both still hold inside a module:
+//      the line number is still the document's, and the sourceURL still names
+//      the pane. That was measured, not assumed.
 //=====================================================================
 
 // the line the next character will sit on
@@ -59,6 +66,19 @@ const PREVIEW_PRELUDE = '<script>(function(){' +
 
 const DOC_HEAD = '<!DOCTYPE html><html><head><meta charset="utf-8">'
 
+// One line, like the prelude, and for the same reason: it sits above the user's
+// code. It has to come before any module that resolves against it, so it goes
+// in the head beside the prelude. safeInline because the names in it came from
+// the user's own source.
+const importMapTag = (texts) => {
+  const map = importMapFor(texts)
+  if (!map) return ''
+  return '<script type="importmap">' + safeInline(JSON.stringify({ imports: map.imports })) + '<\/script>'
+}
+
+// See rule 4. Url imports need a module as much as bare ones do.
+const scriptOpenFor = (text) => (hasImports(text) ? '<script type="module">\n' : '<script>\n')
+
 // Build the document for a set of files, and say where each pane's own text
 // begins in it: { html, sources: { <reported filename>: { pane, startLine } } }.
 const buildPreviewDoc = (content, settings) => {
@@ -68,12 +88,11 @@ const buildPreviewDoc = (content, settings) => {
   const js = content.js || ''
 
   const styleTag = settings.css && css ? '<style>' + safeInline(css) + '</style>' : ''
-  const scriptOpen = '<script>\n'
   const scriptClose = '\n//# sourceURL=' + SOURCE_JS + '\n<\/script>'
 
   // in javascript mode the main pane is the whole payload
   if (settings.lang === 'javascript') {
-    let doc = DOC_HEAD + PREVIEW_PRELUDE + '</head><body><script>\n'
+    let doc = DOC_HEAD + PREVIEW_PRELUDE + importMapTag([code]) + '</head><body>' + scriptOpenFor(code)
     sources[SOURCE_JS] = { pane: 'main', startLine: lineOf(doc) }
     doc += safeInline(code) + scriptClose + '</body></html>'
     return { html: doc, sources: sources }
@@ -93,12 +112,16 @@ const buildPreviewDoc = (content, settings) => {
   const appendExtras = (head, tail) => {
     let doc = head + styleTag
     if (settings.js && js) {
-      doc += scriptOpen
+      doc += scriptOpenFor(js)
       sources[SOURCE_JS] = { pane: 'js', startLine: lineOf(doc) }
       doc += safeInline(js) + scriptClose
     }
     return doc + tail
   }
+
+  // The map serves the html pane's own module scripts as well as the js pane's,
+  // so both are read for it.
+  const mapTag = importMapTag([code, settings.js ? js : ''])
 
   // A whole document from the editor keeps its own structure: it is injected
   // into rather than nested inside another one. The prelude goes first so it is
@@ -106,8 +129,8 @@ const buildPreviewDoc = (content, settings) => {
   // user's own line numbers still mean what they say.
   if (/<html[\s>]/i.test(code)) {
     const withPrelude = /<head[^>]*>/i.test(code)
-      ? code.replace(/<head[^>]*>/i, (tag) => tag + PREVIEW_PRELUDE)
-      : PREVIEW_PRELUDE + code
+      ? code.replace(/<head[^>]*>/i, (tag) => tag + PREVIEW_PRELUDE + mapTag)
+      : PREVIEW_PRELUDE + mapTag + code
     sources[SOURCE_MAIN] = { pane: 'main', startLine: 1 }
     sources[SOURCE_UNNAMED] = { pane: 'main', startLine: 1 }
 
@@ -120,7 +143,7 @@ const buildPreviewDoc = (content, settings) => {
     }
   }
 
-  const head = DOC_HEAD + PREVIEW_PRELUDE + '</head><body>'
+  const head = DOC_HEAD + PREVIEW_PRELUDE + mapTag + '</head><body>'
   sources[SOURCE_MAIN] = { pane: 'main', startLine: lineOf(head) }
   sources[SOURCE_UNNAMED] = { pane: 'main', startLine: lineOf(head) }
   // the html pane is markup, and goes in as it was written. Escaping its script

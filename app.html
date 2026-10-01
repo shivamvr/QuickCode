@@ -31,6 +31,8 @@
       sandbox="allow-scripts allow-modals allow-forms allow-popups allow-downloads"
     ></iframe>
     <script src="scripts/store.js"></script>
+    <!-- preview.js reads the import map out of the snippet; this is what finds it -->
+    <script src="scripts/imports.js"></script>
     <script src="scripts/preview.js"></script>
     <script>
       // The three files live in IndexedDB now, one record per project, so this

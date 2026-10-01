@@ -1211,6 +1211,10 @@ async function renderPreview() {
   }, quickEdit)
   previewSources = built.sources
   frame.srcdoc = built.html
+  // After the render, not before it: the markup and the css are worth showing
+  // even when an import cannot be had, and this asks the network.
+  reportImportProblems([readStored('code'), js])
+    .catch((err) => console.error('Could not check the imports', err))
 }
 
 function schedulePreview() {
@@ -1259,7 +1263,9 @@ function logToConsole(message) {
 
   const row = document.createElement('div')
   // compile rows are marked so the next compile can replace them
-  row.className = 'logRow log-' + (message.kind || 'log') + (message.compile ? ' log-compile' : '')
+  // compile and import rows are marked so the next report can replace them
+  row.className = 'logRow log-' + (message.kind || 'log') +
+    (message.compile ? ' log-compile' : '') + (message.importProblem ? ' log-import' : '')
   // textContent, never innerHTML: this is output from code we did not write
   row.textContent = (message.args || []).join('  ')
 
@@ -1293,6 +1299,22 @@ const paneLabel = (pane) => {
   if (pane === 'main') return quickEdit.lang
   if (pane === 'js') return usingTypeScript() ? 'ts' : 'js'
   return pane
+}
+
+// A module whose import cannot be fetched runs nothing and says nothing - not
+// even an error event. Asking esm.sh first is the only way the console can say
+// anything at all, so this is where that happens.
+async function reportImportProblems(texts) {
+  if (!consoleRows()) return
+  let problems = []
+  try {
+    problems = await importProblems(texts)
+  } catch (err) {
+    return                        // a broken check must not become a broken preview
+  }
+  if (!consoleRows()) return
+  getsAll('#consoleOut .log-import').forEach((row) => row.remove())
+  problems.forEach((message) => logToConsole({ kind: 'error', importProblem: true, args: [message] }))
 }
 
 // What the compiler thinks is a current state, not a history: a new report

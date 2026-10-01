@@ -34,6 +34,7 @@ const SHELL = [
   './scripts/diff.js',
   './scripts/eventListener.js',
   './scripts/fileSaver.js',
+  './scripts/imports.js',
   './scripts/index.js',
   './scripts/jsEditor.js',
   './scripts/preview.js',

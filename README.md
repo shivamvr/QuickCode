@@ -33,6 +33,35 @@ highlighting, IntelliSense, bracket matching, code folding and minimap.
   the preview**, so you can toggle a stylesheet or a script off without deleting it
 - **Emmet abbreviations** in the HTML editor — type `div.card>ul>li*3` and press <kbd>Tab</kbd>
 
+### 📦 Import a package, no build step
+
+Write the import you would write anywhere else, in the **js** pane:
+
+```js
+import confetti from "canvas-confetti"
+confetti()
+```
+
+Nothing goes in the html pane. QuickCode reads your code, works out which packages
+you named, and points them at [esm.sh](https://esm.sh) through an
+[import map](https://developer.mozilla.org/docs/Web/HTML/Element/script/type/importmap).
+
+- **Pin a version** if you want one: `import { nanoid } from "nanoid@5"`
+- **Scoped packages and deep paths** work: `@scope/pkg`, `lodash-es/debounce`
+- **Full URLs** work too, if you would rather be explicit
+- **Dynamic `import()`** of a package name works
+- **A name that does not exist says so**, in the console, with the package named -
+  a browser reports nothing at all when a module fails to load, so QuickCode asks
+  first
+- **This is the one thing that needs a network.** Everything else in QuickCode works
+  offline; packages are fetched from esm.sh. Offline, the console says exactly that
+  rather than leaving you with a preview that silently does nothing
+
+**One behaviour worth knowing.** A snippet that imports runs as a module, which means
+its top-level names are no longer global - so `onclick="myFunction()"` in the html pane
+will not find a `function myFunction` declared in the js pane. A snippet with **no**
+imports is untouched and keeps working exactly as before.
+
 ### 🅣 TypeScript in the js pane
 
 The **js** tab carries a small **js** badge. Click it and it says **ts**: that pane is now

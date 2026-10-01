@@ -22,7 +22,7 @@ through six scenarios, each of which posts a pass/fail report back.
 
 | Scenario | Page | Checks |
 |---|---|---|
-| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, the diff view, and TypeScript |
+| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, the diff view, TypeScript, and npm imports |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `migrate` | `index.html` | loads over a seeded pre-IndexedDB `localStorage`, then reloads: the migration must take everything, keep the old keys on that first load, clear them on the second, and not run twice |
 | `share` | `index.html#s=…` | opens a share link that **node's zlib** built, not the browser |
@@ -110,6 +110,20 @@ that looked correct and proved nothing:
   picking the first one sometimes asked the wrong library. And registering a
   second copy of emmet to spy on it tore down state the live one was using;
   `serve.js` records the real registrations instead.
+- **The browser does not always tell you a thing failed.** A module whose import
+  404s reports nothing at all: no error event, no rejection, nothing after twelve
+  seconds. Anything that depends on hearing about a failure needs proof the
+  failure is audible before it is designed around - here it was not, and the
+  check had to move to the parent window, which can see it.
+- **Finding the text is not the same as finding the bug.** The first check for a
+  specifier breaking out of the import map looked for the hostile tag's text
+  anywhere in the document. It is there, inert, inside the map - which is the
+  point of escaping it. The check now compares positions: where the map tag ends
+  versus where the payload sits.
+- **Look the error code up, do not infer it.** "Cannot find module" is 2792 when
+  it suggests `moduleResolution`, and 2307 when it does not. Guessing 2307 cost a
+  run. Likewise `diagnosticCodesToIgnore` suppresses the editor's underlines but
+  not what the worker reports to a direct caller - two layers, two filters.
 - **A mutation can find a gap in the tests rather than a bug in the code.**
   Dropping the sign bit from the source map's VLQ decoder passed all 150 checks:
   compiled code only ever walks forwards through its source, so no fixture ever
@@ -218,6 +232,14 @@ CASES=core node test/run.js                          # expect 1-2 FAILs each
 #     applyJsLang from applyProject, or publish nothing for the popped out
 #     preview
 CASES=core node test/run.js                               # expect 1 FAIL each
+# 12. npm imports, in scripts/imports.js unless said otherwise
+#     stop skipping line comments in blankOut, drop the isAddressSpecifier
+#     filter, make scriptOpenFor in preview.js always or never return a module,
+#     make importMapTag emit nothing, drop its safeInline, drop the
+#     trailing-slash entries, drop reportImportProblems from index.js, treat
+#     every slash as division, or drop 2792 from IGNORED_DIAGNOSTICS in
+#     typescript.js
+CASES=core node test/run.js                             # expect 1-4 FAILs each
 ```
 
-All eleven were confirmed to fail when introduced, and pass once reverted.
+All twelve were confirmed to fail when introduced, and pass once reverted.
