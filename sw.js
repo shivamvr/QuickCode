@@ -30,6 +30,7 @@ const SHELL = [
   './index.html',
   './app.html',
   './manifest.webmanifest',
+  './scripts/ai.js',
   './scripts/cssEditor.js',
   './scripts/diff.js',
   './scripts/eventListener.js',
@@ -38,6 +39,7 @@ const SHELL = [
   './scripts/index.js',
   './scripts/jsEditor.js',
   './scripts/preview.js',
+  './scripts/problems.js',
   './scripts/share.js',
   './scripts/splitEditor.js',
   './scripts/store.js',
@@ -208,6 +210,9 @@ self.addEventListener('fetch', (event) => {
   if (url.origin === self.location.origin) {
     // the test suite talks to its own server; caching that would be nonsense
     if (url.pathname.indexOf('/__test/') > -1) return
+    // the ai function is a POST today, which never reaches here anyway - this is
+    // so it still is not cached if it ever answers a GET
+    if (url.pathname.indexOf('/api/') === 0) return
     event.respondWith(networkFirst(req))
     return
   }

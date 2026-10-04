@@ -1927,6 +1927,407 @@
       })
   }
 
+  // ---------------------------------------------------------- ask claude
+  // Nothing here touches the network or needs a key: askClaude is replaced, so
+  // what is checked is the question that would have been asked and what is done
+  // with the reply. The live call cannot be checked from here at all - see the
+  // Outcome in docs/16.
+
+  // ---------------------------------------------------------- asking a model
+  // The key is on the server, so most of what used to be here is gone with it:
+  // there is no dialog, no stored key, and nothing to keep out of a share link.
+  // What replaces those is one stronger claim - the browser holds and sends
+  // nothing secret - plus the four different things that can go wrong.
+
+  function aiChecks() {
+    var realAsk = askModel
+    var asked = []
+
+    var stub = function (reply) {
+      return function (system, question) {
+        asked.push(question)
+        return Promise.resolve(String(reply))
+      }
+    }
+
+    var lastAiRow = function () {
+      var rows = getsAll('#consoleOut .log-ai')
+      return rows[rows.length - 1] || null
+    }
+
+    var errorRow = function (message, pane, line) {
+      clearConsole()
+      logToConsole({ kind: 'error', args: [message], where: pane ? { pane: pane, line: line } : null })
+      return gets('#consoleOut [data-ask-ai]')
+    }
+
+    return Promise.resolve()
+      .then(function () {
+        check('the request carries no key, because the browser has none', function () {
+          var request = aiRequestFor('be brief', 'hello')
+          var serialised = JSON.stringify(request)
+          return ok(request.url === '/api/ai' &&
+            !request.headers.authorization &&
+            !/bearer|api[-_]?key|gsk[-_]|sk-/i.test(serialised) &&
+            request.body.system === 'be brief' && request.body.question === 'hello',
+            serialised.slice(0, 160))
+        })
+        check('nothing secret is stored in this browser either', function () {
+          // Whatever the app keeps, none of it should look like a credential.
+          var suspicious = []
+          for (var i = 0; i < localStorage.length; i++) {
+            var name = localStorage.key(i)
+            var value = String(localStorage.getItem(name) || '')
+            if (/gsk[-_]|sk-ant|api[-_]?key|secret|bearer/i.test(name + ' ' + value)) {
+              suspicious.push(name)
+            }
+          }
+          return ok(suspicious.length === 0,
+            suspicious.length ? 'these look like credentials: ' + suspicious.join(', ')
+                              : localStorage.length + ' keys stored, none credential-shaped')
+        })
+      })
+      .then(function () {
+        check('only error rows offer to be explained', function () {
+          clearConsole()
+          logToConsole({ kind: 'log', args: ['just output'] })
+          var onLog = getsAll('#consoleOut [data-ask-ai]').length
+          logToConsole({ kind: 'error', args: ['a real problem'] })
+          var afterError = getsAll('#consoleOut [data-ask-ai]').length
+          return ok(onLog === 0 && afterError === 1,
+            onLog + ' on a log row, ' + afterError + ' once an error arrived')
+        })
+      })
+      .then(function () {
+        // Clicking the row is what builds the question, so the click is what is
+        // exercised - calling explainError directly would not prove the
+        // affordance is wired to anything.
+        setJsLang('javascript')
+        setPaneText('main', '<p>markup</p>')
+        setPaneText('js', 'const a = 1\nconst b = 2\nboom()')
+        asked = []
+        askModel = stub('fine')
+        var ask = errorRow('boom is not defined', 'js', 3)
+        if (ask) ask.click()
+        return waitFor(function () { return asked.length > 0 }, 4000)
+      })
+      .then(function () {
+        check('the question carries the error, the pane, the line and the code', function () {
+          var prompt = asked[0] || ''
+          // the whole sentence, not just the words in it: an earlier version of
+          // this passed on the listing's heading while the sentence above it
+          // called the same pane something else
+          return ok(prompt.indexOf('boom is not defined') > -1 &&
+            prompt.indexOf('line 3 of the javascript pane') > -1 &&
+            prompt.indexOf('<p>markup</p>') > -1 &&
+            prompt.indexOf('--- the javascript pane ---') > -1,
+            JSON.stringify(prompt.slice(0, 200)))
+        })
+        check('the question calls each pane one name throughout', function () {
+          var prompt = asked[0] || ''
+          return ok(!/\bthe js pane\b/.test(prompt) && !/\bthe main pane\b/.test(prompt),
+            (prompt.match(/the \w+ pane/g) || []).join(' / '))
+        })
+        check('the answer reaches the console', function () {
+          var row = lastAiRow()
+          return ok(!!row && row.textContent === 'fine',
+            row ? JSON.stringify(row.textContent) : 'no reply row')
+        })
+      })
+      .then(function () {
+        // An answer is text from a model, not markup this project wrote. The
+        // payload sets a flag rather than calling alert(): a modal dialog in this
+        // page has nothing to dismiss it, so a vulnerable version would hang the
+        // run instead of failing it.
+        window.__pwned = false
+        askModel = stub('<img src=x onerror="window.__pwned=true"><b>bold</b>')
+        var ask = errorRow('something', 'js', 1)
+        if (ask) ask.click()
+        return waitFor(function () { return !!lastAiRow() && /img/.test(lastAiRow().textContent) }, 4000)
+      })
+      .then(function () {
+        check('an answer is rendered as text, never as markup', function () {
+          var row = lastAiRow()
+          return ok(!!row && row.children.length === 0 && !row.querySelector('img') &&
+            window.__pwned === false && row.textContent.indexOf('<img') > -1,
+            row ? row.children.length + ' child elements, payload ran=' + window.__pwned +
+              ', text begins ' + JSON.stringify(row.textContent.slice(0, 30)) : 'no reply row')
+        })
+      })
+      .then(function () {
+        // Four different things, four different messages. A spent allowance is
+        // "wait"; a refused key is not the reader's problem and should say so.
+        check('each kind of failure says which kind it was', function () {
+          var spent = aiFailure({ status: 429 })
+          var refused = aiFailure({ status: 401 })
+          var off = aiFailure({ status: 503, message: 'AI is switched off on this site.' })
+          var huge = aiFailure({ status: 413, message: 'too much' })
+          var dead = aiFailure({ unreachable: true })
+          // two different 404s: a model groq withdrew, and no function at all,
+          // which is what the static files on their own look like
+          var gone = aiFailure({ status: 404, message: '' })
+          var absent = aiFailure({ status: 404, noEndpoint: true })
+          return ok(/allowance/.test(spent) && /tomorrow/.test(spent) &&
+            /tell whoever runs this site/.test(refused) &&
+            /switched off/.test(off) && /too much/.test(huge) &&
+            /did not answer|offline/.test(dead) &&
+            /renamed or withdrawn/.test(gone) && /no AI endpoint here/.test(absent),
+            [spent, refused, off, huge, dead, gone, absent].join(' | ').slice(0, 320))
+        })
+        askModel = function () { return Promise.reject({ status: 429 }) }
+        clearConsole()
+        var ask = errorRow('something', 'js', 1)
+        if (ask) ask.click()
+        return waitFor(function () {
+          var row = lastAiRow()
+          return !!row && row.textContent.indexOf('Could not') > -1
+        }, 4000)
+      })
+      .then(function (spoke) {
+        check('a failure is reported in the console rather than thrown away', function () {
+          var row = lastAiRow()
+          return ok(spoke && !!row && /allowance/.test(row.textContent) &&
+            window.__errors.length === 0,
+            row ? JSON.stringify(row.textContent) : 'nothing was said')
+        })
+      })
+      .then(function () {
+        // Two answers writing into the console at once would interleave.
+        var release = null
+        var calls = 0
+        askModel = function () {
+          calls++
+          return new Promise(function (resolve) { release = function () { resolve('done') } })
+        }
+        var first = errorRow('one', 'js', 1)
+        if (first) first.click()
+        return waitFor(function () { return calls > 0 }, 4000).then(function () {
+          var second = gets('#consoleOut [data-ask-ai]')
+          if (second) second.click()
+          return waitFor(function () { return false }, 400).then(function () {
+            check('a second question while one is in flight is ignored', function () {
+              return ok(calls === 1, calls + ' calls made, wanted 1')
+            })
+            if (release) release()
+            return waitFor(function () { return false }, 200)
+          })
+        })
+      })
+      .then(function () {
+        askModel = realAsk
+        clearConsole()
+      })
+  }
+
+  // ------------------------------------------------------ practice problems
+  // A model asked for JSON will sometimes fence it, or say hello first, or stop
+  // halfway. None of that is worth failing over, so most of this is about the
+  // parser - and about the new project landing somewhere useful without
+  // disturbing whatever was already open.
+
+  function problemChecks() {
+    var realAsk = askModel
+    var realPrompt = window.prompt
+    var asked = []
+    var home = project
+    var made = []
+
+    var PROBLEM = {
+      name: 'Two Sum',
+      js: '// Two Sum\n// given nums and a target...\nfunction twoSum(nums, t) {\n  // your code here\n}\ncheck(twoSum([2,7], 9), [0,1])',
+      html: '<div id="out"></div>',
+      css: '#out { color: teal }',
+    }
+    var asJson = JSON.stringify(PROBLEM)
+
+    // The console keeps every row, so the first .log-ai is whatever was said
+    // earliest - which is not the answer any of these steps is about.
+    var lastAiRow = function () {
+      var rows = getsAll('#consoleOut .log-ai')
+      return rows[rows.length - 1] || null
+    }
+
+    var answering = function (reply) {
+      askModel = function (system, question) {
+        asked.push(question)
+        return Promise.resolve(reply)
+      }
+    }
+
+    return Promise.resolve()
+      .then(function () {
+        check('a clean json answer becomes a problem', function () {
+          var parsed = parseProblem(asJson)
+          return ok(parsed.parsed === true && parsed.name === 'Two Sum' &&
+            parsed.js.indexOf('function twoSum') > -1 &&
+            parsed.code === '<div id="out"></div>' && parsed.css.indexOf('teal') > -1,
+            JSON.stringify(parsed).slice(0, 140))
+        })
+        check('a fenced answer, and one with chatter round it, parse the same', function () {
+          var fenced = parseProblem('```json\n' + asJson + '\n```')
+          var chatty = parseProblem('Sure! Here is a good one:\n' + asJson + '\nGood luck!')
+          return ok(fenced.parsed && fenced.name === 'Two Sum' &&
+            chatty.parsed && chatty.name === 'Two Sum',
+            'fenced=' + fenced.name + ' / chatty=' + chatty.name)
+        })
+        check('an answer that is not json at all is still kept', function () {
+          // most likely the problem written as plain javascript, which is worth
+          // having - better than an error message and nothing
+          var plain = parseProblem('// Reverse a string\nfunction reverse(s) {\n}\n')
+          return ok(plain.parsed === false && plain.js.indexOf('function reverse') > -1 &&
+            plain.name === 'Practice problem' && plain.code === '',
+            JSON.stringify(plain).slice(0, 120))
+        })
+        check('json that stops halfway falls back instead of throwing', function () {
+          // two shapes of broken, because they fail in different places: one
+          // never reaches the parser (no closing brace at all) and one does
+          var cut = parseProblem('{"name": "Half", "js": "function f() {')
+          var bad = parseProblem('{"name": "Half", "js": "oops",}')
+          return ok(cut.parsed === false && cut.js.indexOf('Half') > -1 &&
+            bad.parsed === false && bad.js.indexOf('oops') > -1,
+            'no-brace: ' + JSON.stringify(cut.js.slice(0, 40)) +
+            ' / unparseable: ' + JSON.stringify(bad.js.slice(0, 40)))
+        })
+        check('a fenced answer that is not json leaves no backticks in the editor', function () {
+          // the fallback keeps the text as it stands, so this is the path where
+          // stripping the fence actually matters
+          var fenced = parseProblem('```js\nfunction reverse(s) {}\n```')
+          return ok(fenced.parsed === false && fenced.js.indexOf('`') === -1 &&
+            fenced.js.indexOf('function reverse') > -1,
+            JSON.stringify(fenced.js))
+        })
+      })
+      .then(function () {
+        // what gets asked for
+        asked = []
+        answering(asJson)
+        window.prompt = function () { return 'binary trees, medium' }
+        return newAiProblem()
+      })
+      .then(function (record) {
+        if (record) made.push(record.id)
+        check('the topic you type is what gets asked for', function () {
+          return ok((asked[0] || '').indexOf('binary trees, medium') > -1,
+            JSON.stringify(asked[0] || ''))
+        })
+        check('the problem arrives as a new project, with the panes filled', function () {
+          return ok(!!record && project.id === record.id && project.id !== home.id &&
+            project.name === 'Two Sum' &&
+            contentOf('js').indexOf('function twoSum') > -1 &&
+            contentOf('main') === '<div id="out"></div>' &&
+            contentOf('css').indexOf('teal') > -1,
+            'open=' + (project && project.name) + ', js=' +
+            JSON.stringify(contentOf('js').slice(0, 30)))
+        })
+        check('it lands on the preview, with both toggles set to match', function () {
+          return ok(quickEdit.split === true && quickEdit.splitLang === 'preview' &&
+            quickEdit.js === true && quickEdit.css === true && quickEdit.tab === 'js',
+            'split=' + quickEdit.split + ' showing ' + quickEdit.splitLang +
+            ', js=' + quickEdit.js + ' css=' + quickEdit.css + ' tab=' + quickEdit.tab)
+        })
+        return getProject(home.id)
+      })
+      .then(function (untouched) {
+        check('the project that was open is left exactly as it was', function () {
+          return ok(!!untouched && untouched.code === home.code && untouched.js === home.js,
+            untouched ? 'still holds ' + JSON.stringify(String(untouched.code).slice(0, 24))
+                      : 'it is gone')
+        })
+      })
+      .then(function () {
+        // a pure algorithm problem sends no markup, so the css toggle must not
+        // be turned on for a pane with nothing in it
+        answering(JSON.stringify({ name: 'Reverse', js: 'function r(){}', html: '', css: '' }))
+        window.prompt = function () { return '' }
+        return newAiProblem()
+      })
+      .then(function (record) {
+        if (record) made.push(record.id)
+        check('a problem with no markup does not switch on panes it does not use', function () {
+          return ok(!!record && quickEdit.css === false && quickEdit.js === true,
+            'css=' + quickEdit.css + ' js=' + quickEdit.js)
+        })
+        check('an empty topic asks for anything rather than for nothing', function () {
+          return ok((asked[1] || '').indexOf('any problem') > -1, JSON.stringify(asked[1] || ''))
+        })
+      })
+      .then(function () {
+        // nothing usable came back
+        var before = project.id
+        clearConsole()
+        answering('   ')
+        window.prompt = function () { return 'x' }
+        return newAiProblem().then(function (record) {
+          check('an unusable answer sets no project and says so', function () {
+            var row = lastAiRow()
+            return ok(record === null && project.id === before &&
+              !!row && /nothing usable/i.test(row.textContent),
+              'record=' + record + ', said ' + JSON.stringify(row ? row.textContent : ''))
+          })
+        })
+      })
+      .then(function () {
+        // cancelled at the topic
+        var before = project.id
+        var calls = 0
+        askModel = function () { calls++; return Promise.resolve(asJson) }
+        window.prompt = function () { return null }
+        return newAiProblem().then(function (record) {
+          check('cancelling the topic asks nothing and sets nothing', function () {
+            return ok(record === null && calls === 0 && project.id === before,
+              calls + ' calls, record=' + record)
+          })
+        })
+      })
+      .then(function () {
+        // a failure says which service and why, in the console
+        var before = project.id
+        clearConsole()
+        // deliberately looking at something else when it fails
+        splitMenu('css')
+        askModel = function () { return Promise.reject({ status: 429, message: 'slow down' }) }
+        window.prompt = function () { return 'arrays' }
+        return newAiProblem().then(function (record) {
+          check('a failed request reports in the console and sets no project', function () {
+            var row = lastAiRow()
+            return ok(record === null && project.id === before && !!row &&
+              /allowance/.test(row.textContent) && window.__errors.length === 0,
+              'said ' + JSON.stringify(row ? row.textContent : ''))
+          })
+          check('and the console is brought into view, so the message is seen', function () {
+            // a message nobody can see is not a message: this request failed
+            // before anything would have opened the preview
+            return ok(previewShowing() && gets('#previewPane').style.display === 'flex',
+              'preview showing=' + previewShowing() +
+              ', pane display=' + JSON.stringify(gets('#previewPane').style.display))
+          })
+        })
+      })
+      .then(function () {
+        check('the project menu offers to set one', function () {
+          var labels = Array.prototype.map.call(getsAll('#projectList [data-action]'), function (r) {
+            return r.textContent
+          })
+          return ok(labels.indexOf('+ AI practice problem') > -1, labels.join(' / '))
+        })
+      })
+      .then(function () {
+        askModel = realAsk
+        window.prompt = realPrompt
+        clearConsole()
+        return switchProject(home.id)
+      })
+      .then(function () {
+        // the problems this left behind, so the picker checks elsewhere still
+        // see what they expect
+        return made.reduce(function (chain, id) {
+          return chain.then(function () { return deleteProject(id) })
+            .then(function () { return dropSnapshotsFor(id) })
+        }, Promise.resolve())
+      })
+      .then(refreshProjects)
+  }
+
   // ------------------------------------------------------------------ jsx
   // JSX had to wait for item 11: the automatic runtime emits an import of
   // react/jsx-runtime, and before the import map there was nothing that could
@@ -2899,7 +3300,7 @@
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
     storeChecks().then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
-      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks).then(tsChecks).then(importChecks).then(jsxChecks)
+      .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks).then(tsChecks).then(importChecks).then(jsxChecks).then(aiChecks).then(problemChecks)
       .then(report, function (err) {
       check('the core chain ran to the end', function () {
         return ok(false, String(err) + ' | ' + String(err && err.stack).slice(0, 400))

@@ -40,8 +40,26 @@ small enough to slot in whenever.
 tool rather than a web page; ~~04~~ + ~~05~~ + 12 make it somewhere work actually
 lives.
 
-**Nothing is left.** All fifteen items are done, ~~11~~ last. What the roadmap
-deliberately parked, in the order it is now worth doing:
+**Nothing is left.** All fifteen items are done, ~~11~~ last.
+
+**Beyond the roadmap**, two AI features sharing one endpoint. The key lives in
+the host's environment variables and `netlify/functions/ai.mjs` forwards to Groq,
+so the browser never holds a credential and there is nothing to set up:
+
+- [16 — Explain this error](16-ai-explain-error.md): asks about a console error,
+  using the pane and line the console already works out.
+- [17 — AI practice problems](17-ai-practice-problems.md): sets a problem into a
+  new project, with tests that report in the console.
+
+Both are done **bar the one hop to Groq**, which cannot be run without a key. The
+function itself is checked in node (`test/functions.js`). Each Outcome says what
+is unconfirmed.
+
+**This is the one thing that needs more than static hosting.** Everything else
+still runs as plain files; without `GROQ_API_KEY` the AI features switch
+themselves off and say so.
+
+What the roadmap deliberately parked, in the order it is now worth doing:
 
 - ~~**JSX.**~~ **Done, 1 October 2026.** It was a compiler option, a `.tsx`
   extension, and a named model for the js pane so the editor and the compiler

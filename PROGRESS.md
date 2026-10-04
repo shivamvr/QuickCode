@@ -1,77 +1,54 @@
-# Item 11 — npm imports: progress
+# AI features: progress
 
-Scratch file for tracking this item. Not meant for the repo — delete it when 11 is done.
+Scratch file. Delete it when these are done.
 
-Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked or changed plan
+## The key is on the server, not in the browser
 
-## A. Prove the foundations before building on them
+- [x] `netlify/functions/ai.mjs` holds GROQ_API_KEY, read from host env vars
+- [x] The browser POSTs {system, question} to /api/ai and holds nothing secret
+- [x] A check that the request carries nothing credential-shaped
+- [x] A check that this browser's storage holds nothing credential-shaped
+- [x] No logging of request bodies - people's code passes through
+- [x] A size cap, so nobody uses it as a free relay
+- [x] `/api/` excluded from the service worker as well as being a POST
+- [x] `netlify.toml` so the deploy needs no dashboard fiddling
+- [!] Deleted with the key: the dialog, the provider menu, the local Ollama option
 
-The plan: *"verify this early — the whole feature rests on it."*
+## Whatever went wrong gets shown
 
-- [x] A1. A module inside a sandboxed `srcdoc` frame (opaque origin) can fetch from esm.sh
-- [x] A2. A bare specifier resolves through an import map in that frame
-- [x] A3. `//# sourceURL` still names the pane when the script is a module
-- [x] A4. `e.lineno` is still document-relative for a module script
+- [x] The function passes the upstream status through instead of flattening it
+- [x] Six distinct messages: spent allowance, refused key, AI switched off,
+      withdrawn model, no endpoint at all, too much code
+- [x] A failed problem request brings the console into view first
 
-**A findings.** All four hold, so the line-number machinery survives the module
-switch untouched. One more, unplanned and important: a module whose import
-**404s reports nothing at all** - no error event, no rejection, nothing after 12
-seconds. The parent can see it (`200` vs `404`), so a parent-side preflight is
-the only way to report E1/E2 at all. It is not optional.
+## Tested without a key
 
-## B. Find the imports
+- [x] askModel seam in the browser - 174 core checks
+- [x] test/functions.js in node - 11 checks, fetch replaced
+- [x] `CASES=functions` runs the node phase alone
+- [x] 8 mutations on the proxy path, all caught
+- [x] Full suite green - 218 checks
 
-- [x] B1. Scanner finds `import x from`, `import "x"`, `export … from`, `import()`
-- [x] B2. A commented-out import does **not** count
-- [x] B3. An import inside a string does **not** count
-- [x] B4. Full URLs and relative paths are left alone, not mapped
+## The live call - done, after it failed once
 
-## C. The import map
+- [x] A key in `.env`, gitignored, with `.env.example` committed as the template
+- [x] `dev.mjs` - serves the files and runs the function in process, so there is a
+      way to exercise `/api/ai` locally at all
+- [!] **The first real request 404'd.** `llama-3.3-70b-versatile` came from Groq's
+      documentation and had been withdrawn. A `GET /openai/v1/models` returned
+      eleven models, no llama among them.
+- [x] Model is now `openai/gpt-oss-120b`, taken from that list, not from prose
+- [x] MAX_TOKENS 2000 -> 3000: it reasons before answering and the thinking is
+      charged against the same budget (910 thinking + 384 saying, for a problem)
+- [x] Both prompts tried for real - an error explained in 721ms, a practice problem
+      set in 3.3s, JSON clean, the stub left unsolved as instructed
+- [x] Browser -> function -> Groq end to end through `dev.mjs`: 200 with an answer,
+      405 on a GET, 400 on an empty question
+- [x] 11 node checks still pass with the new model
 
-- [x] C1. One-line map in the head, before any module script (preview.js rule 2)
-- [x] C2. Version pins resolve (`lodash-es@4.17`)
-- [x] C3. Scoped packages and deep paths resolve (`@scope/pkg`, `lodash-es/debounce`)
-- [x] C4. The html pane's own module scripts can use the map too
+## Still open
 
-## D. Gate the module switch
-
-- [x] D1. No imports → classic script, byte-for-byte as now
-- [x] D2. Top-level `var` still reaches `window` on that path
-- [x] D3. Imports present → `type="module"`
-
-## E. Errors worth reading
-
-- [x] E1. Offline + an import → a clear message naming the package, not the browser's
-- [x] E2. A package that does not exist → a clear message
-- [x] E3. Nothing stale runs when imports could not be fetched
-
-## F. Keep what already works
-
-- [x] F1. Line numbers still right in module mode, js pane
-- [x] F2. Line numbers still right in module mode, html pane
-- [x] F3. TypeScript and imports together
-- [x] F4. The popped-out preview (app.html) gets the same treatment
-- [x] F5. Existing 154 checks still pass
-
-## G. Finish
-
-- [x] G1. New checks in the suite
-- [x] G2. Mutation-test each one
-- [x] G3. `sw.js` updated if a file was added
-- [x] G4. Docs: README, docs/11 Outcome, ROADMAP, test/README
-- [x] G5. Full suite green twice
-
----
-
-**All done, 1 October 2026.** 174 checks passing, ten mutations, all caught.
-
-Two things found along the way that were not on this list:
-
-- **A module whose import 404s reports nothing at all.** No error event, no
-  rejection, nothing after twelve seconds. The parent-side preflight is the only
-  reason E1 and E2 can say anything, and it went from "nice to have" to required.
-- **TypeScript complained about every bare import** - "Cannot find module" - which
-  is true and useless, since the import map fetches it at run time. Now filtered.
-  The code was 2792, not the 2307 that looked obvious.
-
-This was the last item on the roadmap.
+- [ ] Nothing known. The whole path has now been run end to end with a real key.
+- [ ] Worth deciding: whether a withdrawn model should fall back to a second one
+      automatically, rather than only reporting it. Not built - it is a judgement
+      call about hiding a problem versus surviving it.

@@ -176,6 +176,24 @@ body {
   color: #8a6100;
   background: #fdf8ec;
 }
+/* the ask on an error row, and the reply */
+.logAsk {
+  float: right;
+  margin-left: 10px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: #8a94a6;
+  cursor: pointer;
+  user-select: none;
+}
+.logAsk:hover {
+  color: #37a1af;
+}
+.logRow.log-ai {
+  color: #1f5f6b;
+  background: #f1fafb;
+  border-left: 2px solid #37a1af;
+}
 .logWhere {
   color: #8a94a6;
   margin-left: 10px;

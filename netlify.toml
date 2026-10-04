@@ -1,0 +1,14 @@
+# QuickCode is served as it stands - no build step, so there is nothing to run
+# and the site root is what gets published.
+#
+# The one exception is netlify/functions/ai.mjs, which holds the Groq API key.
+# Set GROQ_API_KEY in Site configuration -> Environment variables. Without it the
+# AI features switch themselves off and say so; everything else works.
+
+[build]
+  publish = "."
+  command = ""
+  functions = "netlify/functions"
+
+# The function declares its own path (/api/ai) in its config export, which is
+# also where Vercel would serve it from - so moving there is a file move.

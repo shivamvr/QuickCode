@@ -59,15 +59,23 @@ const SCENARIOS = [
 function chosen() {
   const only = String(process.env.CASES || '').split(',').map((s) => s.trim()).filter(Boolean)
   if (!only.length) return SCENARIOS
-  const unknown = only.filter((name) => !SCENARIOS.some((s) => s.name === name))
+  if (only.length === 1 && only[0] === 'functions') return []
+  const unknown = only.filter((name) => name !== 'functions' && !SCENARIOS.some((s) => s.name === name))
   if (unknown.length) {
     console.log('no such case: ' + unknown.join(', ') +
       ' (have: ' + SCENARIOS.map((s) => s.name).join(', ') + ')')
     process.exit(2)
   }
   console.log('CASES=' + only.join(',') + ': running ' + only.length +
-    ' of ' + SCENARIOS.length + ' cases\n')
+    ' of ' + (SCENARIOS.length + 1) + ' cases\n')
   return SCENARIOS.filter((s) => only.indexOf(s.name) > -1)
+}
+
+// The node-side phase. CASES=functions runs only it; CASES naming browser
+// cases only leaves it out; no CASES at all runs everything.
+function runsFunctions() {
+  const only = String(process.env.CASES || '').split(',').map((s) => s.trim()).filter(Boolean)
+  return !only.length || only.indexOf('functions') > -1
 }
 
 function findChrome() {
@@ -178,6 +186,27 @@ async function main() {
 
   let failed = 0
   let passed = 0
+
+  // The ai function runs on the host, not in a page, so the browser harness
+  // cannot reach it. It is imported and called directly instead, with fetch
+  // replaced - no key, no network, no part of the shared allowance.
+  if (runsFunctions()) {
+    const started = Date.now()
+    let results = []
+    try {
+      const mod = await import('./functions.js')
+      results = await mod.runFunctionChecks()
+    } catch (err) {
+      results = [{ name: 'the function checks ran', pass: false, detail: String(err && err.stack || err).slice(0, 300) }]
+    }
+    console.log('functions  (' + ((Date.now() - started) / 1000).toFixed(1) + 's)')
+    for (const r of results) {
+      console.log((r.pass ? '  PASS  ' : '  FAIL  ') + r.name)
+      if (r.detail) console.log('          ' + r.detail)
+      r.pass ? passed++ : failed++
+    }
+    console.log('')
+  }
 
   for (const scenario of chosen()) {
     server.setOffline(false)        // whatever the previous case did to it

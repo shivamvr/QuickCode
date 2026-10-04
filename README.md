@@ -62,6 +62,68 @@ its top-level names are no longer global - so `onclick="myFunction()"` in the ht
 will not find a `function myFunction` declared in the js pane. A snippet with **no**
 imports is untouched and keeps working exactly as before.
 
+### 🤖 AI help, with a free key
+
+Two things, both optional, both off until you set them up.
+
+**Explain an error.** Every error in the console carries an **explain**. Click it and the
+error goes off with the pane it came from, the line, and your three files - the line numbers
+being the ones the editor is showing you. The answer appears in the console.
+
+**Set me a practice problem.** `+ AI practice problem` in the project dropdown asks what you
+want - `binary trees, medium`, `array methods`, `something visual`, or nothing at all - and
+makes a **new project** holding the problem: the statement as a comment, a stub to fill in,
+and tests that print PASS or FAIL in the console. It opens on the preview, ready to run.
+
+Problems can use all three panes, so "build a debounce visualiser" works as well as a pure
+algorithm puzzle.
+
+**Nothing to set up.** No key, no sign-in, no dialog. The key lives on the server, in a small
+function, and the browser never sees it - so there is nothing in your browser to leak and
+nothing to keep out of a share link.
+
+It runs on [Groq](https://groq.com)'s free tier: roughly a thousand requests a day, shared
+between everyone using the site. If that runs out, the console says so and it resets tomorrow.
+
+**Whatever goes wrong, it says which thing.** A spent allowance, a key the owner needs to
+replace, a model that has been withdrawn, a host that is down and no network at all are five
+different messages - because the function passes the status through instead of flattening
+everything into "something went wrong".
+
+**It needs a network**, like imports and unlike everything else here.
+
+### Running your own copy with AI
+
+The AI features need one environment variable. Everything else is still just files.
+
+1. Deploy the repo to **Netlify** (or Vercel - the function is written in the web-standard
+   shape, so it is a file move to `api/ai.mjs`)
+2. Set **`GROQ_API_KEY`** in the site's environment variables. A free key, no card, takes
+   about thirty seconds: [console.groq.com/keys](https://console.groq.com/keys)
+3. That is it. `netlify.toml` already says what to publish and where the function lives
+
+Without that variable the AI features switch themselves off and say so in the console. Nothing
+else is affected - QuickCode still works as plain files on GitHub Pages, minus the two AI
+features.
+
+**Never commit the key.** It belongs in the host's environment variables, not in the repo -
+keys in public repositories get found fast.
+
+#### Trying the AI features locally
+
+A plain file server cannot serve `/api/ai`, so on `python -m http.server` the AI features
+correctly report that there is no endpoint. To run the function too:
+
+```bash
+cp .env.example .env     # then put your key in it; .env is gitignored
+node dev.mjs             # http://localhost:8080
+```
+
+[dev.mjs](dev.mjs) serves the files and runs `netlify/functions/ai.mjs` in process, so the AI
+features behave as they do deployed. It prints each `/api/ai` request and its status, which is
+where a spent allowance or a withdrawn model shows up first. `netlify dev` works too, if you
+would rather have the real thing.
+
 ### ⚛️ JSX, with React
 
 Switch the js pane to **ts** and write JSX. No `import React`, no configuration:
@@ -286,6 +348,8 @@ Then either:
   (the port is preset to `5501` in [.vscode/settings.json](.vscode/settings.json))
 - **Python** — `python -m http.server 5501`
 - **Node** — `npx serve`
+- **Node, with the AI features** — `node dev.mjs`, which also runs the function that
+  holds the key (see [above](#running-your-own-copy-with-ai))
 
 Open `http://localhost:5501` and you're in.
 

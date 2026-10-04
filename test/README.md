@@ -17,12 +17,19 @@ is an error rather than a silent no-op. Run the whole suite before committing.
 
 ## What it does
 
-`run.js` starts a static server over the repo, then drives headless Chrome
-through six scenarios, each of which posts a pass/fail report back.
+`run.js` runs one node-side phase and then drives headless Chrome through six
+browser scenarios, each of which posts a pass/fail report back.
+
+| Phase | Where | Checks |
+|---|---|---|
+| `functions` | node | `netlify/functions/ai.mjs`, imported and called directly with `fetch` replaced - the forward, the status pass-through, the size cap, a GET, a bad body, a dead upstream, a missing key |
+
+`CASES=functions` runs only that phase, and it is the one part of the suite that
+needs no browser at all.
 
 | Scenario | Page | Checks |
 |---|---|---|
-| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, the diff view, TypeScript, npm imports, and JSX |
+| `core` | `index.html` | fresh-load health, editor actions, key constants, lazy editors, write batching, every theme resolving, language/tab switching, project export, split resizing, prettier formatting, theme-failure handling, both file-open/save paths, the project store, share links, the preview console, version history, the diff view, TypeScript, npm imports, JSX, and both AI features |
 | `persist` | `index.html` | sets theme, tab, split, nav and all three files, reloads itself, then verifies everything came back |
 | `migrate` | `index.html` | loads over a seeded pre-IndexedDB `localStorage`, then reloads: the migration must take everything, keep the old keys on that first load, clear them on the second, and not run twice |
 | `share` | `index.html#s=…` | opens a share link that **node's zlib** built, not the browser |
@@ -110,6 +117,28 @@ that looked correct and proved nothing:
   picking the first one sometimes asked the wrong library. And registering a
   second copy of emmet to spy on it tore down state the live one was using;
   `serve.js` records the real registrations instead.
+- **Read the row you mean, not the first one that matches.** Two checks on the
+  AI reply used `gets('#consoleOut .log-ai')` while the console still held rows
+  from earlier steps, so they asserted against the oldest answer and failed with
+  text from three steps ago. The console accumulates; take the last match, and
+  clear it between steps.
+- **A surviving mutation is a question about the checks, and sometimes about the
+  code.** Two of the practice-problem mutations survived. One showed a check was
+  missing; the other showed the fence-stripping was dead on the path it was
+  written for and missing on the path that needed it. Neither was "the mutation
+  was unfair".
+- **A fixture whose payload blocks turns a failure into a timeout.** The check
+  that a model's reply is rendered as text, not markup, used
+  `<img src=x onerror=alert(1)>`. Against a vulnerable version that `alert()`
+  fires in *this* page - where, unlike the sandboxed preview, dialogs are not
+  blocked - and nothing is there to dismiss it, so the run hung for 240 seconds
+  instead of failing. The payload sets a flag now and the failure reads
+  `payload ran=true`. A fixture should fail loudly, never block.
+- **A check can pass on the wrong substring.** Asserting the prompt contained
+  `'javascript pane'` passed on a section heading further down, while the
+  sentence it was aimed at said "the js pane" - so it was green *and* hiding a
+  real inconsistency in the prompt. Assert the whole sentence, not the words in
+  it.
 - **The preview only builds while its tab is showing.** A new case that set up
   content and called `runPreview()` without opening the preview tab reported
   nothing at all, three times, and spent 87 seconds doing it. "Nothing came back"
@@ -254,6 +283,56 @@ CASES=core node test/run.js                             # expect 1-4 FAILs each
 #     throwaway model as .ts instead of .tsx, or let monaco invent the js pane's
 #     model uri instead of naming it .tsx in jsEditor.js
 CASES=core node test/run.js                             # expect 1-5 FAILs each
+# 14. explain this error, in scripts/ai.js unless said otherwise
+#     take the settings wholesale into the share payload in share.js, give every
+#     console row the explain affordance in index.js, drop the > line marker,
+#     render the reply with innerHTML, drop the aiBusy guard, drop the no-key
+#     check in explainError, make aiFailure pass the raw message through, or put
+#     the gemini key in the url instead of a header
+CASES=core node test/run.js                             # expect 1-2 FAILs each
+# 15. practice problems, in scripts/problems.js unless said otherwise
+#     drop withoutFences, throw instead of falling back in unwrapJson, build the
+#     project with Object.assign(project, ...) instead of makeProject, switch
+#     both preview toggles on regardless, do not open the preview, accept an
+#     empty answer, ignore a cancelled topic dialog, or drop the action from
+#     PROJECT_ACTIONS in index.js
+CASES=core node test/run.js                               # expect 1 FAIL each
+# 16. the ai function and the proxy path
+#     in netlify/functions/ai.mjs: flatten every upstream status into a 500,
+#     forward before checking the size, answer a GET, fall through with no key
+#     set, or return the key in the reply
+CASES=functions node test/run.js                        # expect 1-2 FAILs each
+#     in scripts/ai.js: put an authorization header on the browser request, or
+#     stop telling a spent allowance apart; in scripts/problems.js: write the bad
+#     news without bringing the console into view
+CASES=core node test/run.js                             # expect 1-3 FAILs each
 ```
 
-All thirteen were confirmed to fail when introduced, and pass once reverted.
+All sixteen were confirmed to fail when introduced, and pass once reverted.
+
+**Testing a thing that calls an API.** Two seams, and between them only one hop is
+left untested.
+
+In the browser, `askModel` in `scripts/ai.js` is replaced, so no check reaches the
+server: what is checked is the question that would have been sent, the shape it
+would have been sent in, and everything done with a reply. `aiRequestFor()` returns
+the url, headers and body as a plain object, which is what makes "the request
+carries nothing credential-shaped" a check rather than a hope.
+
+On the server, `test/functions.js` imports the function and replaces `fetch`, so
+the forward and - most importantly - the **status pass-through** are checked
+without a key or a network. Flattening Groq's 429 and 401 into one status would
+make every message in the app useless, so that is the mutation worth keeping an
+eye on.
+
+The single hop from the function to Groq is the one the suite cannot do, because
+it needs a real key and would spend a shared allowance on every run. It was done
+by hand once, with a key, and it **failed**: the model named in Groq's own
+documentation had been withdrawn. The model now comes from a live model list and
+both prompts were tried against it - the story is in
+`docs/16-ai-explain-error.md`.
+
+So nothing in the suite asserts that Groq answers. What it asserts is that when
+Groq does not, the right thing happens, which is the part that can go wrong
+quietly. To exercise the real hop, `node dev.mjs` with a key in `.env` serves the
+site and the function together and prints the status of each call.

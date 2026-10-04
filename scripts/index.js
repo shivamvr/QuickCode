@@ -1119,6 +1119,7 @@ async function removeProject() {
 
 const PROJECT_ACTIONS = [
   { id: 'new', label: '+ new project', run: newProject },
+  { id: 'problem', label: '+ AI practice problem', run: newAiProblem },
   { id: 'rename', label: 'rename', run: renameProject },
   { id: 'duplicate', label: 'duplicate', run: duplicateProject },
   { id: 'delete', label: 'delete', run: removeProject },
@@ -1286,6 +1287,23 @@ function logToConsole(message) {
     row.appendChild(tag)
   }
 
+  // Errors are the ones worth asking about, and by here the row knows
+  // everything the question needs: the message, the pane, and the line - the
+  // same line the editor is showing, which is what makes it worth sending.
+  if ((message.kind || 'log') === 'error') {
+    row.setAttribute('data-ai-message', (message.args || []).join('  '))
+    if (where) {
+      row.setAttribute('data-ai-pane', paneLabel(where.pane))
+      row.setAttribute('data-ai-pane-id', where.pane)
+      row.setAttribute('data-ai-line', String(where.line))
+    }
+    const ask = document.createElement('span')
+    ask.className = 'logAsk'
+    ask.setAttribute('data-ask-ai', '1')
+    ask.textContent = 'explain'
+    row.appendChild(ask)
+  }
+
   out.appendChild(row)
   while (out.children.length > CONSOLE_LIMIT) {
     out.removeChild(out.firstChild)
@@ -1373,6 +1391,21 @@ function wirePreview() {
   onClick(gets('#previewRun'), runPreview)
   onClick(gets('#previewStop'), stopPreview)
   onClick(gets('#consoleClear'), clearConsole)
+
+  // The ask sits inside the row. Nothing else in the console is clickable yet,
+  // but it is looked for first all the same - the history rows taught that one.
+  onClick(consoleRows(), (e) => {
+    const ask = e.target.closest('[data-ask-ai]')
+    if (!ask) return
+    const row = ask.closest('.logRow')
+    if (!row) return
+    explainError({
+      message: row.getAttribute('data-ai-message') || '',
+      pane: row.getAttribute('data-ai-pane') || '',
+      paneId: row.getAttribute('data-ai-pane-id') || '',
+      line: Number(row.getAttribute('data-ai-line')) || 0,
+    }).catch((err) => console.error('Could not ask about that', err))
+  })
 
   window.addEventListener('message', (e) => {
     const frame = gets('#previewFrame')

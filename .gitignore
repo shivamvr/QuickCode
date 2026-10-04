@@ -9,3 +9,13 @@ test/.tmp/
 
 # not used by this project, but keeps an accidental install out of the repo
 node_modules/
+
+# secrets. The deployed site reads GROQ_API_KEY from the host's environment
+# variables; a .env is only for running the function locally with netlify dev.
+# Either way it must never be committed - keys in public repos are found fast.
+.env
+.env.*
+!.env.example
+
+# netlify cli working directory
+.netlify/
