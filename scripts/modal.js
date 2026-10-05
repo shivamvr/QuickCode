@@ -10,9 +10,11 @@
 // Three calls replace all sixteen of them. Every one is async, because a
 // dialog cannot return a value in the same turn the way the native ones could:
 //
-//   await askText(message, value)   -> the string, or null if cancelled
-//   await askYesNo(message)         -> true or false
-//   sayProblem(message)             -> resolves once it has been dismissed
+//   await askText(message, value)       -> the string, or null if cancelled
+//   await askLongText(message, value)   -> the same, in a box worth pasting into
+//   await askYesNo(message)             -> true or false
+//   sayProblem(message)                 -> resolves once it has been dismissed
+//   showBusy(message)                   -> returns the function that takes it down
 //
 // A message may carry a second paragraph after a blank line. That is how the
 // native ones were already written, so every piece of wording moved across
@@ -25,6 +27,9 @@ let dialogQueue = Promise.resolve()
 
 // what the keyboard goes back to when the dialog closes
 let dialogReturnFocus = null
+
+// how to take down the dialog that is waiting for something, if one is up
+let dialogBusyClose = null
 
 // everything outside the dialog, made unreachable while it is open
 let dialogInerted = []
@@ -46,6 +51,9 @@ const dialogParts = () => ({
   head: document.querySelector('#dialogTitle'),
   detail: document.querySelector('#dialogDetail'),
   input: document.querySelector('#dialogInput'),
+  text: document.querySelector('#dialogText'),
+  hint: document.querySelector('#dialogHint'),
+  spinner: document.querySelector('#dialogSpinner'),
   cancel: document.querySelector('#dialogCancel'),
   ok: document.querySelector('#dialogOk'),
 })
@@ -54,7 +62,7 @@ const dialogParts = () => ({
 // rather than assume all three are.
 const dialogFocusable = () => {
   const p = dialogParts()
-  return [p.input, p.cancel, p.ok].filter((el) => el && !el.hidden)
+  return [p.input, p.text, p.cancel, p.ok].filter((el) => el && !el.hidden)
 }
 
 // inert takes the rest of the page out of the tab order AND out of reach of the
@@ -74,8 +82,9 @@ const undoInert = () => {
   dialogInerted = []
 }
 
-// kind is 'text', 'yesno' or 'tell'. The three differ only in which controls
-// are on show and what the answer looks like.
+// kind is 'text', 'long', 'yesno', 'tell' or 'busy'. They differ only in which
+// controls are on show and what the answer looks like. 'busy' is the odd one:
+// nothing to answer, and it is taken down by whoever put it up.
 function showDialog(kind, message, value) {
   return new Promise((resolve) => {
     const p = dialogParts()
@@ -91,12 +100,25 @@ function showDialog(kind, message, value) {
     p.detail.textContent = parts.detail
     p.detail.hidden = !parts.detail
 
+    // the one control this kind of question is answered in, if any
+    const field = kind === 'text' ? p.input : (kind === 'long' ? p.text : null)
     p.input.hidden = kind !== 'text'
-    p.input.value = kind === 'text' && value !== null && value !== undefined ? String(value) : ''
+    p.text.hidden = kind !== 'long'
+    if (field) field.value = value !== null && value !== undefined ? String(value) : ''
 
-    // nothing to cancel when the dialog is only telling you something
-    p.cancel.hidden = kind === 'tell'
+    // Enter is a newline in a textarea, so it cannot also mean "done" there.
+    // That is worth saying out loud rather than leaving to be discovered.
+    p.hint.hidden = kind !== 'long'
+
+    // nothing to cancel when the dialog is only telling you something, and
+    // nothing to press at all while it is waiting
+    p.cancel.hidden = kind === 'tell' || kind === 'busy'
+    p.ok.hidden = kind === 'busy'
     p.ok.textContent = kind === 'yesno' ? 'Yes' : 'OK'
+
+    p.spinner.hidden = kind !== 'busy'
+    // so it is announced as working rather than as a question with no answer
+    p.root.setAttribute('aria-busy', kind === 'busy' ? 'true' : 'false')
 
     dialogReturnFocus = document.activeElement
 
@@ -106,6 +128,9 @@ function showDialog(kind, message, value) {
       p.cancel.removeEventListener('click', onCancel)
       p.root.removeEventListener('mousedown', onBackdrop)
       p.root.classList.remove('showing')
+      // it was set on the way in, so it has to come off on the way out - a
+      // dialog left marked busy is a dialog screen readers keep apologising for
+      p.root.setAttribute('aria-busy', 'false')
       undoInert()
       // put the keyboard back where it was, or the page is left with focus on
       // nothing and the next Tab starts from the top
@@ -113,19 +138,27 @@ function showDialog(kind, message, value) {
         try { dialogReturnFocus.focus() } catch (err) { /* gone from the document */ }
       }
       dialogReturnFocus = null
+      dialogBusyClose = null
       resolve(answer)
     }
 
+    // Escape is the only way out of a waiting dialog, so there is one even if
+    // the request never comes back. Taking it down does not cancel the request;
+    // whatever was asked for still arrives.
+    if (kind === 'busy') dialogBusyClose = () => finish(undefined)
+
     const accept = () => finish(
-      kind === 'text' ? p.input.value : (kind === 'yesno' ? true : undefined))
+      field ? field.value : (kind === 'yesno' ? true : undefined))
     const dismiss = () => finish(
-      kind === 'text' ? null : (kind === 'yesno' ? false : undefined))
+      field ? null : (kind === 'yesno' ? false : undefined))
 
     const onOk = () => accept()
     const onCancel = () => dismiss()
     // only the backdrop itself, so a drag that ends outside the box does not
     // count as clicking away
-    const onBackdrop = (e) => { if (e.target === p.root) dismiss() }
+    // ...and not at all while waiting, or a stray click loses the only thing
+    // on screen that says the request is still going
+    const onBackdrop = (e) => { if (kind !== 'busy' && e.target === p.root) dismiss() }
 
     function onKey(e) {
       if (e.key === 'Escape') {
@@ -134,7 +167,15 @@ function showDialog(kind, message, value) {
         dismiss()
         return
       }
-      if (e.key === 'Enter' && document.activeElement !== p.cancel) {
+      // a waiting dialog has nothing to accept, so Enter does nothing to it
+      if (e.key === 'Enter' && kind === 'busy') return
+      if (e.key === 'Enter') {
+        // In the textarea only ctrl/cmd+Enter is "done", or there would be no
+        // way to type a second line. Anywhere else Enter accepts - except on
+        // Cancel, where falling through lets the button do its own job.
+        const typing = document.activeElement === p.text
+        const means = typing ? (e.ctrlKey || e.metaKey) : document.activeElement !== p.cancel
+        if (!means) return
         e.preventDefault()
         e.stopPropagation()
         accept()
@@ -160,10 +201,14 @@ function showDialog(kind, message, value) {
     p.root.classList.add('showing')
     makeRestInert(p.root)
 
-    // the field if there is one to fill in, otherwise the answer button
-    if (kind === 'text') {
-      p.input.focus()
-      p.input.select()
+    // the field if there is one to fill in, otherwise the answer button - and
+    // when there is neither, the dialog itself, so focus is not left on an
+    // element that inert has just taken away
+    if (field) {
+      field.focus()
+      field.select()
+    } else if (kind === 'busy') {
+      p.root.focus()
     } else {
       p.ok.focus()
     }
@@ -183,5 +228,16 @@ const queueDialog = (run) => {
 // do not each have to drive a dialog. The dialog itself is driven for real by
 // the checks in dialogChecks, which is where it belongs.
 let askText = (message, value) => queueDialog(() => showDialog('text', message, value))
+let askLongText = (message, value) => queueDialog(() => showDialog('long', message, value))
 let askYesNo = (message) => queueDialog(() => showDialog('yesno', message))
 let sayProblem = (message) => queueDialog(() => showDialog('tell', message))
+
+// Returns the function that takes it down, which is safe to call twice - the
+// caller should not have to know whether Escape got there first.
+let showBusy = (message) => {
+  const done = queueDialog(() => showDialog('busy', message))
+  return () => {
+    if (dialogBusyClose) dialogBusyClose()
+    return done
+  }
+}

@@ -437,10 +437,10 @@
     var click = function (selector) {
       gets(selector).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     }
-    var press = function (key, shift) {
+    var press = function (key, shift, ctrl) {
       var target = document.activeElement || document.body
       target.dispatchEvent(new KeyboardEvent('keydown', {
-        key: key, shiftKey: !!shift, bubbles: true, cancelable: true,
+        key: key, shiftKey: !!shift, ctrlKey: !!ctrl, bubbles: true, cancelable: true,
       }))
     }
     // somewhere for the keyboard to have been, so "focus went back where it
@@ -667,6 +667,157 @@
             return ok(seen.onlyOne && seen.two === 'Second question?' && seen.value === 'answered second',
               'first showed [' + seen.one + '], then [' + seen.two + '], answered ' +
               JSON.stringify(seen.value))
+          })
+        })
+      })
+
+      // ------------------------------------------- the box worth pasting into
+      .then(function () {
+        var answer = askLongText('What should the problem be about?\n\nPaste a whole statement if you have one.', '')
+        return tick().then(function () {
+          check('a long question opens a box, not a line', function () {
+            return ok(showing() && !gets('#dialogText').hidden && gets('#dialogInput').hidden &&
+              document.activeElement === gets('#dialogText'),
+              'textarea shown=' + !gets('#dialogText').hidden +
+              ', one-line field hidden=' + gets('#dialogInput').hidden +
+              ', focused=' + (document.activeElement === gets('#dialogText') ? 'textarea' : 'elsewhere'))
+          })
+          check('it says how to send, because enter no longer does', function () {
+            return ok(!gets('#dialogHint').hidden &&
+              /ctrl/i.test(gets('#dialogHint').textContent) &&
+              /enter/i.test(gets('#dialogHint').textContent),
+              'hint shown=' + !gets('#dialogHint').hidden + ' [' + gets('#dialogHint').textContent + ']')
+          })
+
+          // plain Enter has to be a newline here, so the dialog must survive it
+          gets('#dialogText').value = 'line one'
+          press('Enter')
+          var survived = showing()
+
+          gets('#dialogText').value = 'two sum\n\ngiven nums and a target,\n\nreturn the indices.'
+          press('Enter', false, true)
+          return answer.then(function (value) {
+            return { survived: survived, value: value }
+          })
+        }).then(function (seen) {
+          check('enter types a new line instead of answering', function () {
+            return ok(seen.survived, 'still open after enter=' + seen.survived)
+          })
+          check('ctrl+enter answers, with every line of it intact', function () {
+            var lines = String(seen.value).split('\n\n')
+            return ok(!showing() && lines.length === 3 && lines[0] === 'two sum' &&
+              lines[2] === 'return the indices.',
+              lines.length + ' lines back: ' + JSON.stringify(seen.value).slice(0, 90))
+          })
+        })
+      })
+
+      .then(function () {
+        var answer = askLongText('Anything?', 'a suggestion')
+        return tick().then(function () {
+          // The whole way round, not one step. Leaving the textarea out of the
+          // trap still lands Tab on Cancel - the cycle falls back to the first
+          // control when it does not recognise where you are - so one step
+          // cannot tell the two apart. What breaks is coming BACK: you would
+          // be stuck going cancel, ok, cancel, with no way into the box again.
+          var seat = function () {
+            var el = document.activeElement
+            return el && el.id ? '#' + el.id : String(el && el.tagName)
+          }
+          gets('#dialogText').focus()
+          press('Tab')
+          var one = seat()
+          press('Tab')
+          var two = seat()
+          press('Tab')
+          var three = seat()
+          press('Escape')
+          return answer.then(function (value) {
+            return { one: one, two: two, three: three, value: value }
+          })
+        }).then(function (seen) {
+          check('tab goes round the box, the buttons, and back into the box', function () {
+            return ok(seen.one === '#dialogCancel' && seen.two === '#dialogOk' &&
+              seen.three === '#dialogText',
+              [seen.one, seen.two, seen.three].join(' -> '))
+          })
+          check('escape still cancels a long question, and cancelling is null', function () {
+            return ok(seen.value === null, 'answer=' + JSON.stringify(seen.value))
+          })
+        })
+      })
+
+      .then(function () {
+        var answer = askText('And a short one?', 'short')
+        return tick().then(function () {
+          var backToLine = !gets('#dialogInput').hidden && gets('#dialogText').hidden &&
+            gets('#dialogHint').hidden
+          press('Enter')
+          return answer.then(function (value) {
+            return { backToLine: backToLine, value: value }
+          })
+        }).then(function (seen) {
+          // the same dialog serves both, so the long one must not leave its
+          // box and its hint behind for the next short question
+          check('a short question afterwards is a line again, with no hint', function () {
+            return ok(seen.backToLine && seen.value === 'short',
+              'line back=' + seen.backToLine + ' answered ' + JSON.stringify(seen.value))
+          })
+        })
+      })
+
+      // ------------------------------------------- the one that cannot be answered
+      .then(function () {
+        var stop = showBusy('Writing a problem...\n\nThis takes a few seconds.')
+        return tick().then(function () {
+          check('a waiting dialog says so, with nothing to press', function () {
+            return ok(showing() && heading() === 'Writing a problem...' &&
+              !gets('#dialogSpinner').hidden &&
+              gets('#dialogOk').hidden && gets('#dialogCancel').hidden &&
+              gets('#dialogInput').hidden && gets('#dialogText').hidden,
+              'spinner=' + !gets('#dialogSpinner').hidden +
+              ' ok hidden=' + gets('#dialogOk').hidden +
+              ' cancel hidden=' + gets('#dialogCancel').hidden)
+          })
+          check('it is announced as working, not as a question', function () {
+            return ok(gets('#dialog').getAttribute('aria-busy') === 'true' &&
+              gets('#dialog').contains(document.activeElement),
+              'aria-busy=' + gets('#dialog').getAttribute('aria-busy') +
+              ' focus inside=' + gets('#dialog').contains(document.activeElement))
+          })
+          // enter and a click on the backdrop must not take away the only
+          // thing on screen saying the request is still going
+          press('Enter')
+          gets('#dialog').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+          var stillUp = showing()
+          stop()
+          return tick().then(function () { return stillUp })
+        }).then(function (stillUp) {
+          check('enter and clicking away do not dismiss it', function () {
+            return ok(stillUp, 'survived both=' + stillUp)
+          })
+          check('whoever put it up can take it down', function () {
+            return ok(!showing() && gets('#dialog').getAttribute('aria-busy') === 'false',
+              'showing=' + showing() + ' aria-busy=' + gets('#dialog').getAttribute('aria-busy'))
+          })
+          check('taking it down twice is not an error', function () {
+            stop()
+            return ok(!showing(), 'still down=' + !showing())
+          })
+        })
+      })
+
+      .then(function () {
+        // a request that never comes back must not be a trap
+        var stop = showBusy('Waiting forever...')
+        return tick().then(function () {
+          press('Escape')
+          return tick()
+        }).then(function () {
+          check('escape is a way out of a wait that never ends', function () {
+            var gone = !showing()
+            stop()
+            return ok(gone, 'escape closed it=' + gone)
           })
         })
       })
@@ -2412,7 +2563,7 @@
 
   function problemChecks() {
     var realAsk = askModel
-    var realPrompt = askText
+    var realPrompt = askLongText
     var asked = []
     var home = project
     var made = []
@@ -2486,7 +2637,7 @@
         // what gets asked for
         asked = []
         answering(asJson)
-        askText = function () { return 'binary trees, medium' }
+        askLongText = function () { return 'binary trees, medium' }
         return newAiProblem()
       })
       .then(function (record) {
@@ -2523,7 +2674,7 @@
         // a pure algorithm problem sends no markup, so the css toggle must not
         // be turned on for a pane with nothing in it
         answering(JSON.stringify({ name: 'Reverse', js: 'function r(){}', html: '', css: '' }))
-        askText = function () { return '' }
+        askLongText = function () { return '' }
         return newAiProblem()
       })
       .then(function (record) {
@@ -2541,7 +2692,7 @@
         var before = project.id
         clearConsole()
         answering('   ')
-        askText = function () { return 'x' }
+        askLongText = function () { return 'x' }
         return newAiProblem().then(function (record) {
           check('an unusable answer sets no project and says so', function () {
             var row = lastAiRow()
@@ -2556,7 +2707,7 @@
         var before = project.id
         var calls = 0
         askModel = function () { calls++; return Promise.resolve(asJson) }
-        askText = function () { return null }
+        askLongText = function () { return null }
         return newAiProblem().then(function (record) {
           check('cancelling the topic asks nothing and sets nothing', function () {
             return ok(record === null && calls === 0 && project.id === before,
@@ -2571,7 +2722,7 @@
         // deliberately looking at something else when it fails
         splitMenu('css')
         askModel = function () { return Promise.reject({ status: 429, message: 'slow down' }) }
-        askText = function () { return 'arrays' }
+        askLongText = function () { return 'arrays' }
         return newAiProblem().then(function (record) {
           check('a failed request reports in the console and sets no project', function () {
             var row = lastAiRow()
@@ -2597,8 +2748,86 @@
         })
       })
       .then(function () {
+        // The model is told the html pane is a fragment. When it ignores that,
+        // what arrives is a whole document naming a script file that is not
+        // here - so a project written to teach you to read the console opens
+        // with a 404 in it.
+        var whole = [
+          '<!DOCTYPE html>', '<html lang="en">', '<head>', '<meta charset="UTF-8">',
+          '<title>Bubble Sort</title>', '<style>.bar { background: steelblue }</style>',
+          '<link rel="stylesheet" href="style.css">', '</head>', '<body>',
+          '<div id="bars"></div>', '<button id="runBtn">Run</button>',
+          '<script src="script.js"><' + '/script>',
+          '<script src="https://cdn.jsdelivr.net/npm/thing"><' + '/script>',
+          '</body>', '</html>',
+        ].join('\n\n')
+        var out = parseProblem(JSON.stringify({ name: 'Bubble Sort', js: 'x', html: whole })).code
+
+        check('a whole document is taken back down to a fragment', function () {
+          return ok(!/<!doctype/i.test(out) && !/<html[\s>]/i.test(out) &&
+            !/<body[\s>]/i.test(out) && !/<head[\s>]/i.test(out) &&
+            /id="bars"/.test(out) && /id="runBtn"/.test(out),
+            out.replace(/\n\n/g, ' ').slice(0, 150))
+        })
+        check('a script file that is not here is dropped, a cdn one is kept', function () {
+          return ok(out.indexOf('script.js') < 0 && out.indexOf('style.css') < 0 &&
+            out.indexOf('cdn.jsdelivr.net') > -1,
+            'local script gone=' + (out.indexOf('script.js') < 0) +
+            ', local stylesheet gone=' + (out.indexOf('style.css') < 0) +
+            ', cdn kept=' + (out.indexOf('cdn.jsdelivr.net') > -1))
+        })
+        check('a style left in the head is not thrown away with the head', function () {
+          return ok(/steelblue/.test(out), out.indexOf('<style') > -1 ? 'style kept' : 'style LOST')
+        })
+      })
+
+      .then(function () {
+        // the common case must come through untouched
+        var fragment = '<div id="out"></div>\n\n<script>window.__inline = 1<' + '/script>'
+        var out = parseProblem(JSON.stringify({ name: 'x', js: 'y', html: fragment })).code
+        check('a fragment keeps its own markup and its inline script', function () {
+          return ok(/id="out"/.test(out) && /__inline/.test(out) && out.indexOf('<script') > -1,
+            out.replace(/\n\n/g, ' ').slice(0, 120))
+        })
+        check('no html at all stays no html', function () {
+          return ok(parseProblem(JSON.stringify({ name: 'x', js: 'y', html: '' })).code === '',
+            'empty stays empty')
+        })
+      })
+
+      .then(function () {
+        // the integration: the wait has to be on screen WHILE the model is
+        // working, which a stub that resolves immediately can never show
+        var release = null
+        askModel = function () {
+          return new Promise(function (resolve) { release = function () { resolve(asJson) } })
+        }
+        askLongText = function () { return 'two sum' }
+        var making = newAiProblem()
+        return new Promise(function (r) { setTimeout(r, 0) }).then(function () {
+          var up = gets('#dialog').classList.contains('showing')
+          var says = gets('#dialogTitle').textContent
+          var busy = gets('#dialog').getAttribute('aria-busy')
+          if (release) release()
+          return making.then(function (record) {
+            return { up: up, says: says, busy: busy, record: record }
+          })
+        }).then(function (seen) {
+          check('the wait is on screen while the model is actually working', function () {
+            return ok(seen.up && seen.busy === 'true' && /writing a problem/i.test(seen.says),
+              'dialog up=' + seen.up + ' aria-busy=' + seen.busy + ' [' + seen.says + ']')
+          })
+          check('and it is gone once the problem has been set', function () {
+            return ok(!gets('#dialog').classList.contains('showing') && seen.record,
+              'still up=' + gets('#dialog').classList.contains('showing') +
+              ' project made=' + !!seen.record)
+          })
+        })
+      })
+
+      .then(function () {
         askModel = realAsk
-        askText = realPrompt
+        askLongText = realPrompt
         clearConsole()
         return switchProject(home.id)
       })

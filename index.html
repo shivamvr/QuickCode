@@ -208,13 +208,20 @@
         last prompt(), confirm() and alert(). Buttons and aria-modal here, and
         the focus trap in scripts/modal.js, are what make it a dialog rather
         than a box that looks like one. -->
-      <div id="dialog" role="dialog" aria-modal="true"
+      <!-- tabindex so the dialog itself can hold focus while it is working, when
+           there is no control inside it to put the keyboard on -->
+      <div id="dialog" role="dialog" aria-modal="true" tabindex="-1"
            aria-labelledby="dialogTitle" aria-describedby="dialogDetail">
          <div class="dialogBox">
             <h2 id="dialogTitle"></h2>
             <p id="dialogDetail"></p>
+            <!-- decorative: the heading says what is happening -->
+            <div id="dialogSpinner" aria-hidden="true"></div>
             <input type="text" id="dialogInput" autocomplete="off" spellcheck="false">
+            <textarea id="dialogText" rows="6" autocomplete="off" spellcheck="false"></textarea>
             <div class="dialogActions">
+               <!-- only shown for the textarea, where Enter has to mean newline -->
+               <span id="dialogHint">ctrl + enter to send</span>
                <button type="button" id="dialogCancel">Cancel</button>
                <button type="button" id="dialogOk">OK</button>
             </div>

@@ -88,6 +88,26 @@ Since this was written the key moved to the server — see
 function that holds it is checked in node (`test/functions.js`), and the hop from
 there to Groq is now confirmed as well.
 
+### The html pane is a fragment, and saying so
+
+Asking for a sorting visualiser came back with a whole document in the html pane
+— doctype, `<html>`, `<head>`, and a `<script src="script.js">` naming a file
+that does not exist here. Browsers shrug at the nesting, but the missing file is
+a 404 in the console of a project written to teach someone to read the console.
+
+The prompt was the cause: it said "three files: html, css and javascript" and
+never said the html is a *fragment* that QuickCode wraps, or that the css and js
+are already wired up to it. It says both now, and asking again comes back with
+two clean lines of markup.
+
+A prompt is a request, not a guarantee, so `markupOnly()` enforces it as well.
+It parses what arrives with `DOMParser` — not a regex, which is how this sort of
+fix usually goes wrong — takes the body back out, and drops `script[src]` and
+`link[href]` that point at local files. A **cdn url is left alone**: an import
+that works is the whole point of [11](11-npm-imports.md). A `<style>` left in
+the head is carried across rather than going with the head, which is the one way
+this could have quietly lost something.
+
 ### Verification
 
 `node test/run.js` — **210 checks**, all passing. Fifteen are new: a clean JSON

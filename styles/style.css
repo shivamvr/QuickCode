@@ -473,11 +473,63 @@ label {
   display: none;
 }
 
+/* Same sheet as the single-line field, only taller and growable. It exists
+   because one line is no use for pasting a whole problem statement into. */
+#dialogText {
+  border: none;
+  color: #5b6c7f;
+  background: #fff;
+  padding: 0.5rem 1rem;
+  min-height: 132px;
+  font-size: 16px;
+  line-height: 24px;
+  border-radius: 8px;
+  box-shadow: 2px 10px 10px #34343433;
+  outline: none;
+  /* vertical only: widening it would break the box out of its own layout */
+  resize: vertical;
+}
+#dialogText[hidden] {
+  display: none;
+}
+
+/* Shown while something is being waited for. A model takes a few seconds, and
+   before this there was nothing on screen saying so: the dialog closed, the
+   editor sat there, and then the project changed under you. */
+#dialogSpinner {
+  width: 28px;
+  height: 28px;
+  margin: 4px 0;
+  border: 3px solid #c9cfd6;
+  border-top-color: #5b6c7f;
+  border-radius: 50%;
+  animation: dialogSpin 0.8s linear infinite;
+}
+#dialogSpinner[hidden] {
+  display: none;
+}
+@keyframes dialogSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* a spinner is decoration; it must not be the thing that makes someone ill */
+@media (prefers-reduced-motion: reduce) {
+  #dialogSpinner {
+    animation: none;
+    border-top-color: #c9cfd6;
+    border-right-color: #5b6c7f;
+  }
+}
+
 .dialogActions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 4px;
+  /* in a narrow window the hint drops onto its own line rather than squeezing
+     the buttons, which is why it is allowed to wrap and the hint itself is not */
+  flex-wrap: wrap;
 }
 .dialogActions button {
   height: 40px;
@@ -500,7 +552,20 @@ label {
 }
 /* keyboard users were given a focus trap, so they need to be able to see where
    they are in it */
+#dialogHint {
+  /* pushes the buttons to the right and keeps itself on the left */
+  margin-right: auto;
+  align-self: center;
+  font-size: 13px;
+  color: #7c8a99;
+  white-space: nowrap;
+}
+#dialogHint[hidden] {
+  display: none;
+}
+
 #dialogInput:focus-visible,
+#dialogText:focus-visible,
 .dialogActions button:focus-visible {
   outline: 2px solid #3d4b5a;
   outline-offset: 2px;

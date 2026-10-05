@@ -39,6 +39,10 @@ const PROBLEM_SYSTEM = [
   '  comment.',
   '- html and css: only if the problem genuinely needs them, such as anything visual or',
   '  interactive. For a pure algorithm problem send them as empty strings.',
+  '  The html is a FRAGMENT that goes inside the body: no doctype, and no <html>, <head>',
+  '  or <body> tags. The css and the javascript are already wired up to it, so never',
+  '  include a <style>, a <link>, or a <script src="...">. A stylesheet or a script file',
+  '  named there does not exist, and asking for it puts a 404 in the console.',
   '',
   'Keep the whole thing short enough to read in one screen. Valid JSON: escape the newlines in',
   'the string values.',
@@ -74,13 +78,48 @@ const unwrapJson = (text) => {
 
 // Always returns something usable. A reply that is not JSON at all is still
 // most likely a problem written as javascript, which is worth keeping.
+// The model is told the html pane is a fragment, and mostly obeys. When it does
+// not, what arrives is a whole document with a <script src="script.js"> in it -
+// a file this playground does not have - so the console of a project written to
+// teach you to read the console opens with a 404.
+//
+// Taking the body back out is cheaper and far more reliable than asking again,
+// and it is the same forgiveness the JSON path already gets. Parsed rather than
+// pattern-matched: regexes over markup are how this sort of fix goes wrong.
+const markupOnly = (html) => {
+  const text = String(html || '').trim()
+  if (!text) return ''
+
+  let doc = null
+  try {
+    doc = new DOMParser().parseFromString(text, 'text/html')
+  } catch (err) {
+    return text
+  }
+  if (!doc || !doc.body) return text
+
+  // A src or href with no scheme is a file that is not here. A cdn url is left
+  // alone: an import that works is the whole point of item 11.
+  Array.prototype.forEach.call(doc.querySelectorAll('script[src], link[href]'), (el) => {
+    const url = el.getAttribute('src') || el.getAttribute('href') || ''
+    if (!/^(https?:)?\/\//i.test(url) && !/^data:/i.test(url)) el.remove()
+  })
+
+  // a <style> left in the head would otherwise go with the head
+  const styles = Array.prototype.map.call(
+    doc.head ? doc.head.querySelectorAll('style') : [], (el) => el.outerHTML).join('\n')
+
+  const body = doc.body.innerHTML.trim()
+  return styles ? (styles + '\n' + body).trim() : body
+}
+
 const parseProblem = (reply) => {
   const text = withoutFences(reply)
   const found = unwrapJson(text)
   if (found && (found.js || found.html)) {
     return {
       name: String(found.name || 'Practice problem').slice(0, 60),
-      code: String(found.html || ''),
+      code: markupOnly(found.html),
       css: String(found.css || ''),
       js: String(found.js || ''),
       parsed: true,
@@ -118,15 +157,24 @@ const problemSettings = (problem) => Object.assign({}, PROJECT_SETTINGS, {
 
 async function newAiProblem() {
   if (aiBusy) return null
-  const wanted = await askText('What should the problem be about?\n\n' +
+  // askLongText, not askText: a topic fits on one line, but pasting a whole
+  // problem statement in is the thing people actually want to do, and that
+  // never fitted.
+  const wanted = await askLongText('What should the problem be about?\n\n' +
     'A topic, a difficulty, or both - "binary trees, medium", "array methods", ' +
-    '"something visual". Leave it empty for anything.', '')
+    '"something visual". Or paste a whole problem statement and it will be set ' +
+    'up as a stub with tests. Leave it empty for anything.', '')
   if (wanted === null) return null         // cancelled: set nothing
 
   aiBusy = true
   const row = beginAiRow('writing a problem...')
+  // That row is in the console, which is behind the preview and may not even be
+  // on screen. A model takes a few seconds, so without this the dialog closed,
+  // the editor sat there doing nothing, and then the project changed underneath.
+  const stopWaiting = showBusy('Writing a problem...\n\nThis takes a few seconds.')
   try {
     const reply = await askModel(PROBLEM_SYSTEM, problemQuestion(wanted))
+    stopWaiting()
     const problem = parseProblem(reply)
     if (!problem.js.trim() && !problem.code.trim()) {
       showAiTrouble(row, 'Nothing usable came back. Try asking again.')
@@ -148,9 +196,13 @@ async function newAiProblem() {
         'it went into the js pane.')
     return record
   } catch (err) {
+    // down first: the trouble is reported in the console, and the console is
+    // behind this
+    stopWaiting()
     showAiTrouble(row, 'Could not ask: ' + aiFailure(err))
     return null
   } finally {
+    stopWaiting()
     aiBusy = false
   }
 }

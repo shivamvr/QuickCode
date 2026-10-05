@@ -76,7 +76,8 @@ makes a **new project** holding the problem: the statement as a comment, a stub 
 and tests that print PASS or FAIL in the console. It opens on the preview, ready to run.
 
 Problems can use all three panes, so "build a debounce visualiser" works as well as a pure
-algorithm puzzle.
+algorithm puzzle. The box it asks in is a proper text area, so you can paste a whole problem
+statement in and have it set up as a stub with tests - ctrl + enter sends it.
 
 **Nothing to set up.** No key, no sign-in, no dialog. The key lives on the server, in a small
 function, and the browser never sees it - so there is nothing in your browser to leak and
