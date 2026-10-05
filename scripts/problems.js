@@ -118,7 +118,7 @@ const problemSettings = (problem) => Object.assign({}, PROJECT_SETTINGS, {
 
 async function newAiProblem() {
   if (aiBusy) return null
-  const wanted = prompt('What should the problem be about?\n\n' +
+  const wanted = await askText('What should the problem be about?\n\n' +
     'A topic, a difficulty, or both - "binary trees, medium", "array methods", ' +
     '"something visual". Leave it empty for anything.', '')
   if (wanted === null) return null         // cancelled: set nothing

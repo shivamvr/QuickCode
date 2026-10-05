@@ -422,6 +422,291 @@
   }
 
   // --------------------------------------------------------- the store
+  // --------------------------------------------------------------- the dialog
+  // prompt(), confirm() and alert() are gone, so what replaced them has to be
+  // at least as dependable as they were. These drive the REAL dialog - opening
+  // it, typing in it, pressing keys at it - rather than the seam the other
+  // blocks replace. They run first in the chain so that no other block's stub
+  // can have leaked into them.
+
+  function dialogChecks() {
+    var tick = function () { return new Promise(function (r) { setTimeout(r, 0) }) }
+    var showing = function () { return gets('#dialog').classList.contains('showing') }
+    var heading = function () { return gets('#dialogTitle').textContent }
+    var detail = function () { return gets('#dialogDetail').textContent }
+    var click = function (selector) {
+      gets(selector).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    }
+    var press = function (key, shift) {
+      var target = document.activeElement || document.body
+      target.dispatchEvent(new KeyboardEvent('keydown', {
+        key: key, shiftKey: !!shift, bubbles: true, cancelable: true,
+      }))
+    }
+    // somewhere for the keyboard to have been, so "focus went back where it
+    // came from" is something that can be asserted rather than assumed
+    var parked = document.createElement('input')
+
+    return Promise.resolve()
+      .then(function () {
+        check('nothing is on screen until something asks', function () {
+          return ok(gets('#dialog') && !showing(),
+            gets('#dialog') ? 'showing=' + showing() : 'there is no #dialog in the document')
+        })
+        check('it is announced as a dialog, not just drawn as one', function () {
+          var root = gets('#dialog')
+          var labelled = document.getElementById(root.getAttribute('aria-labelledby'))
+          return ok(root.getAttribute('role') === 'dialog' &&
+            root.getAttribute('aria-modal') === 'true' &&
+            labelled === gets('#dialogTitle'),
+            'role=' + root.getAttribute('role') + ' aria-modal=' + root.getAttribute('aria-modal') +
+            ' labelledby->' + (labelled ? labelled.id : 'nothing'))
+        })
+      })
+
+      // ---------------------------------------------------- asking for text
+      .then(function () {
+        var answer = askText('Name this snapshot?\n\nThe one you type is the one it keeps.', 'Untitled')
+        return tick().then(function () {
+          check('a question opens it, split into a heading and the rest', function () {
+            return ok(showing() && heading() === 'Name this snapshot?' &&
+              detail() === 'The one you type is the one it keeps.' && !gets('#dialogDetail').hidden,
+              '[' + heading() + '] [' + detail() + ']')
+          })
+          check('the suggested answer is in the field, selected and ready to replace', function () {
+            var input = gets('#dialogInput')
+            return ok(!input.hidden && input.value === 'Untitled' &&
+              document.activeElement === input &&
+              input.selectionStart === 0 && input.selectionEnd === 'Untitled'.length,
+              'value=' + input.value + ' focused=' + (document.activeElement === input) +
+              ' selected=' + input.selectionStart + '-' + input.selectionEnd)
+          })
+          gets('#dialogInput').value = 'typed by hand'
+          press('Enter')
+          return answer
+        }).then(function (value) {
+          check('enter answers with what was typed, and closes it', function () {
+            return ok(value === 'typed by hand' && !showing(),
+              'answer=' + JSON.stringify(value) + ' still showing=' + showing())
+          })
+        })
+      })
+
+      .then(function () {
+        var answer = askText('Rename to?', 'old name')
+        return tick().then(function () {
+          press('Escape')
+          return answer
+        }).then(function (value) {
+          check('escape cancels, and cancelling is null rather than empty', function () {
+            // '' would be a rename to nothing; null is what every caller tests for
+            return ok(value === null && !showing(),
+              'answer=' + JSON.stringify(value) + ' still showing=' + showing())
+          })
+        })
+      })
+
+      .then(function () {
+        var answer = askText('Rename to?', 'old name')
+        return tick().then(function () {
+          click('#dialogCancel')
+          return answer
+        }).then(function (value) {
+          check('the cancel button means the same as escape', function () {
+            return ok(value === null, 'answer=' + JSON.stringify(value))
+          })
+        })
+      })
+
+      // ------------------------------------------------- asking yes or no
+      .then(function () {
+        var answer = askYesNo('Delete "notes"?\n\nThis cannot be undone.')
+        return tick().then(function () {
+          check('a yes/no question has no field to fill in', function () {
+            return ok(showing() && gets('#dialogInput').hidden &&
+              gets('#dialogOk').textContent === 'Yes' &&
+              document.activeElement === gets('#dialogOk'),
+              'field hidden=' + gets('#dialogInput').hidden +
+              ' ok says ' + gets('#dialogOk').textContent +
+              ' focused=' + (document.activeElement === gets('#dialogOk') ? 'ok' : 'elsewhere'))
+          })
+          click('#dialogOk')
+          return answer
+        }).then(function (value) {
+          check('yes is true', function () { return ok(value === true, 'answer=' + value) })
+        })
+      })
+
+      .then(function () {
+        var answer = askYesNo('Delete everything?')
+        return tick().then(function () {
+          click('#dialogCancel')
+          return answer
+        }).then(function (value) {
+          check('no is false', function () { return ok(value === false, 'answer=' + value) })
+        })
+      })
+
+      .then(function () {
+        var answer = askYesNo('Delete everything?')
+        return tick().then(function () {
+          press('Escape')
+          return answer
+        }).then(function (value) {
+          // the safe reading of a destructive question is always no
+          check('escape on a yes/no is no, never yes', function () {
+            return ok(value === false, 'answer=' + value)
+          })
+        })
+      })
+
+      // --------------------------------------------------- telling someone
+      .then(function () {
+        var answer = sayProblem('Could not save "notes.js".\n\nThe file was moved.')
+        return tick().then(function () {
+          check('a message you can only acknowledge offers no cancel', function () {
+            return ok(showing() && gets('#dialogCancel').hidden && gets('#dialogInput').hidden &&
+              gets('#dialogOk').textContent === 'OK' && detail() === 'The file was moved.',
+              'cancel hidden=' + gets('#dialogCancel').hidden +
+              ' ok says ' + gets('#dialogOk').textContent)
+          })
+          click('#dialogOk')
+          return answer
+        }).then(function () {
+          check('acknowledging it closes it', function () {
+            return ok(!showing(), 'still showing=' + showing())
+          })
+        })
+      })
+
+      // ------------------------------------------------- focus and the page
+      .then(function () {
+        document.body.appendChild(parked)
+        parked.focus()
+        var wasOn = document.activeElement
+        var answer = askYesNo('Anything?')
+        return tick().then(function () {
+          var inside = gets('#dialog').contains(document.activeElement)
+          var editorOut = gets('#editor').inert === true
+          var dialogIn = gets('#dialog').inert !== true
+          click('#dialogOk')
+          return answer.then(function () {
+            return { inside: inside, editorOut: editorOut, dialogIn: dialogIn, wasOn: wasOn }
+          })
+        }).then(function (seen) {
+          check('the keyboard goes into the dialog and comes back out again', function () {
+            return ok(seen.inside && document.activeElement === seen.wasOn,
+              'went in=' + seen.inside + ', came back to ' +
+              (document.activeElement === seen.wasOn ? 'where it was' : 'somewhere else'))
+          })
+          check('the page behind is unreachable while it is open, and not after', function () {
+            return ok(seen.editorOut && seen.dialogIn && gets('#editor').inert !== true,
+              'editor inert while open=' + seen.editorOut +
+              ', dialog itself inert=' + !seen.dialogIn +
+              ', editor inert after=' + (gets('#editor').inert === true))
+          })
+          document.body.removeChild(parked)
+        })
+      })
+
+      .then(function () {
+        var answer = askText('Name?', 'x')
+        return tick().then(function () {
+          // three things to land on: the field, cancel, ok. Tab off the end
+          // should come round rather than walk out into the page.
+          gets('#dialogOk').focus()
+          press('Tab')
+          var wrapped = document.activeElement === gets('#dialogInput')
+          press('Tab', true)
+          var back = document.activeElement === gets('#dialogOk')
+          press('Escape')
+          return answer.then(function () { return { wrapped: wrapped, back: back } })
+        }).then(function (seen) {
+          check('tab goes round inside the dialog rather than out of it', function () {
+            return ok(seen.wrapped && seen.back,
+              'forwards wrapped to the field=' + seen.wrapped + ', shift-tab came back=' + seen.back)
+          })
+        })
+      })
+
+      // ------------------------------------------------------- clicking away
+      .then(function () {
+        var answer = askYesNo('Still here?')
+        return tick().then(function () {
+          // inside the box first: that must NOT be taken as clicking away
+          gets('.dialogBox').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+          var survived = showing()
+          gets('#dialog').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+          return answer.then(function (value) { return { survived: survived, value: value } })
+        }).then(function (seen) {
+          check('clicking the backdrop cancels, clicking the box does not', function () {
+            return ok(seen.survived && seen.value === false && !showing(),
+              'survived a click inside=' + seen.survived + ', backdrop answered ' + seen.value)
+          })
+        })
+      })
+
+      // ------------------------------------------------------------ queueing
+      .then(function () {
+        var first = askYesNo('First question?')
+        var second = askText('Second question?', '')
+        return tick().then(function () {
+          var one = heading()
+          var onlyOne = showing() && one === 'First question?'
+          click('#dialogOk')
+          return first.then(tick).then(function () {
+            var two = heading()
+            gets('#dialogInput').value = 'answered second'
+            click('#dialogOk')
+            return second.then(function (value) {
+              return { onlyOne: onlyOne, one: one, two: two, value: value }
+            })
+          })
+        }).then(function (seen) {
+          check('two questions at once queue instead of overwriting each other', function () {
+            return ok(seen.onlyOne && seen.two === 'Second question?' && seen.value === 'answered second',
+              'first showed [' + seen.one + '], then [' + seen.two + '], answered ' +
+              JSON.stringify(seen.value))
+          })
+        })
+      })
+
+      // ------------------------------------------------------------- safety
+      .then(function () {
+        var answer = askText('Could not read "<img src=x onerror=\'window.__dialogPwned=true\'>".', '')
+        return tick().then(function () {
+          var asText = heading().indexOf('<img') > -1
+          var noImg = !gets('#dialogTitle').querySelector('img')
+          press('Escape')
+          return answer.then(function () { return { asText: asText, noImg: noImg } })
+        }).then(function (seen) {
+          check('a message is written as text, so a filename cannot run code', function () {
+            return ok(seen.asText && seen.noImg && !window.__dialogPwned,
+              'kept as text=' + seen.asText + ' no element built=' + seen.noImg +
+              ' payload ran=' + (window.__dialogPwned === true))
+          })
+        })
+      })
+
+      .then(function () {
+        // The point of all of the above is that the native ones are GONE. A
+        // single alert() left behind would block the page and look like another
+        // application, and nothing else here would notice.
+        var files = ['/scripts/index.js', '/scripts/problems.js', '/scripts/store.js']
+        return Promise.all(files.map(function (f) {
+          return fetch(f).then(function (r) { return r.text() }).then(function (t) {
+            var hits = t.match(/(^|[^\w.$])(alert|confirm|prompt)\s*\(/g) || []
+            return hits.length ? f + ' has ' + hits.length : ''
+          })
+        })).then(function (found) {
+          var bad = found.filter(Boolean)
+          check('no native dialog is left anywhere in the app', function () {
+            return ok(bad.length === 0, bad.length ? bad.join('; ') : files.length + ' files, none')
+          })
+        })
+      })
+  }
+
   function storeChecks() {
     var live = editor.getValue()
     return flushStorage()
@@ -988,7 +1273,7 @@
   function historyChecks() {
     var home = project
     var realIdle = SNAPSHOT_IDLE_MS
-    var realConfirm = window.confirm
+    var realConfirm = askYesNo
     var mine = makeProject({ name: 'history under test', code: 'first', css: 'a{}', js: '// one' })
 
     return saveProject(mine)
@@ -1040,7 +1325,7 @@
         })
         // restore the state from before the file, then undo that restore
         var target = rows.filter(function (r) { return r.reason === 'file opened' })[0]
-        window.confirm = function () { return true }
+        askYesNo = function () { return true }
         if (!target) return null          // reported above; do not take the rest down with it
         return restoreSnapshot(target.id)
       })
@@ -1066,7 +1351,7 @@
           return ok(contentOf('main') === 'from a file',
             'main=' + JSON.stringify(contentOf('main')))
         })
-        window.confirm = realConfirm
+        askYesNo = realConfirm
 
         // the menu lists them, newest first, with a way to take one by hand
         return refreshHistory()
@@ -1086,8 +1371,8 @@
       })
       .then(function () {
         // naming one by hand, and naming a state that is already saved
-        var realPrompt = window.prompt
-        window.prompt = function () { return '  before the rewrite  ' }
+        var realPrompt = askText
+        askText = function () { return '  before the rewrite  ' }
         setPaneText('main', 'worth marking')
         return snapshotWithTitle()
           .then(function () { return listSnapshots(mine.id) })
@@ -1101,7 +1386,7 @@
             })
             var count = rows.length
             // naming the same state again renames it rather than duplicating
-            window.prompt = function () { return 'renamed' }
+            askText = function () { return 'renamed' }
             return snapshotWithTitle()
               .then(function () { return listSnapshots(mine.id) })
               .then(function (after) {
@@ -1111,7 +1396,7 @@
                     JSON.stringify(after[0].title))
                 })
                 // cancelling the prompt takes nothing at all
-                window.prompt = function () { return null }
+                askText = function () { return null }
                 setPaneText('main', 'not worth marking')
                 return snapshotWithTitle()
               })
@@ -1120,7 +1405,7 @@
                 check('cancelling the name takes no snapshot', function () {
                   return ok(after.length === count, after.length + ' snapshots, still ' + count)
                 })
-                window.prompt = realPrompt
+                askText = realPrompt
               })
           })
       })
@@ -1133,8 +1418,8 @@
         var rows = getsAll('#historyList [data-snapshot]')
         var doomed = rows[1].getAttribute('data-snapshot')
         var crosses = getsAll('#historyList [data-delete-snapshot]')
-        var realConfirm2 = window.confirm
-        window.confirm = function () { return true }
+        var realConfirm2 = askYesNo
+        askYesNo = function () { return true }
         crosses[1].click()
         return waitFor(function () {
           return getsAll('#historyList [data-snapshot]').length === rows.length - 1
@@ -1147,14 +1432,14 @@
               'rows left ' + getsAll('#historyList [data-snapshot]').length + ' of ' + rows.length +
               ', the pane still holds ' + JSON.stringify(contentOf('main')))
           })
-          window.confirm = realConfirm2
+          askYesNo = realConfirm2
         })
       })
       .then(function () {
         // clear history empties this project and leaves the others alone
         var other = makeProject({ name: 'not this one', code: 'keep me' })
-        var realConfirm3 = window.confirm
-        window.confirm = function () { return true }
+        var realConfirm3 = askYesNo
+        askYesNo = function () { return true }
         return saveProject(other)
           .then(function () { return takeSnapshot(other, 'idle') })
           .then(function () { return clearHistory() })
@@ -1166,7 +1451,7 @@
               return ok(both[0].length === 0 && both[1].length === 1,
                 'this project has ' + both[0].length + ', the other still has ' + both[1].length)
             })
-            window.confirm = realConfirm3
+            askYesNo = realConfirm3
             return deleteProject(other.id).then(function () { return dropSnapshotsFor(other.id) })
           })
       })
@@ -1191,14 +1476,14 @@
       .then(function () {
         // deleting a project takes its history with it
         var doomed = mine.id
-        window.confirm = function () { return true }
+        askYesNo = function () { return true }
         return removeProject()
           .then(function () { return listSnapshots(doomed) })
           .then(function (left) {
             check('deleting a project leaves no snapshots behind', function () {
               return ok(left.length === 0, left.length + ' snapshots still stored')
             })
-            window.confirm = realConfirm
+            askYesNo = realConfirm
           })
       })
       .then(function () {
@@ -1225,7 +1510,7 @@
 
   function diffChecks() {
     var home = project
-    var realConfirm = window.confirm
+    var realConfirm = askYesNo
     var mine = makeProject({
       name: 'diffed',
       code: 'one\ntwo\nthree\nfour\nfive\nsix\nseven',
@@ -1401,7 +1686,7 @@
         return refreshHistory().then(function () {
           var before = contentOf('main')
           var glyph = gets('#historyList [data-diff-snapshot="' + taken.id + '"]')
-          window.confirm = function () { return true }
+          askYesNo = function () { return true }
           if (glyph) glyph.click()
           return waitFor(function () { return diffShowing() }, 5000)
             .then(waitForDiff)
@@ -1411,7 +1696,7 @@
                   'glyph found=' + !!glyph + ', diff open=' + diffShowing() +
                   ', the pane still holds ' + JSON.stringify(String(contentOf('main')).slice(0, 24)))
               })
-              window.confirm = realConfirm
+              askYesNo = realConfirm
             })
         })
       })
@@ -1419,7 +1704,7 @@
         if (!taken) return null
         // Restoring from the bar is the point of having looked: decide, then
         // act, without going back to a list of timestamps.
-        window.confirm = function () { return true }
+        askYesNo = function () { return true }
         gets('#diffRestore').click()
         return waitFor(function () { return contentOf('main') === taken.code }, 5000)
           .then(waitForDiff)
@@ -1430,27 +1715,27 @@
                 'the pane holds ' + JSON.stringify(String(contentOf('main')).slice(0, 24)) +
                 ' and the diff now reports ' + (changes ? changes.length : 'null') + ' changes')
             })
-            window.confirm = realConfirm
+            askYesNo = realConfirm
           })
       })
       .then(function () {
         if (!taken) return null
         // deleting the snapshot on screen must not leave it on screen
         return openDiff(taken.id).then(waitForDiff).then(function () {
-          window.confirm = function () { return true }
+          askYesNo = function () { return true }
           return removeSnapshot(taken.id).then(function () {
             check('deleting the snapshot being compared closes the comparison', function () {
               return ok(!diffShowing() && gets('#diffPane').style.display === 'none',
                 'diff still open=' + diffShowing())
             })
-            window.confirm = realConfirm
+            askYesNo = realConfirm
           })
         })
       })
       .then(function () {
-        window.confirm = function () { return true }
+        askYesNo = function () { return true }
         return removeProject()
-          .then(function () { window.confirm = realConfirm })
+          .then(function () { askYesNo = realConfirm })
           .then(function () { return switchProject(home.id) })
       })
   }
@@ -1692,10 +1977,10 @@
         })
       })
       .then(function () {
-        var realConfirm = window.confirm
-        window.confirm = function () { return true }
+        var realConfirm = askYesNo
+        askYesNo = function () { return true }
         return removeProject()
-          .then(function () { window.confirm = realConfirm })
+          .then(function () { askYesNo = realConfirm })
           .then(function () { return switchProject(home.id) })
       })
   }
@@ -1919,10 +2204,10 @@
           })
       })
       .then(function () {
-        var realConfirm = window.confirm
-        window.confirm = function () { return true }
+        var realConfirm = askYesNo
+        askYesNo = function () { return true }
         return removeProject()
-          .then(function () { window.confirm = realConfirm })
+          .then(function () { askYesNo = realConfirm })
           .then(function () { return switchProject(home.id) })
       })
   }
@@ -2127,7 +2412,7 @@
 
   function problemChecks() {
     var realAsk = askModel
-    var realPrompt = window.prompt
+    var realPrompt = askText
     var asked = []
     var home = project
     var made = []
@@ -2201,7 +2486,7 @@
         // what gets asked for
         asked = []
         answering(asJson)
-        window.prompt = function () { return 'binary trees, medium' }
+        askText = function () { return 'binary trees, medium' }
         return newAiProblem()
       })
       .then(function (record) {
@@ -2238,7 +2523,7 @@
         // a pure algorithm problem sends no markup, so the css toggle must not
         // be turned on for a pane with nothing in it
         answering(JSON.stringify({ name: 'Reverse', js: 'function r(){}', html: '', css: '' }))
-        window.prompt = function () { return '' }
+        askText = function () { return '' }
         return newAiProblem()
       })
       .then(function (record) {
@@ -2256,7 +2541,7 @@
         var before = project.id
         clearConsole()
         answering('   ')
-        window.prompt = function () { return 'x' }
+        askText = function () { return 'x' }
         return newAiProblem().then(function (record) {
           check('an unusable answer sets no project and says so', function () {
             var row = lastAiRow()
@@ -2271,7 +2556,7 @@
         var before = project.id
         var calls = 0
         askModel = function () { calls++; return Promise.resolve(asJson) }
-        window.prompt = function () { return null }
+        askText = function () { return null }
         return newAiProblem().then(function (record) {
           check('cancelling the topic asks nothing and sets nothing', function () {
             return ok(record === null && calls === 0 && project.id === before,
@@ -2286,7 +2571,7 @@
         // deliberately looking at something else when it fails
         splitMenu('css')
         askModel = function () { return Promise.reject({ status: 429, message: 'slow down' }) }
-        window.prompt = function () { return 'arrays' }
+        askText = function () { return 'arrays' }
         return newAiProblem().then(function (record) {
           check('a failed request reports in the console and sets no project', function () {
             var row = lastAiRow()
@@ -2313,7 +2598,7 @@
       })
       .then(function () {
         askModel = realAsk
-        window.prompt = realPrompt
+        askText = realPrompt
         clearConsole()
         return switchProject(home.id)
       })
@@ -2458,10 +2743,10 @@
         })
       })
       .then(function () {
-        var realConfirm = window.confirm
-        window.confirm = function () { return true }
+        var realConfirm = askYesNo
+        askYesNo = function () { return true }
         return removeProject()
-          .then(function () { window.confirm = realConfirm })
+          .then(function () { askYesNo = realConfirm })
           .then(function () { return switchProject(home.id) })
       })
   }
@@ -2589,7 +2874,7 @@
 
   // -------------------------------------------------------------- projects
   function projectChecks() {
-    var realConfirm = window.confirm
+    var realConfirm = askYesNo
     var home = project.id
     var alpha = makeProject({ name: 'alpha', code: '<h1>alpha</h1>', css: 'a { color: red }', js: '// alpha' })
     var beta = makeProject({ name: 'beta', code: '<h1>beta</h1>', css: 'b { color: blue }', js: '// beta' })
@@ -2657,7 +2942,7 @@
         })
       })
       .then(function () {
-        window.confirm = function () { return true }
+        askYesNo = function () { return true }
         var doomed = project.id
         return removeProject()
           .then(listProjects)
@@ -2671,7 +2956,7 @@
           })
       })
       .then(function () {
-        window.confirm = realConfirm
+        askYesNo = realConfirm
         return switchProject(home)
       })
   }
@@ -2849,9 +3134,9 @@
   // pane the file belongs in, and whether replacing what is there needs asking -
   // is on this side of launchQueue.
   function launchChecks() {
-    var realConfirm = window.confirm
+    var realConfirm = askYesNo
     var asked = []
-    window.confirm = function (msg) { asked.push(msg); return false }
+    askYesNo = function (msg) { asked.push(msg); return false }
 
     setLang('html')
     makeActive('main')
@@ -2892,7 +3177,7 @@
         })
 
         // ...and does replace it once that is allowed
-        window.confirm = function () { return true }
+        askYesNo = function () { return true }
         return openLaunchedFiles([fakeHandle('page.html', '<h1>from the desktop</h1>')])
       })
       .then(function () {
@@ -2901,7 +3186,7 @@
             !!fileHandles.main && document.title === 'page.html - QuickCode',
             'main=' + JSON.stringify(contentOf('main')) + ' title=' + JSON.stringify(document.title))
         })
-        window.confirm = realConfirm
+        askYesNo = realConfirm
         TAB_IDS.forEach(function (id) { fileHandles[id] = null; markSaved(id) })
       })
   }
@@ -3299,7 +3584,7 @@
     })
   } else if (CASE === 'core') {
     // formatting has to fetch prettier, so the core case reports once it settles
-    storeChecks().then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
+    dialogChecks().then(storeChecks).then(emmetChecks).then(themeChecks).then(formattingChecks).then(themeFallbackChecks).then(fileHandleChecks)
       .then(pwaChecks).then(projectChecks).then(shareChecks).then(previewChecks).then(historyChecks).then(diffChecks).then(tsChecks).then(importChecks).then(jsxChecks).then(aiChecks).then(problemChecks)
       .then(report, function (err) {
       check('the core chain ran to the end', function () {

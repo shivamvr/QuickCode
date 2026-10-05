@@ -215,6 +215,20 @@ that looked correct and proved nothing:
 - **Two reports from one scenario is one too many.** The runner takes the first
   report as final, so a case that reloads hands its results to the next phase
   through `sessionStorage` rather than sending them twice.
+- **A seam that is never bypassed proves nothing.** Dozens of checks replace
+  `askText` and `askYesNo` because they only need an answer, not a dialog - the
+  same trick as `askModel`. That makes them fast and makes none of them evidence
+  that the dialog works. `dialogChecks` drives the real one instead: it types
+  into the field, presses Escape and Enter and Tab at it, clicks its backdrop,
+  and reads focus and `inert` back out afterwards. It runs **first** in the core
+  chain for a reason - every other block that stubs a dialog restores it on the
+  way out, and running first means a block that forgot cannot be mistaken for a
+  dialog that works.
+- **Ask the source, not just the behaviour.** One check fetches `index.js`,
+  `problems.js` and `store.js` and scans them for `alert(`, `confirm(` and
+  `prompt(`. Sixteen were replaced by a dialog; a seventeenth added later would
+  block the page and look like a different application, and no behavioural check
+  would be looking at the one screen where it appeared.
 
 ## Verifying the suite still bites
 

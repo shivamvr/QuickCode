@@ -333,51 +333,179 @@ label {
   align-items: center;
   justify-content: center;
   flex-direction: column;
+  padding: 1.5rem;
+  /* one gap owned by the container, so the rows cannot disagree about it. A
+     row that is display:none takes its gap with it. */
+  gap: 12px;
+}
+
+/* The three rows are one set and should read as one: same width, same height,
+   same type size. The first row is a pair - a field and a button welded into a
+   single pill - so it is the ROW that matches the others, not the field. It
+   used to be the field that carried width:80%, of a container whose own width
+   came from the field, which is why that row came out a different size. */
+.box > div:nth-child(1),
+#export,
+#share {
+  width: 80%;
+  min-width: 180px;
 }
 
 .box input,
 #export,
 #share {
-  min-width: 180px;
-  width: 80%;
   border: none;
   color: #5b6c7f;
   background: #fff;
+  /* 24 + 8 + 8 = the 40px below. Stated in pixels rather than as a ratio
+     because chrome gives an input a taller line box than a div at the same
+     ratio, and these three have to come out the same height. #export is shown
+     with an inline display:block from the script, so centring the text with
+     flex is not available here. */
   padding: 0.5rem 1rem;
-  font-size: 20px;
-  border-radius: 8px 0 0 8px;
+  height: 40px;
+  font-size: 16px;
+  line-height: 24px;
   box-shadow: 2px 10px 10px #34343433;
   outline: none;
 }
+
 .box > div:nth-child(1) {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* stretch, not center: the button takes its height from the field instead of
+     from the icon inside it, so the pill has one straight edge top and bottom */
+  align-items: stretch;
+}
+.box input {
+  flex: 1;
+  /* a flex item will not shrink below its content without this */
+  min-width: 0;
+  border-radius: 8px 0 0 8px;
 }
 .box img {
   width: 49px;
+  flex: none;
   background: #5b6c7f;
   border-radius: 0 8px 8px 0;
   padding: 0.5rem 0.8rem;
   cursor: pointer;
+  box-shadow: 2px 10px 10px #34343433;
 }
 
 #export,
 #share {
   cursor: pointer;
-  border-radius: 5px;
+  border-radius: 8px;
   text-align: center;
-  margin-top: 25px;
   display: none;
 }
 /* a link is worth having whatever the language is, so unlike export this one
    is always there */
 #share {
   display: block;
-  margin-top: 12px;
-  font-size: 16px;
-  line-height: 1.35;
 }
+/* -----------------Modal-dialog------------------ */
+/* Deliberately the same sheet as the save panel above - same grey, same white
+   rows, same 8px corners, same 40px row height, same shadow. They are the same
+   kind of object and used to be the one place QuickCode looked like two
+   different applications. */
+
+#dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  /* over everything, including #overlay at 9 */
+  z-index: 20;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+/* a class rather than an inline style, so the script never has to know whether
+   this is a flex container */
+#dialog.showing {
+  display: flex;
+}
+
+.dialogBox {
+  width: 35%;
+  min-width: 300px;
+  max-width: 560px;
+  background: rgb(227, 227, 227);
+  border-radius: 0.8rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+#dialogTitle {
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #3d4b5a;
+}
+#dialogDetail {
+  font-size: 14px;
+  line-height: 1.45;
+  color: #5b6c7f;
+  /* the second paragraph can carry its own line breaks */
+  white-space: pre-wrap;
+}
+#dialogDetail[hidden] {
+  display: none;
+}
+
+#dialogInput {
+  border: none;
+  color: #5b6c7f;
+  background: #fff;
+  padding: 0.5rem 1rem;
+  height: 40px;
+  font-size: 16px;
+  line-height: 24px;
+  border-radius: 8px;
+  box-shadow: 2px 10px 10px #34343433;
+  outline: none;
+}
+#dialogInput[hidden] {
+  display: none;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.dialogActions button {
+  height: 40px;
+  padding: 0.5rem 1.25rem;
+  font-size: 16px;
+  line-height: 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+  color: #5b6c7f;
+  box-shadow: 2px 10px 10px #34343433;
+}
+.dialogActions button[hidden] {
+  display: none;
+}
+#dialogOk {
+  background: #5b6c7f;
+  color: #fff;
+}
+/* keyboard users were given a focus trap, so they need to be able to see where
+   they are in it */
+#dialogInput:focus-visible,
+.dialogActions button:focus-visible {
+  outline: 2px solid #3d4b5a;
+  outline-offset: 2px;
+}
+
 /* -----------------Dropdown-menu--------- */
 @keyframes fade {
   from {

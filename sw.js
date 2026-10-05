@@ -38,6 +38,7 @@ const SHELL = [
   './scripts/imports.js',
   './scripts/index.js',
   './scripts/jsEditor.js',
+  './scripts/modal.js',
   './scripts/preview.js',
   './scripts/problems.js',
   './scripts/share.js',

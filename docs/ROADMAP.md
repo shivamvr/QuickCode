@@ -51,13 +51,24 @@ so the browser never holds a credential and there is nothing to set up:
 - [17 — AI practice problems](17-ai-practice-problems.md): sets a problem into a
   new project, with tests that report in the console.
 
-Both are done **bar the one hop to Groq**, which cannot be run without a key. The
-function itself is checked in node (`test/functions.js`). Each Outcome says what
-is unconfirmed.
+Both are done **and confirmed against the real service**. The first request made
+with a real key failed - the model named in Groq's own documentation had been
+withdrawn - so the model is now chosen from a live model list and both prompts
+were tried against it. The function itself is checked in node
+(`test/functions.js`); `node dev.mjs` runs it locally for the hop the suite
+cannot make.
 
 **This is the one thing that needs more than static hosting.** Everything else
 still runs as plain files; without `GROQ_API_KEY` the AI features switch
 themselves off and say so.
+
+**Also beyond the roadmap**, one piece of housekeeping that turned out to be
+worth its own page:
+
+- [18 — One dialog of our own](18-modal-dialogs.md): `prompt()`, `confirm()` and
+  `alert()` are gone from QuickCode, all sixteen of them, replaced by a dialog
+  that can be styled, cannot be suppressed by the browser, and does not block
+  the page. The save panel's spacing was straightened out in the same pass.
 
 What the roadmap deliberately parked, in the order it is now worth doing:
 

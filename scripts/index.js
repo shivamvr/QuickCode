@@ -348,7 +348,7 @@ async function quickSave() {
   } catch (err) {
     if (cancelled(err)) return
     console.error('Failed to save', handle.name, err)
-    alert('Could not save "' + handle.name + '": ' + err.message)
+    sayProblem('Could not save "' + handle.name + '".\n\n' + err.message)
   }
 }
 
@@ -388,7 +388,7 @@ async function saveFile() {
   } catch (err) {
     if (cancelled(err)) return
     console.error('Failed to save', fname, err)
-    alert('Could not save "' + fname + '": ' + err.message)
+    sayProblem('Could not save "' + fname + '".\n\n' + err.message)
     return
   }
   // from here on Ctrl+S goes to this file
@@ -439,13 +439,13 @@ function openProject(zipFile) {
     }).catch((err) => {
       // this used to fail with nothing but a console message
       console.error('Failed to open', filename, 'as a QuickCode project:', err)
-      alert('Could not open "' + filename + '" as a QuickCode project: ' + err.message)
+      sayProblem('Could not open "' + filename + '" as a QuickCode project.\n\n' + err.message)
     })
   }
 
   reader.onerror = (err) => {
     console.error('Failed to read file', err)
-    alert('Could not read "' + filename + '".')
+    sayProblem('Could not read "' + filename + '".')
   }
 
   reader.readAsArrayBuffer(zipFile)
@@ -486,7 +486,7 @@ function openFile(file) {
     // the name and language used to be applied before the read, so a failed
     // read left the editor claiming to hold a file it never received
     console.error('Failed to read file', reader.error)
-    alert('Could not read "' + file.name + '".')
+    sayProblem('Could not read "' + file.name + '".')
   }
   reader.readAsText(file)
 }
@@ -517,7 +517,7 @@ async function openWithPicker() {
   } catch (err) {
     if (cancelled(err)) return
     console.error('Failed to open a file', err)
-    alert('Could not open that file: ' + err.message)
+    sayProblem('Could not open that file.\n\n' + err.message)
   }
 }
 
@@ -533,10 +533,12 @@ const paneFor = (name) => SPLIT_TABS[fileExt[getExtension(name)]] || 'main'
 
 // The user did not choose the destination here, QuickCode did, so replacing
 // unsaved work that is in no file would lose it without anyone asking.
-const canReplace = (id, name) => {
+// async only because the dialog is: the question and the answer are the same
+// as they were, but they can no longer both happen in one turn.
+const canReplace = async (id, name) => {
   if (!contentOf(id).trim()) return true
   if (fileHandles[id] && !unsaved[id]) return true
-  return confirm('Open "' + name + '"?\n\nThe ' + TABS[id].lang +
+  return askYesNo('Open "' + name + '"?\n\nThe ' + TABS[id].lang +
     ' editor has changes that are not in a file, and they will be replaced.')
 }
 
@@ -545,7 +547,7 @@ const canReplace = (id, name) => {
 async function openLaunchedFiles(handles) {
   for (const handle of handles || []) {
     const id = paneFor(handle.name)
-    if (!canReplace(id, handle.name)) continue
+    if (!(await canReplace(id, handle.name))) continue
     if (id !== 'main') {
       // the css and js panes only exist while the project is html
       setLang('html')
@@ -907,7 +909,7 @@ async function snapshotNow(reason, title) {
 // stopped typing, or in the middle of opening a file, would be unbearable.
 async function snapshotWithTitle() {
   if (!project) return
-  const title = prompt('Name this snapshot?', '')
+  const title = await askText('Name this snapshot?', '')
   if (title === null) return                 // cancelled: take nothing
   const row = await snapshotNow('saved by hand', title.trim())
   if (!row) await refreshHistory()
@@ -916,8 +918,8 @@ async function snapshotWithTitle() {
 async function removeSnapshot(id) {
   const row = await getSnapshot(id)
   if (!row) return
-  if (!confirm('Delete the snapshot from ' + new Date(row.takenAt).toLocaleString() +
-      '?\n\nThis one cannot be brought back.')) return
+  if (!(await askYesNo('Delete the snapshot from ' + new Date(row.takenAt).toLocaleString() +
+      '?\n\nThis one cannot be brought back.'))) return
   await deleteSnapshots([id])
   closeDiffIfGone([id])
   await refreshHistory()
@@ -927,8 +929,8 @@ async function clearHistory() {
   if (!project) return
   const rows = await listSnapshots(project.id)
   if (!rows.length) return
-  if (!confirm('Delete all ' + rows.length + ' snapshots of "' + project.name +
-      '"?\n\nThe files stay exactly as they are; only the history goes.')) return
+  if (!(await askYesNo('Delete all ' + rows.length + ' snapshots of "' + project.name +
+      '"?\n\nThe files stay exactly as they are; only the history goes.'))) return
   const ids = rows.map((r) => r.id)
   await deleteSnapshots(ids)
   closeDiffIfGone(ids)
@@ -1008,8 +1010,8 @@ async function restoreSnapshot(id) {
   const row = await getSnapshot(id)
   if (!row) return
   const when = new Date(row.takenAt).toLocaleString()
-  if (!confirm('Restore all three files as they were at ' + when + '?\n\n' +
-      'What is open now is snapshotted first, so this can be undone.')) return
+  if (!(await askYesNo('Restore all three files as they were at ' + when + '?\n\n' +
+      'What is open now is snapshotted first, so this can be undone.'))) return
   await snapshotBefore('before-restore')
   TAB_IDS.forEach((id2) => setPaneText(id2, row[TABS[id2].key]))
   await flushStorage()
@@ -1063,7 +1065,7 @@ const updateProjectLabel = () => {
 }
 
 async function newProject() {
-  const name = prompt('Name for the new project?', 'Untitled')
+  const name = await askText('Name for the new project?', 'Untitled')
   if (name === null) return
   await flushStorage()
   const created = makeProject({ name: name.trim() || 'Untitled' })
@@ -1074,7 +1076,7 @@ async function newProject() {
 
 async function renameProject() {
   if (!project) return
-  const name = prompt('Rename this project to?', project.name)
+  const name = await askText('Rename this project to?', project.name)
   if (name === null) return
   project.name = name.trim() || project.name
   await flushStorage()
@@ -1101,7 +1103,8 @@ async function duplicateProject() {
 
 async function removeProject() {
   if (!project) return
-  if (!confirm('Delete "' + project.name + '"?\n\nIts three files go with it, and this cannot be undone.')) return
+  if (!(await askYesNo('Delete "' + project.name +
+      '"?\n\nIts three files go with it, and this cannot be undone.'))) return
   // a queued write would put the record straight back
   cancelFlush()
   const goneId = project.id
@@ -1575,7 +1578,7 @@ function initCore() {
     // than the page being blocked half-built
     const reason = shareProblem
     shareProblem = ''
-    setTimeout(() => alert('That share link could not be opened: ' + reason), 0)
+    setTimeout(() => sayProblem('That share link could not be opened.\n\n' + reason), 0)
   }
 }
 

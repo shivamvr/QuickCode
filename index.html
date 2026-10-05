@@ -203,11 +203,30 @@
          </div>
       </div>
    <!------------------------------------------------------------------>
+   <!------------------------Modal-dialog------------------------------>
+   <!-- One dialog, reused for every question QuickCode asks - it replaced the
+        last prompt(), confirm() and alert(). Buttons and aria-modal here, and
+        the focus trap in scripts/modal.js, are what make it a dialog rather
+        than a box that looks like one. -->
+      <div id="dialog" role="dialog" aria-modal="true"
+           aria-labelledby="dialogTitle" aria-describedby="dialogDetail">
+         <div class="dialogBox">
+            <h2 id="dialogTitle"></h2>
+            <p id="dialogDetail"></p>
+            <input type="text" id="dialogInput" autocomplete="off" spellcheck="false">
+            <div class="dialogActions">
+               <button type="button" id="dialogCancel">Cancel</button>
+               <button type="button" id="dialogOk">OK</button>
+            </div>
+         </div>
+      </div>
+   <!------------------------------------------------------------------>
       <div id="top">↑</div>
    <!-----------------------Show/Hide-Navbar--------------------------->
       <img id="hidenav" src="icon/show.svg" alt="">
       <img id="shownav" src="icon/hide.svg" alt="">
    <!-----------------------Scripts------------------------------------>
+      <script src="scripts/modal.js"></script>
       <script src="scripts/store.js"></script>
       <script src="scripts/share.js"></script>
       <script src="scripts/imports.js"></script>
