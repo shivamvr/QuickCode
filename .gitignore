@@ -19,3 +19,8 @@ node_modules/
 
 # netlify cli working directory
 .netlify/
+
+# scratch checklists kept while a feature is being built. The write-up that
+# outlives one lives in docs/; this is the working copy and is not worth
+# carrying in the repo.
+PROGRESS.md

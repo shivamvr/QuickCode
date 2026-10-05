@@ -19,7 +19,7 @@
 // deleted on activate.
 //=====================================================================
 
-const CACHE = 'quickcode-v5'
+const CACHE = 'quickcode-v6'
 
 // Everything the editor needs to start, from this origin. The theme JSON files
 // are fetched at runtime by settheme(), so every one of them has to be here or
